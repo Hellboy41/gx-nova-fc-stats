@@ -575,6 +575,20 @@ export default function Home() {
     useState<TabName>("overview");
 
   const [
+    currentUser,
+    setCurrentUser,
+  ] = useState<CurrentStaffUser | null>(null);
+
+  const canWrite =
+    currentUser?.role ===
+      "admin" ||
+    currentUser?.role ===
+      "staff";
+
+  const canExport =
+    canWrite;
+
+  const [
     selectedSeason,
     setSelectedSeason,
   ] = useState("all");
@@ -713,6 +727,55 @@ export default function Home() {
     matchSearch,
     setMatchSearch,
   ] = useState("");
+
+  /* =======================================================
+     DROITS UTILISATEUR
+  ======================================================= */
+
+  const loadCurrentUser =
+    useCallback(
+      async () => {
+        try {
+          const response =
+            await fetch(
+              "/api/me",
+              {
+                cache:
+                  "no-store",
+              }
+            );
+
+          const data =
+            await response.json();
+
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              data.error ??
+                "Impossible de récupérer le profil utilisateur."
+            );
+          }
+
+          setCurrentUser(
+            data.user ??
+              null
+          );
+        } catch {
+          setCurrentUser(
+            null
+          );
+        }
+      },
+      []
+    );
+
+  useEffect(
+    () => {
+      void loadCurrentUser();
+    },
+    [loadCurrentUser]
+  );
 
   /* =======================================================
      CHARGEMENT
@@ -1023,6 +1086,10 @@ export default function Home() {
   ======================================================= */
 
   async function syncEaMatches() {
+    if (!canWrite) {
+      return;
+    }
+
     try {
       setSyncing(true);
 
@@ -1405,6 +1472,10 @@ export default function Home() {
   async function saveMatchAssignment(
     matchId: number
   ) {
+    if (!canWrite) {
+      return;
+    }
+
     try {
       setSavingMatchId(
         matchId
@@ -1479,6 +1550,10 @@ export default function Home() {
   function changeFormation(
     formationName: string
   ) {
+    if (!canWrite) {
+      return;
+    }
+
     const definition =
       formations.find(
         (item) =>
@@ -1531,6 +1606,10 @@ export default function Home() {
     slot: string,
     playerName: string
   ) {
+    if (!canWrite) {
+      return;
+    }
+
     setEditLineup(
       (current) =>
         current.map(
@@ -1563,6 +1642,10 @@ export default function Home() {
   function addBenchPlayer(
     playerName: string
   ) {
+    if (!canWrite) {
+      return;
+    }
+
     if (!playerName) {
       return;
     }
@@ -1602,6 +1685,10 @@ export default function Home() {
   function removeBenchPlayer(
     playerName: string
   ) {
+    if (!canWrite) {
+      return;
+    }
+
     setEditBench(
       (current) =>
         current.filter(
@@ -1617,6 +1704,10 @@ export default function Home() {
   }
 
   function resetLineupDraft() {
+    if (!canWrite) {
+      return;
+    }
+
     setEditFormation(
       formation
     );
@@ -1635,6 +1726,10 @@ export default function Home() {
   }
 
   async function saveLineup() {
+    if (!canWrite) {
+      return;
+    }
+
     try {
       setSavingLineup(
         true
@@ -2021,30 +2116,34 @@ export default function Home() {
 
               </div>
 
-              <button
-                onClick={
-                  syncEaMatches
-                }
-                disabled={
-                  syncing
-                }
-                className="hidden items-center gap-2 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-400 lg:flex"
-              >
+              {canWrite && (
 
-                <RefreshCw
-                  size={17}
-                  className={
-                    syncing
-                      ? "animate-spin"
-                      : ""
+                <button
+                  onClick={
+                    syncEaMatches
                   }
-                />
+                  disabled={
+                    syncing
+                  }
+                  className="hidden items-center gap-2 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-400 lg:flex"
+                >
 
-                {syncing
-                  ? "Synchronisation..."
-                  : "Synchroniser EA"}
+                  <RefreshCw
+                    size={17}
+                    className={
+                      syncing
+                        ? "animate-spin"
+                        : ""
+                    }
+                  />
 
-              </button>
+                  {syncing
+                    ? "Synchronisation..."
+                    : "Synchroniser EA"}
+
+                </button>
+
+              )}
 
             </div>
 
@@ -2335,6 +2434,9 @@ export default function Home() {
               "lineup" && (
 
               <LineupManager
+                canEdit={
+                  canWrite
+                }
                 players={
                   allPlayers
                 }
@@ -2538,6 +2640,9 @@ export default function Home() {
               "report" && (
 
               <EveningReportDashboard
+                canExport={
+                  canExport
+                }
                 matches={
                   matches
                 }
@@ -2569,6 +2674,9 @@ export default function Home() {
               "season" && (
 
               <SeasonCenterDashboard
+                canExport={
+                  canExport
+                }
                 seasons={
                   seasons
                 }
@@ -9284,6 +9392,7 @@ function shortOpponentName(
 ========================================================= */
 
 function LineupManager({
+  canEdit,
   players,
   lineup,
   bench,
@@ -9297,6 +9406,7 @@ function LineupManager({
   onReset,
   onSave,
 }: {
+  canEdit: boolean;
   players: Player[];
   lineup: LineupSpot[];
   bench: string[];
@@ -9358,6 +9468,10 @@ function LineupManager({
     );
 
   function addBench() {
+    if (!canEdit) {
+      return;
+    }
+
     if (!benchCandidate) {
       return;
     }
@@ -9392,54 +9506,71 @@ function LineupManager({
 
         <div className="flex flex-wrap gap-3">
 
-          <button
-            onClick={
-              onReset
-            }
-            disabled={
-              saving
-            }
-            className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-gray-400 hover:bg-white/5"
-          >
+          {canEdit ? (
 
-            <RotateCcw
-              size={17}
-            />
+            <>
 
-            Annuler les modifications
+              <button
+                onClick={
+                  onReset
+                }
+                disabled={
+                  saving
+                }
+                className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-gray-400 hover:bg-white/5"
+              >
 
-          </button>
+                <RotateCcw
+                  size={17}
+                />
 
-          <button
-            onClick={
-              onSave
-            }
-            disabled={
-              saving
-            }
-            className="flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-black text-black disabled:opacity-50"
-          >
+                Annuler les modifications
 
-            {saving ? (
+              </button>
 
-              <RefreshCw
+              <button
+                onClick={
+                  onSave
+                }
+                disabled={
+                  saving
+                }
+                className="flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-black text-black disabled:opacity-50"
+              >
+
+                {saving ? (
+
+                  <RefreshCw
+                    size={17}
+                    className="animate-spin"
+                  />
+
+                ) : (
+
+                  <Save
+                    size={17}
+                  />
+
+                )}
+
+                {saving
+                  ? "Enregistrement..."
+                  : "Enregistrer la composition"}
+
+              </button>
+
+            </>
+
+          ) : (
+
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-black text-gray-500">
+              <Eye
                 size={17}
-                className="animate-spin"
               />
+              Lecture seule
+            </div>
 
-            ) : (
-
-              <Save
-                size={17}
-              />
-
-            )}
-
-            {saving
-              ? "Enregistrement..."
-              : "Enregistrer la composition"}
-
-          </button>
+          )}
 
         </div>
 
@@ -9466,6 +9597,9 @@ function LineupManager({
             <select
               value={
                 formation
+              }
+              disabled={
+                !canEdit
               }
               onChange={(
                 event
@@ -9502,6 +9636,9 @@ function LineupManager({
           </div>
 
           <EditablePitch
+            canEdit={
+              canEdit
+            }
             lineup={
               lineup
             }
@@ -9575,6 +9712,9 @@ function LineupManager({
                       <select
                         value={
                           spot.name
+                        }
+                        disabled={
+                          !canEdit
                         }
                         onChange={(
                           event
@@ -9681,6 +9821,9 @@ function LineupManager({
                   value={
                     benchCandidate
                   }
+                  disabled={
+                    !canEdit
+                  }
                   onChange={(
                     event
                   ) =>
@@ -9724,6 +9867,7 @@ function LineupManager({
                     addBench
                   }
                   disabled={
+                    !canEdit ||
                     !benchCandidate
                   }
                   className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-400 text-black disabled:opacity-30"
@@ -9809,20 +9953,24 @@ function LineupManager({
 
                           </div>
 
-                          <button
-                            onClick={() =>
-                              onBenchRemove(
-                                playerName
-                              )
-                            }
-                            className="rounded-lg border border-red-400/20 p-2 text-red-400 hover:bg-red-400/10"
-                          >
+                          {canEdit && (
 
-                            <Trash2
-                              size={16}
-                            />
+                            <button
+                              onClick={() =>
+                                onBenchRemove(
+                                  playerName
+                                )
+                              }
+                              className="rounded-lg border border-red-400/20 p-2 text-red-400 hover:bg-red-400/10"
+                            >
 
-                          </button>
+                              <Trash2
+                                size={16}
+                              />
+
+                            </button>
+
+                          )}
 
                         </div>
 
@@ -9851,11 +9999,13 @@ function LineupManager({
 ========================================================= */
 
 function EditablePitch({
+  canEdit,
   lineup,
   players,
   bench,
   onPlayerChange,
 }: {
+  canEdit: boolean;
   lineup: LineupSpot[];
   players: Player[];
   bench: string[];
@@ -9923,6 +10073,9 @@ function EditablePitch({
                 <select
                   value={
                     spot.name
+                  }
+                  disabled={
+                    !canEdit
                   }
                   onChange={(
                     event
@@ -12910,11 +13063,13 @@ function formatDashboardEventDate(
 
 
 function SeasonCenterDashboard({
+  canExport,
   seasons,
   selectedSeason,
   onOpenPlayer,
   allPlayers,
 }: {
+  canExport: boolean;
   seasons: Season[];
   selectedSeason: string;
   onOpenPlayer: (player: Player) => void;
@@ -13148,6 +13303,7 @@ function SeasonCenterDashboard({
   const copySeasonDiscord =
     async () => {
       if (
+        !canExport ||
         !data
       ) {
         return;
@@ -13181,6 +13337,7 @@ function SeasonCenterDashboard({
   const exportSeasonPoster =
     async () => {
       if (
+        !canExport ||
         !data
       ) {
         return;
@@ -13308,44 +13465,61 @@ function SeasonCenterDashboard({
 
           </label>
 
-          <button
-            type="button"
-            onClick={
-              copySeasonDiscord
-            }
-            disabled={
-              !data ||
-              loading
-            }
-            className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-black text-cyan-300 disabled:opacity-40"
-          >
-            <Copy
-              size={17}
-            />
-            {copied
-              ? "Copié"
-              : "Copier Discord"}
-          </button>
+          {canExport ? (
 
-          <button
-            type="button"
-            onClick={
-              exportSeasonPoster
-            }
-            disabled={
-              !data ||
-              loading ||
-              exporting
-            }
-            className="flex items-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 disabled:opacity-40"
-          >
-            <Save
-              size={17}
-            />
-            {exporting
-              ? "Export..."
-              : "Bilan PNG"}
-          </button>
+            <>
+
+              <button
+                type="button"
+                onClick={
+                  copySeasonDiscord
+                }
+                disabled={
+                  !data ||
+                  loading
+                }
+                className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-black text-cyan-300 disabled:opacity-40"
+              >
+                <Copy
+                  size={17}
+                />
+                {copied
+                  ? "Copié"
+                  : "Copier Discord"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  exportSeasonPoster
+                }
+                disabled={
+                  !data ||
+                  loading ||
+                  exporting
+                }
+                className="flex items-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 disabled:opacity-40"
+              >
+                <Save
+                  size={17}
+                />
+                {exporting
+                  ? "Export..."
+                  : "Bilan PNG"}
+              </button>
+
+            </>
+
+          ) : (
+
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-black text-gray-500">
+              <LockKeyhole
+                size={15}
+              />
+              Exports réservés Admin / Staff
+            </div>
+
+          )}
 
         </div>
 
@@ -15168,6 +15342,7 @@ async function exportSeasonCenterPoster(
 
 
 function EveningReportDashboard({
+  canExport,
   matches,
   players,
   selectedSeason,
@@ -15176,6 +15351,7 @@ function EveningReportDashboard({
   onOpenPlayer,
   onOpenMatch,
 }: {
+  canExport: boolean;
   matches: Match[];
   players: Player[];
   selectedSeason: string;
@@ -15477,6 +15653,7 @@ function EveningReportDashboard({
   const copyDiscordText =
     async () => {
       if (
+        !canExport ||
         !report
       ) {
         return;
@@ -15515,6 +15692,7 @@ function EveningReportDashboard({
   const exportDiscordPoster =
     async () => {
       if (
+        !canExport ||
         !report
       ) {
         return;
@@ -15644,44 +15822,61 @@ function EveningReportDashboard({
 
           </label>
 
-          <button
-            type="button"
-            onClick={
-              copyDiscordText
-            }
-            disabled={
-              !report ||
-              loading
-            }
-            className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-black text-cyan-300 disabled:opacity-40"
-          >
-            <Copy
-              size={17}
-            />
-            {copied
-              ? "Copié"
-              : "Copier Discord"}
-          </button>
+          {canExport ? (
 
-          <button
-            type="button"
-            onClick={
-              exportDiscordPoster
-            }
-            disabled={
-              !report ||
-              loading ||
-              exporting
-            }
-            className="flex items-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 disabled:opacity-40"
-          >
-            <Save
-              size={17}
-            />
-            {exporting
-              ? "Export..."
-              : "Exporter PNG"}
-          </button>
+            <>
+
+              <button
+                type="button"
+                onClick={
+                  copyDiscordText
+                }
+                disabled={
+                  !report ||
+                  loading
+                }
+                className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-black text-cyan-300 disabled:opacity-40"
+              >
+                <Copy
+                  size={17}
+                />
+                {copied
+                  ? "Copié"
+                  : "Copier Discord"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  exportDiscordPoster
+                }
+                disabled={
+                  !report ||
+                  loading ||
+                  exporting
+                }
+                className="flex items-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 disabled:opacity-40"
+              >
+                <Save
+                  size={17}
+                />
+                {exporting
+                  ? "Export..."
+                  : "Exporter PNG"}
+              </button>
+
+            </>
+
+          ) : (
+
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-black text-gray-500">
+              <LockKeyhole
+                size={15}
+              />
+              Exports réservés Admin / Staff
+            </div>
+
+          )}
 
         </div>
 

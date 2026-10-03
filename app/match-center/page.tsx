@@ -552,6 +552,9 @@ export default function MatchCenterPage() {
   const canEditAssignments =
     data?.currentUser?.role === "admin" || data?.currentUser?.role === "staff";
 
+  const canExport =
+    canEditAssignments;
+
   useEffect(() => {
     setAssignmentSeasonId(
       selected?.match.seasonId !== null && selected?.match.seasonId !== undefined
@@ -747,6 +750,8 @@ export default function MatchCenterPage() {
   }
 
   function handlePlayerImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    if (!canExport) return;
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -761,7 +766,7 @@ export default function MatchCenterPage() {
   }
 
   async function makePoster(kind: "result" | "sessionMvp" | "evening") {
-    if (!selected) return;
+    if (!selected || !canExport) return;
     try {
       setExporting(kind);
       const width = 1600;
@@ -1586,6 +1591,9 @@ export default function MatchCenterPage() {
                   <h2 className="font-black">Exports Discord</h2>
                 </div>
 
+                {canExport ? (
+                  <>
+
                 <div className="mt-5 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.04] p-4">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-300">Joueur choisi pour l'export MVP session</p>
                   <select
@@ -1631,6 +1639,22 @@ export default function MatchCenterPage() {
                   <ExportButton label="MVP de la session" busy={exporting === "sessionMvp"} onClick={() => void makePoster("sessionMvp")} />
                   <ExportButton label="Bilan de la soirée" busy={exporting === "evening"} onClick={() => void makePoster("evening")} />
                 </div>
+
+                  </>
+                ) : (
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-center">
+                    <Shield
+                      size={24}
+                      className="mx-auto text-slate-600"
+                    />
+                    <p className="mt-3 text-sm font-black text-slate-400">
+                      Lecture seule
+                    </p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                      Les exports Discord sont réservés aux rôles Admin et Staff.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 

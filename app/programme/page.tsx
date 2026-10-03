@@ -940,6 +940,8 @@ export default function ProgrammePage() {
   }
 
   async function exportDiscordPoster() {
+    if (!canEdit) return;
+
     try {
       setExporting(true);
       setError("");
@@ -1708,15 +1710,17 @@ export default function ProgrammePage() {
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => void exportDiscordPoster()}
-                disabled={exporting || loading}
-                className="ml-0 flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-sm font-black text-blue-300 transition hover:bg-blue-400/15 disabled:opacity-50 xl:ml-3"
-              >
-                <Download size={17} />
-                {exporting ? "Création des 2 affiches..." : "Exporter Discord (2 affiches)"}
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => void exportDiscordPoster()}
+                  disabled={exporting || loading}
+                  className="ml-0 flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-sm font-black text-blue-300 transition hover:bg-blue-400/15 disabled:opacity-50 xl:ml-3"
+                >
+                  <Download size={17} />
+                  {exporting ? "Création des 2 affiches..." : "Exporter Discord (2 affiches)"}
+                </button>
+              )}
 
               {canEdit && (
                 <button
@@ -2356,6 +2360,7 @@ function EventPlanModal({
   }
 
   async function exportCompositionPoster() {
+    if (!canEdit) return;
     if (!draft.lineup.length) return;
 
     try {
@@ -2891,16 +2896,18 @@ function EventPlanModal({
           <p className="text-xs font-semibold text-gray-600">Les joueurs absents sont automatiquement retirés du onze et du banc.</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-gray-400 transition hover:text-white">Fermer</button>
-            <button
-              type="button"
-              disabled={exportingComposition || draft.lineup.length === 0}
-              onClick={() => void exportCompositionPoster()}
-              className="flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-4 py-2.5 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-40"
-              title={draft.lineup.length === 0 ? "Ajoute au moins un joueur à la composition avant d'exporter." : "Génère une affiche PNG prête pour Discord."}
-            >
-              <Download size={14} />
-              {exportingComposition ? "Génération..." : "Exporter Discord"}
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                disabled={exportingComposition || draft.lineup.length === 0}
+                onClick={() => void exportCompositionPoster()}
+                className="flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-4 py-2.5 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                title={draft.lineup.length === 0 ? "Ajoute au moins un joueur à la composition avant d'exporter." : "Génère une affiche PNG prête pour Discord."}
+              >
+                <Download size={14} />
+                {exportingComposition ? "Génération..." : "Exporter Discord"}
+              </button>
+            )}
             {canEdit && (
               <button type="button" disabled={saving} onClick={() => onSave({ ...draft, bench: draft.bench.filter((entry) => !draft.lineup.some((starter) => starter.playerId === entry.playerId)) })} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-xs font-black text-black transition hover:bg-yellow-300 disabled:opacity-50">
                 <Save size={14} /> {saving ? "Enregistrement..." : "Enregistrer"}

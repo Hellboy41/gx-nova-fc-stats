@@ -154,5 +154,28 @@ export async function updateSession(
     );
   }
 
+  const isApiMutation =
+    pathname.startsWith("/api/") &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(
+      request.method.toUpperCase()
+    );
+
+  const isViewerMutation =
+    staffProfile.role === "viewer" &&
+    isApiMutation &&
+    pathname !== "/api/logout";
+
+  if (isViewerMutation) {
+    return NextResponse.json(
+      {
+        error:
+          "Le rôle Viewer est en lecture seule. Cette action nécessite un rôle Admin ou Staff.",
+      },
+      {
+        status: 403,
+      }
+    );
+  }
+
   return supabaseResponse;
 }
