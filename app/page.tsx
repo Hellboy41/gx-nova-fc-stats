@@ -2228,6 +2228,9 @@ export default function Home() {
                 players={
                   players
                 }
+                competitions={
+                  competitions
+                }
                 currentFilterLabel={
                   currentFilterLabel
                 }
@@ -11796,425 +11799,1345 @@ function formatDashboardEventDate(
 function AnalysisDashboard({
   matches,
   players,
+  competitions,
   currentFilterLabel,
   onOpenPlayer,
   onOpenMatch,
 }: {
   matches: Match[];
   players: Player[];
+  competitions: Competition[];
   currentFilterLabel: string;
-  onOpenPlayer: (player: Player) => void;
-  onOpenMatch: (matchId: number) => void;
+  onOpenPlayer: (
+    player: Player
+  ) => void;
+  onOpenMatch: (
+    matchId: number
+  ) => void;
 }) {
-  const analysis = useMemo(() => {
-    const overall = calculateWindowStats(matches);
-    const recentMatches = matches.slice(0, 5);
-    const previousMatches = matches.slice(5, 10);
-
-    const recent = calculateWindowStats(recentMatches);
-    const previous = calculateWindowStats(previousMatches);
-
-    const totalPassesMade = players.reduce(
-      (total, player) => total + player.passesMade,
-      0
-    );
-
-    const totalPassAttempts = players.reduce(
-      (total, player) => total + player.passAttempts,
-      0
-    );
-
-    const totalTacklesMade = players.reduce(
-      (total, player) => total + player.tacklesMade,
-      0
-    );
-
-    const totalTackleAttempts = players.reduce(
-      (total, player) => total + player.tackleAttempts,
-      0
-    );
-
-    const totalPlayerGames = players.reduce(
-      (total, player) => total + player.games,
-      0
-    );
-
-    const averageRating =
-      totalPlayerGames > 0
-        ? players.reduce(
-            (total, player) =>
-              total + player.averageRating * player.games,
-            0
-          ) / totalPlayerGames
-        : 0;
-
-    const teamPassSuccess =
-      totalPassAttempts > 0
-        ? (totalPassesMade / totalPassAttempts) * 100
-        : 0;
-
-    const teamTackleSuccess =
-      totalTackleAttempts > 0
-        ? (totalTacklesMade / totalTackleAttempts) * 100
-        : 0;
-
-    const cleanSheets = matches.filter(
-      (match) => match.goalsAgainst === 0
-    ).length;
-
-    const failedToScore = matches.filter(
-      (match) => match.goalsFor === 0
-    ).length;
-
-    const scoringRate =
-      matches.length > 0
-        ? ((matches.length - failedToScore) / matches.length) * 100
-        : 0;
-
-    const cleanSheetRate =
-      matches.length > 0
-        ? (cleanSheets / matches.length) * 100
-        : 0;
-
-    const resultStreak = getCurrentResultStreak(matches);
-    const unbeatenStreak = getUnbeatenStreak(matches);
-    const scoringStreak = getScoringStreak(matches);
-
-    const playerForm = players
-      .map((player) => {
-        const ratings = player.recentRatings.filter(
-          (rating) => rating > 0
+  const analysis =
+    useMemo(() => {
+      const overall =
+        calculateWindowStats(
+          matches
         );
 
-        if (ratings.length < 3) {
-          return null;
+      const recentMatches =
+        matches.slice(
+          0,
+          5
+        );
+
+      const previousMatches =
+        matches.slice(
+          5,
+          10
+        );
+
+      const recent =
+        calculateWindowStats(
+          recentMatches
+        );
+
+      const previous =
+        calculateWindowStats(
+          previousMatches
+        );
+
+      const lastTen =
+        calculateWindowStats(
+          matches.slice(
+            0,
+            10
+          )
+        );
+
+      const totalPassesMade =
+        players.reduce(
+          (
+            total,
+            player
+          ) =>
+            total +
+            player.passesMade,
+          0
+        );
+
+      const totalPassAttempts =
+        players.reduce(
+          (
+            total,
+            player
+          ) =>
+            total +
+            player.passAttempts,
+          0
+        );
+
+      const totalTacklesMade =
+        players.reduce(
+          (
+            total,
+            player
+          ) =>
+            total +
+            player.tacklesMade,
+          0
+        );
+
+      const totalTackleAttempts =
+        players.reduce(
+          (
+            total,
+            player
+          ) =>
+            total +
+            player.tackleAttempts,
+          0
+        );
+
+      const totalPlayerGames =
+        players.reduce(
+          (
+            total,
+            player
+          ) =>
+            total +
+            player.games,
+          0
+        );
+
+      const averageRating =
+        totalPlayerGames >
+        0
+          ? players.reduce(
+              (
+                total,
+                player
+              ) =>
+                total +
+                player.averageRating *
+                  player.games,
+              0
+            ) /
+            totalPlayerGames
+          : 0;
+
+      const teamPassSuccess =
+        totalPassAttempts >
+        0
+          ? (
+              totalPassesMade /
+              totalPassAttempts
+            ) *
+            100
+          : 0;
+
+      const teamTackleSuccess =
+        totalTackleAttempts >
+        0
+          ? (
+              totalTacklesMade /
+              totalTackleAttempts
+            ) *
+            100
+          : 0;
+
+      const cleanSheets =
+        matches.filter(
+          (match) =>
+            match.goalsAgainst ===
+            0
+        ).length;
+
+      const failedToScore =
+        matches.filter(
+          (match) =>
+            match.goalsFor ===
+            0
+        ).length;
+
+      const scoringRate =
+        matches.length >
+        0
+          ? (
+              (
+                matches.length -
+                failedToScore
+              ) /
+              matches.length
+            ) *
+            100
+          : 0;
+
+      const cleanSheetRate =
+        matches.length >
+        0
+          ? (
+              cleanSheets /
+              matches.length
+            ) *
+            100
+          : 0;
+
+      const multiGoalMatches =
+        matches.filter(
+          (match) =>
+            match.goalsFor >=
+            2
+        ).length;
+
+      const concededTwoPlus =
+        matches.filter(
+          (match) =>
+            match.goalsAgainst >=
+            2
+        ).length;
+
+      const closeMatches =
+        matches.filter(
+          (match) =>
+            Math.abs(
+              match.goalsFor -
+                match.goalsAgainst
+            ) <=
+            1
+        );
+
+      const closeWins =
+        closeMatches.filter(
+          (match) =>
+            match.result ===
+            "V"
+        ).length;
+
+      const closeWinRate =
+        closeMatches.length >
+        0
+          ? (
+              closeWins /
+              closeMatches.length
+            ) *
+            100
+          : 0;
+
+      const resultStreak =
+        getCurrentResultStreak(
+          matches
+        );
+
+      const unbeatenStreak =
+        getUnbeatenStreak(
+          matches
+        );
+
+      const scoringStreak =
+        getScoringStreak(
+          matches
+        );
+
+      const competitionMap =
+        new Map<
+          string,
+          {
+            id:
+              number | null;
+            name:
+              string;
+            matches:
+              Match[];
+          }
+        >();
+
+      for (
+        const match
+        of matches
+      ) {
+        const key =
+          match.competitionId
+            ? String(
+                match.competitionId
+              )
+            : "unassigned";
+
+        const name =
+          match.competitionId
+            ? resolveCompetitionName(
+                competitions,
+                match.competitionId
+              )
+            : "Non attribué";
+
+        if (
+          !competitionMap.has(
+            key
+          )
+        ) {
+          competitionMap.set(
+            key,
+            {
+              id:
+                match.competitionId ??
+                null,
+              name,
+              matches: [],
+            }
+          );
         }
 
-        const recentCount = Math.min(2, ratings.length);
-        const recentAverage = averageNumber(
-          ratings.slice(0, recentCount)
-        );
-        const olderAverage = averageNumber(
-          ratings.slice(recentCount)
+        competitionMap
+          .get(
+            key
+          )
+          ?.matches.push(
+            match
+          );
+      }
+
+      const competitionInsights =
+        Array.from(
+          competitionMap.values()
+        )
+          .map(
+            (group) => ({
+              id:
+                group.id,
+              name:
+                group.name,
+              stats:
+                calculateWindowStats(
+                  group.matches
+                ),
+            })
+          )
+          .sort(
+            (a, b) => {
+              if (
+                b.stats.winRate !==
+                a.stats.winRate
+              ) {
+                return (
+                  b.stats.winRate -
+                  a.stats.winRate
+                );
+              }
+
+              if (
+                b.stats.goalDifferencePerMatch !==
+                a.stats.goalDifferencePerMatch
+              ) {
+                return (
+                  b.stats.goalDifferencePerMatch -
+                  a.stats.goalDifferencePerMatch
+                );
+              }
+
+              return (
+                b.stats.played -
+                a.stats.played
+              );
+            }
+          );
+
+      const qualifiedCompetitions =
+        competitionInsights.filter(
+          (item) =>
+            item.stats.played >=
+            3
         );
 
-        if (olderAverage === 0) {
-          return null;
+      const strongestCompetition =
+        qualifiedCompetitions[0] ??
+        null;
+
+      const weakestCompetition =
+        qualifiedCompetitions.length >
+        1
+          ? [
+              ...qualifiedCompetitions,
+            ].sort(
+              (a, b) => {
+                if (
+                  a.stats.winRate !==
+                  b.stats.winRate
+                ) {
+                  return (
+                    a.stats.winRate -
+                    b.stats.winRate
+                  );
+                }
+
+                return (
+                  a.stats.goalDifferencePerMatch -
+                  b.stats.goalDifferencePerMatch
+                );
+              }
+            )[0] ??
+            null
+          : null;
+
+      const playerForm =
+        players
+          .map(
+            (player) => {
+              const primaryStats =
+                getPlayerPositionStats(
+                  player,
+                  player.position
+                );
+
+              const ratings =
+                (
+                  primaryStats?.recentRatings ??
+                  []
+                ).filter(
+                  (rating) =>
+                    rating >
+                    0
+                );
+
+              if (
+                ratings.length <
+                4
+              ) {
+                return null;
+              }
+
+              const recentCount =
+                Math.min(
+                  2,
+                  ratings.length
+                );
+
+              const recentAverage =
+                averageNumber(
+                  ratings.slice(
+                    0,
+                    recentCount
+                  )
+                );
+
+              const olderAverage =
+                averageNumber(
+                  ratings.slice(
+                    recentCount
+                  )
+                );
+
+              if (
+                olderAverage ===
+                0
+              ) {
+                return null;
+              }
+
+              return {
+                player,
+                position:
+                  primaryStats?.position ??
+                  player.position,
+                recentAverage,
+                olderAverage,
+                delta:
+                  recentAverage -
+                  olderAverage,
+              };
+            }
+          )
+          .filter(
+            (
+              item
+            ): item is {
+              player:
+                Player;
+              position:
+                string;
+              recentAverage:
+                number;
+              olderAverage:
+                number;
+              delta:
+                number;
+            } =>
+              item !==
+              null
+          );
+
+      const improvingPlayers =
+        [
+          ...playerForm,
+        ]
+          .filter(
+            (item) =>
+              item.delta >=
+              0.2
+          )
+          .sort(
+            (a, b) =>
+              b.delta -
+              a.delta
+          )
+          .slice(
+            0,
+            4
+          );
+
+      const decliningPlayers =
+        [
+          ...playerForm,
+        ]
+          .filter(
+            (item) =>
+              item.delta <=
+              -0.2
+          )
+          .sort(
+            (a, b) =>
+              a.delta -
+              b.delta
+          )
+          .slice(
+            0,
+            4
+          );
+
+      const regularPlayers =
+        players
+          .map(
+            (player) => {
+              const primaryStats =
+                getPlayerPositionStats(
+                  player,
+                  player.position
+                );
+
+              if (
+                !primaryStats ||
+                primaryStats.games <
+                  3
+              ) {
+                return null;
+              }
+
+              const ratings =
+                primaryStats.recentRatings.filter(
+                  (rating) =>
+                    rating >
+                    0
+                );
+
+              if (
+                ratings.length <
+                4
+              ) {
+                return null;
+              }
+
+              return {
+                player,
+                position:
+                  primaryStats.position,
+                average:
+                  averageNumber(
+                    ratings
+                  ),
+                deviation:
+                  standardDeviation(
+                    ratings
+                  ),
+                sample:
+                  ratings.length,
+              };
+            }
+          )
+          .filter(
+            (
+              item
+            ): item is {
+              player:
+                Player;
+              position:
+                string;
+              average:
+                number;
+              deviation:
+                number;
+              sample:
+                number;
+            } =>
+              item !==
+              null
+          )
+          .sort(
+            (a, b) => {
+              if (
+                a.deviation !==
+                b.deviation
+              ) {
+                return (
+                  a.deviation -
+                  b.deviation
+                );
+              }
+
+              return (
+                b.average -
+                a.average
+              );
+            }
+          )
+          .slice(
+            0,
+            5
+          );
+
+      const signals:
+        AnalysisSignal[] =
+        [];
+
+      const recommendations:
+        AnalysisRecommendation[] =
+        [];
+
+      if (
+        recent.played >
+          0 &&
+        previous.played >
+          0
+      ) {
+        const winDelta =
+          recent.winRate -
+          previous.winRate;
+
+        const goalDelta =
+          recent.goalDifferencePerMatch -
+          previous.goalDifferencePerMatch;
+
+        if (
+          winDelta >=
+            20 ||
+          goalDelta >=
+            0.75
+        ) {
+          signals.push({
+            title:
+              "Dynamique récente en progression",
+            description: `Sur les 5 derniers matchs, GX NOVA affiche ${recent.winRate.toFixed(
+              0
+            )}% de victoires contre ${previous.winRate.toFixed(
+              0
+            )}% sur les 5 précédents.`,
+            tone:
+              "positive",
+          });
+        } else if (
+          winDelta <=
+            -20 ||
+          goalDelta <=
+            -0.75
+        ) {
+          signals.push({
+            title:
+              "Dynamique récente en retrait",
+            description: `Le taux de victoire récent est de ${recent.winRate.toFixed(
+              0
+            )}% contre ${previous.winRate.toFixed(
+              0
+            )}% sur les 5 matchs précédents.`,
+            tone:
+              "warning",
+          });
+        } else {
+          signals.push({
+            title:
+              "Dynamique globalement stable",
+            description:
+              "Les 5 derniers matchs restent proches de la fenêtre précédente en matière de résultats.",
+            tone:
+              "neutral",
+          });
         }
 
-        return {
-          player,
-          recentAverage,
-          olderAverage,
-          delta: recentAverage - olderAverage,
-        };
-      })
-      .filter(
-        (
-          item
-        ): item is {
-          player: Player;
-          recentAverage: number;
-          olderAverage: number;
-          delta: number;
-        } => item !== null
-      );
+        const attackDelta =
+          recent.goalsForPerMatch -
+          previous.goalsForPerMatch;
 
-    const improvingPlayers = [...playerForm]
-      .filter((item) => item.delta >= 0.2)
-      .sort((a, b) => b.delta - a.delta)
-      .slice(0, 4);
+        if (
+          attackDelta >=
+          0.4
+        ) {
+          signals.push({
+            title:
+              "Production offensive en hausse",
+            description: `${recent.goalsForPerMatch.toFixed(
+              2
+            )} buts marqués par match récemment, contre ${previous.goalsForPerMatch.toFixed(
+              2
+            )} précédemment.`,
+            tone:
+              "positive",
+          });
+        } else if (
+          attackDelta <=
+          -0.4
+        ) {
+          signals.push({
+            title:
+              "Production offensive en baisse",
+            description: `${recent.goalsForPerMatch.toFixed(
+              2
+            )} buts marqués par match récemment, contre ${previous.goalsForPerMatch.toFixed(
+              2
+            )} précédemment.`,
+            tone:
+              "warning",
+          });
+        }
 
-    const decliningPlayers = [...playerForm]
-      .filter((item) => item.delta <= -0.2)
-      .sort((a, b) => a.delta - b.delta)
-      .slice(0, 4);
+        const defensiveDelta =
+          recent.goalsAgainstPerMatch -
+          previous.goalsAgainstPerMatch;
 
-    const signals: AnalysisSignal[] = [];
-    const recommendations: AnalysisRecommendation[] = [];
-
-    if (recent.played > 0 && previous.played > 0) {
-      const winDelta = recent.winRate - previous.winRate;
-      const goalDelta =
-        recent.goalDifferencePerMatch -
-        previous.goalDifferencePerMatch;
-
-      if (winDelta >= 20 || goalDelta >= 0.75) {
+        if (
+          defensiveDelta <=
+          -0.4
+        ) {
+          signals.push({
+            title:
+              "Buts encaissés en baisse",
+            description: `${recent.goalsAgainstPerMatch.toFixed(
+              2
+            )} but encaissé par match récemment, contre ${previous.goalsAgainstPerMatch.toFixed(
+              2
+            )} auparavant.`,
+            tone:
+              "positive",
+          });
+        } else if (
+          defensiveDelta >=
+          0.4
+        ) {
+          signals.push({
+            title:
+              "Buts encaissés en hausse",
+            description: `${recent.goalsAgainstPerMatch.toFixed(
+              2
+            )} buts encaissés par match récemment, contre ${previous.goalsAgainstPerMatch.toFixed(
+              2
+            )} auparavant.`,
+            tone:
+              "warning",
+          });
+        }
+      } else if (
+        matches.length >
+        0
+      ) {
         signals.push({
-          title: "Dynamique récente en progression",
-          description: `Sur les 5 derniers matchs, GX NOVA affiche ${recent.winRate.toFixed(
-            0
-          )}% de victoires contre ${previous.winRate.toFixed(
-            0
-          )}% sur les 5 précédents.`,
-          tone: "positive",
-        });
-      } else if (winDelta <= -20 || goalDelta <= -0.75) {
-        signals.push({
-          title: "Dynamique récente en retrait",
-          description: `Le taux de victoire récent est de ${recent.winRate.toFixed(
-            0
-          )}% contre ${previous.winRate.toFixed(
-            0
-          )}% sur les 5 matchs précédents.`,
-          tone: "warning",
-        });
-      } else {
-        signals.push({
-          title: "Dynamique globalement stable",
+          title:
+            "Échantillon encore limité",
           description:
-            "Les 5 derniers matchs restent proches de la fenêtre précédente en matière de résultats.",
-          tone: "neutral",
+            "Il faut 10 matchs dans le filtre actuel pour comparer proprement les 5 derniers aux 5 précédents.",
+          tone:
+            "neutral",
         });
       }
 
-      const attackDelta =
-        recent.goalsForPerMatch -
-        previous.goalsForPerMatch;
-
-      if (attackDelta >= 0.4) {
+      if (
+        scoringRate >=
+          90 &&
+        matches.length >=
+          5
+      ) {
         signals.push({
-          title: "Production offensive en hausse",
-          description: `${recent.goalsForPerMatch.toFixed(
-            2
-          )} buts marqués par match récemment, contre ${previous.goalsForPerMatch.toFixed(
-            2
-          )} précédemment.`,
-          tone: "positive",
+          title:
+            "Attaque régulièrement présente",
+          description: `GX NOVA marque dans ${scoringRate.toFixed(
+            0
+          )}% des matchs de la sélection.`,
+          tone:
+            "positive",
         });
-      } else if (attackDelta <= -0.4) {
+      } else if (
+        scoringRate <
+          70 &&
+        matches.length >=
+          5
+      ) {
         signals.push({
-          title: "Production offensive en baisse",
-          description: `${recent.goalsForPerMatch.toFixed(
+          title:
+            "Irrégularité offensive",
+          description: `GX NOVA reste sans marquer dans ${(100 -
+            scoringRate).toFixed(
+            0
+          )}% des matchs de la sélection.`,
+          tone:
+            "warning",
+        });
+      }
+
+      if (
+        cleanSheetRate >=
+          40 &&
+        matches.length >=
+          5
+      ) {
+        signals.push({
+          title:
+            "Solidité défensive mesurable",
+          description: `${cleanSheetRate.toFixed(
+            0
+          )}% des matchs se terminent sans but encaissé.`,
+          tone:
+            "positive",
+        });
+      } else if (
+        overall.goalsAgainstPerMatch >=
+          2 &&
+        matches.length >=
+          5
+      ) {
+        signals.push({
+          title:
+            "Volume de buts encaissés élevé",
+          description: `${overall.goalsAgainstPerMatch.toFixed(
             2
-          )} buts marqués par match récemment, contre ${previous.goalsForPerMatch.toFixed(
-            2
-          )} précédemment.`,
-          tone: "warning",
+          )} buts encaissés par match sur le périmètre actuel.`,
+          tone:
+            "warning",
         });
       }
 
-      const defensiveDelta =
-        recent.goalsAgainstPerMatch -
-        previous.goalsAgainstPerMatch;
-
-      if (defensiveDelta <= -0.4) {
+      if (
+        teamPassSuccess >=
+          80 &&
+        totalPassAttempts >=
+          50
+      ) {
         signals.push({
-          title: "Buts encaissés en baisse",
-          description: `${recent.goalsAgainstPerMatch.toFixed(
-            2
-          )} but encaissé par match récemment, contre ${previous.goalsAgainstPerMatch.toFixed(
-            2
-          )} auparavant.`,
-          tone: "positive",
+          title:
+            "Bonne sécurité de passe",
+          description: `${teamPassSuccess.toFixed(
+            1
+          )}% des passes tentées sont réussies sur le périmètre actuel.`,
+          tone:
+            "positive",
         });
-      } else if (defensiveDelta >= 0.4) {
+      } else if (
+        teamPassSuccess >
+          0 &&
+        teamPassSuccess <
+          70 &&
+        totalPassAttempts >=
+          40
+      ) {
         signals.push({
-          title: "Buts encaissés en hausse",
-          description: `${recent.goalsAgainstPerMatch.toFixed(
-            2
-          )} buts encaissés par match récemment, contre ${previous.goalsAgainstPerMatch.toFixed(
-            2
-          )} auparavant.`,
-          tone: "warning",
+          title:
+            "Déchet dans la circulation",
+          description: `La réussite de passe collective est de ${teamPassSuccess.toFixed(
+            1
+          )}%.`,
+          tone:
+            "warning",
         });
       }
-    } else if (matches.length > 0) {
-      signals.push({
-        title: "Échantillon encore limité",
-        description:
-          "Il faut 10 matchs dans le filtre actuel pour comparer proprement les 5 derniers aux 5 précédents.",
-        tone: "neutral",
-      });
-    }
 
-    if (teamPassSuccess >= 80 && totalPassAttempts >= 50) {
-      signals.push({
-        title: "Bonne sécurité de passe",
-        description: `${teamPassSuccess.toFixed(
+      if (
+        closeMatches.length >=
+        4
+      ) {
+        if (
+          closeWinRate >=
+          60
+        ) {
+          signals.push({
+            title:
+              "Bonne gestion des matchs serrés",
+            description: `${closeWinRate.toFixed(
+              0
+            )}% de victoires sur ${closeMatches.length} matchs décidés par un but maximum.`,
+            tone:
+              "positive",
+          });
+        } else if (
+          closeWinRate <=
+          30
+        ) {
+          signals.push({
+            title:
+              "Matchs serrés peu convertis",
+            description: `${closeWinRate.toFixed(
+              0
+            )}% de victoires sur ${closeMatches.length} matchs décidés par un but maximum.`,
+            tone:
+              "warning",
+          });
+        }
+      }
+
+      if (
+        strongestCompetition &&
+        qualifiedCompetitions.length >
           1
-        )}% des passes tentées sont réussies sur le périmètre actuel.`,
-        tone: "positive",
-      });
-    } else if (
-      teamPassSuccess > 0 &&
-      teamPassSuccess < 70 &&
-      totalPassAttempts >= 40
-    ) {
-      signals.push({
-        title: "Déchet dans la circulation",
-        description: `La réussite de passe collective est de ${teamPassSuccess.toFixed(
-          1
-        )}%.`,
-        tone: "warning",
-      });
-    }
+      ) {
+        signals.push({
+          title:
+            "Compétition actuellement la plus favorable",
+          description: `${strongestCompetition.name} : ${strongestCompetition.stats.winRate.toFixed(
+            0
+          )}% de victoires sur ${strongestCompetition.stats.played} matchs.`,
+          tone:
+            "positive",
+        });
+      }
 
-    if (scoringRate < 70 && matches.length >= 3) {
-      recommendations.push({
-        priority: 1,
-        title: "Améliorer la régularité offensive",
-        reason: `${(100 - scoringRate).toFixed(
+      if (
+        scoringRate <
+          70 &&
+        matches.length >=
+          3
+      ) {
+        recommendations.push({
+          priority:
+            1,
+          title:
+            "Retrouver de la régularité offensive",
+          reason: `${(
+            100 -
+            scoringRate
+          ).toFixed(
+            0
+          )}% des matchs du filtre actuel se terminent sans but marqué.`,
+          action:
+            "Utiliser les derniers matchs sans but pour repérer les séquences à revoir avec l'équipe. Les données disponibles ne permettent pas d'identifier seules la cause tactique.",
+        });
+      }
+
+      if (
+        overall.goalsAgainstPerMatch >=
+          2 ||
+        (
+          recent.played >
+            0 &&
+          previous.played >
+            0 &&
+          recent.goalsAgainstPerMatch -
+            previous.goalsAgainstPerMatch >=
+            0.4
+        )
+      ) {
+        recommendations.push({
+          priority:
+            1,
+          title:
+            "Prioriser la réduction des buts encaissés",
+          reason: `GX NOVA concède ${overall.goalsAgainstPerMatch.toFixed(
+            2
+          )} buts par match sur le périmètre actuel.`,
+          action:
+            "Revoir en priorité les matchs à 2 buts encaissés ou plus et identifier manuellement les situations récurrentes.",
+        });
+      }
+
+      if (
+        closeMatches.length >=
+          4 &&
+        closeWinRate <=
+          30
+      ) {
+        recommendations.push({
+          priority:
+            2,
+          title:
+            "Mieux convertir les matchs serrés",
+          reason: `${closeWins} victoire(s) sur ${closeMatches.length} matchs décidés par un but maximum.`,
+          action:
+            "Comparer les fins de matchs serrés dans le Match Center afin de repérer ce qui distingue les victoires des nuls et défaites.",
+        });
+      }
+
+      if (
+        teamPassSuccess >
+          0 &&
+        teamPassSuccess <
+          70 &&
+        totalPassAttempts >=
+          40
+      ) {
+        recommendations.push({
+          priority:
+            2,
+          title:
+            "Sécuriser la circulation",
+          reason: `La réussite de passe collective est de ${teamPassSuccess.toFixed(
+            1
+          )}%.`,
+          action:
+            "Utiliser cet indicateur comme alerte et vérifier les matchs concernés avant de modifier les consignes collectives.",
+        });
+      }
+
+      if (
+        teamTackleSuccess >
+          0 &&
+        teamTackleSuccess <
+          35 &&
+        totalTackleAttempts >=
+          20
+      ) {
+        recommendations.push({
+          priority:
+            2,
+          title:
+            "Surveiller l'efficacité défensive individuelle",
+          reason: `Le taux de réussite au tacle est de ${teamTackleSuccess.toFixed(
+            1
+          )}%.`,
+          action:
+            "Ouvrir les fiches joueurs et comparer les défenseurs et milieux uniquement sur leur poste réel avant de tirer une conclusion.",
+        });
+      }
+
+      if (
+        recent.played >
+          0 &&
+        previous.played >
+          0 &&
+        recent.winRate <=
+          previous.winRate -
+            20
+      ) {
+        recommendations.push({
+          priority:
+            2,
+          title:
+            "Stabiliser la dynamique récente",
+          reason: `Le taux de victoire est passé de ${previous.winRate.toFixed(
+            0
+          )}% à ${recent.winRate.toFixed(
+            0
+          )}%.`,
+          action:
+            "Conserver quelques principes collectifs prioritaires pendant plusieurs matchs puis vérifier si les indicateurs repartent à la hausse.",
+        });
+      }
+
+      if (
+        recommendations.length ===
+          0 &&
+        matches.length >
           0
-        )}% des matchs du filtre actuel se terminent sans but marqué.`,
-        action:
-          "Travailler des circuits simples de progression puis une finition rapide dans les 25 derniers mètres.",
-      });
-    }
+      ) {
+        recommendations.push({
+          priority:
+            3,
+          title:
+            "Conserver la base actuelle",
+          reason:
+            "Aucun signal chiffré majeur ne ressort comme critique sur le filtre sélectionné.",
+          action:
+            "Continuer à suivre la tendance et utiliser les fiches de match pour confirmer les impressions du staff.",
+        });
+      }
 
-    if (
-      overall.goalsAgainstPerMatch >= 2 ||
-      (recent.played > 0 &&
-        previous.played > 0 &&
-        recent.goalsAgainstPerMatch -
-          previous.goalsAgainstPerMatch >=
-          0.4)
-    ) {
-      recommendations.push({
-        priority: 1,
-        title: "Réduire les buts encaissés",
-        reason: `GX NOVA concède ${overall.goalsAgainstPerMatch.toFixed(
+      const trendDelta =
+        recent.played >
+          0 &&
+        previous.played >
+          0
+          ? recent.winRate -
+            previous.winRate
+          : 0;
+
+      const trend =
+        recent.played >
+          0 &&
+        previous.played >
+          0
+          ? trendDelta >
+            10
+            ? "positive"
+            : trendDelta <
+              -10
+            ? "negative"
+            : "stable"
+          : "insufficient";
+
+      const sampleLevel =
+        matches.length >=
+        15
+          ? "high"
+          : matches.length >=
+            8
+          ? "medium"
+          : "low";
+
+      const sampleLabel =
+        sampleLevel ===
+        "high"
+          ? "Échantillon solide"
+          : sampleLevel ===
+            "medium"
+          ? "Échantillon correct"
+          : "Échantillon limité";
+
+      const strongestPoint =
+        cleanSheetRate >=
+          40
+          ? `Solidité : ${cleanSheetRate.toFixed(
+              0
+            )}% de clean sheets.`
+          : scoringRate >=
+            85
+          ? `Régularité offensive : but marqué dans ${scoringRate.toFixed(
+              0
+            )}% des matchs.`
+          : overall.goalDifferencePerMatch >
+            0
+          ? `Différence de buts positive : ${formatSigned(
+              overall.goalDifferencePerMatch
+            )} par match.`
+          : "Aucun point fort chiffré dominant ne ressort encore.";
+
+      const vigilance =
+        overall.goalsAgainstPerMatch >=
           2
-        )} buts par match sur le périmètre actuel.`,
-        action:
-          "Revoir les distances entre lignes et les responsabilités à la perte de balle. Les statistiques ne permettent pas d'identifier seules la cause tactique exacte.",
-      });
-    }
+          ? `Vigilance défensive : ${overall.goalsAgainstPerMatch.toFixed(
+              2
+            )} buts encaissés par match.`
+          : scoringRate <
+            70
+          ? `Vigilance offensive : ${(100 -
+              scoringRate).toFixed(
+              0
+            )}% des matchs sans but marqué.`
+          : closeMatches.length >=
+              4 &&
+            closeWinRate <=
+              30
+          ? `Vigilance sur les matchs serrés : ${closeWinRate.toFixed(
+              0
+            )}% de victoires.`
+          : "Pas de signal d'alerte majeur sur les données sélectionnées.";
 
-    if (
-      teamPassSuccess > 0 &&
-      teamPassSuccess < 70 &&
-      totalPassAttempts >= 40
-    ) {
-      recommendations.push({
-        priority: 2,
-        title: "Sécuriser la première circulation",
-        reason: `La réussite de passe collective est de ${teamPassSuccess.toFixed(
-          1
-        )}%.`,
-        action:
-          "Donner davantage de solutions courtes au porteur et limiter les passes forcées lorsque la sortie est fermée.",
-      });
-    }
-
-    if (
-      teamTackleSuccess > 0 &&
-      teamTackleSuccess < 35 &&
-      totalTackleAttempts >= 20
-    ) {
-      recommendations.push({
-        priority: 2,
-        title: "Mieux sélectionner les interventions",
-        reason: `Le taux de réussite au tacle est de ${teamTackleSuccess.toFixed(
-          1
-        )}%.`,
-        action:
-          "Privilégier le cadrage et la fermeture des lignes avant de déclencher le tacle.",
-      });
-    }
-
-    if (
-      recent.played > 0 &&
-      previous.played > 0 &&
-      recent.winRate <= previous.winRate - 20
-    ) {
-      recommendations.push({
-        priority: 2,
-        title: "Stabiliser la dynamique récente",
-        reason: `Le taux de victoire est passé de ${previous.winRate.toFixed(
-          0
-        )}% à ${recent.winRate.toFixed(0)}%.`,
-        action:
-          "Identifier deux ou trois principes collectifs prioritaires à conserver sur plusieurs soirées avant d'ajouter de nouvelles consignes.",
-      });
-    }
-
-    if (recommendations.length === 0 && matches.length > 0) {
-      recommendations.push({
-        priority: 3,
-        title: "Conserver la base actuelle",
-        reason:
-          "Aucun signal chiffré majeur ne ressort comme critique sur le filtre sélectionné.",
-        action:
-          "Continuer à suivre la tendance sur plusieurs matchs et utiliser les fiches de match pour cibler les écarts individuels.",
-      });
-    }
-
-    return {
-      overall,
-      recent,
-      previous,
-      averageRating,
-      teamPassSuccess,
-      teamTackleSuccess,
-      cleanSheets,
-      cleanSheetRate,
-      failedToScore,
-      scoringRate,
-      resultStreak,
-      unbeatenStreak,
-      scoringStreak,
-      improvingPlayers,
-      decliningPlayers,
-      signals: signals.slice(0, 6),
-      recommendations: recommendations
-        .sort((a, b) => a.priority - b.priority)
-        .slice(0, 5),
-      recentMatches,
-    };
-  }, [matches, players]);
-
-  const trend =
-    analysis.recent.played > 0 &&
-    analysis.previous.played > 0
-      ? analysis.recent.winRate >
-        analysis.previous.winRate + 10
-        ? "positive"
-        : analysis.recent.winRate <
-          analysis.previous.winRate - 10
-        ? "negative"
-        : "stable"
-      : "insufficient";
+      return {
+        overall,
+        recent,
+        previous,
+        lastTen,
+        averageRating,
+        teamPassSuccess,
+        teamTackleSuccess,
+        cleanSheets,
+        cleanSheetRate,
+        failedToScore,
+        scoringRate,
+        multiGoalMatches,
+        concededTwoPlus,
+        closeMatches:
+          closeMatches.length,
+        closeWins,
+        closeWinRate,
+        resultStreak,
+        unbeatenStreak,
+        scoringStreak,
+        improvingPlayers,
+        decliningPlayers,
+        regularPlayers,
+        competitionInsights,
+        strongestCompetition,
+        weakestCompetition,
+        signals:
+          signals.slice(
+            0,
+            8
+          ),
+        recommendations:
+          recommendations
+            .sort(
+              (a, b) =>
+                a.priority -
+                b.priority
+            )
+            .slice(
+              0,
+              5
+            ),
+        recentMatches,
+        trend,
+        sampleLevel,
+        sampleLabel,
+        strongestPoint,
+        vigilance,
+      };
+    }, [
+      matches,
+      players,
+      competitions,
+    ]);
 
   return (
     <>
-      <div className="mb-6">
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
-          Lecture automatique
-        </p>
 
-        <h2 className="mt-2 text-3xl font-black">
-          Analyses GX NOVA
-        </h2>
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
 
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
-          Analyse calculée uniquement à partir des matchs et statistiques
-          enregistrés. Aucun comportement tactique non mesuré n&apos;est
-          inventé.
-        </p>
+        <div>
 
-        <p className="mt-1 text-xs text-gray-600">
-          {currentFilterLabel}
-        </p>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
+            GX NOVA • ANALYSES 2.0
+          </p>
+
+          <h2 className="mt-2 text-3xl font-black">
+            Centre d&apos;analyse staff
+          </h2>
+
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-gray-500">
+            Lecture automatique des tendances réelles de l&apos;équipe à partir des scores et statistiques EA disponibles. Les notes joueurs sont analysées sur leur poste principal pour éviter de mélanger des rôles différents.
+          </p>
+
+          <p className="mt-2 text-xs font-bold text-cyan-300">
+            {currentFilterLabel}
+          </p>
+
+        </div>
+
+        <div className={`rounded-2xl border px-5 py-4 ${
+          analysis.sampleLevel ===
+          "high"
+            ? "border-emerald-400/20 bg-emerald-400/[0.05]"
+            : analysis.sampleLevel ===
+              "medium"
+            ? "border-yellow-400/20 bg-yellow-400/[0.05]"
+            : "border-white/10 bg-white/[0.025]"
+        }`}>
+
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-600">
+            Fiabilité de lecture
+          </p>
+
+          <p className={`mt-1 text-sm font-black ${
+            analysis.sampleLevel ===
+            "high"
+              ? "text-emerald-300"
+              : analysis.sampleLevel ===
+                "medium"
+              ? "text-yellow-300"
+              : "text-gray-300"
+          }`}>
+            {analysis.sampleLabel}
+          </p>
+
+          <p className="mt-1 text-[10px] font-bold text-gray-600">
+            {matches.length} match{matches.length > 1 ? "s" : ""} dans le filtre
+          </p>
+
+        </div>
+
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3 2xl:grid-cols-6">
+
         <AnalysisSummaryCard
           label="Tendance"
           value={
-            trend === "positive"
+            analysis.trend ===
+            "positive"
               ? "En hausse"
-              : trend === "negative"
+              : analysis.trend ===
+                "negative"
               ? "En baisse"
-              : trend === "stable"
+              : analysis.trend ===
+                "stable"
               ? "Stable"
               : "À confirmer"
           }
           subtitle="5 derniers vs 5 précédents"
           tone={
-            trend === "positive"
+            analysis.trend ===
+            "positive"
               ? "positive"
-              : trend === "negative"
+              : analysis.trend ===
+                "negative"
+              ? "warning"
+              : "neutral"
+          }
+        />
+
+        <AnalysisSummaryCard
+          label="Bilan"
+          value={`${analysis.overall.winRate.toFixed(
+            0
+          )}%`}
+          subtitle={`${analysis.overall.wins}V • ${analysis.overall.draws}N • ${analysis.overall.losses}D`}
+          tone={
+            analysis.overall.winRate >=
+            60
+              ? "positive"
+              : analysis.overall.winRate <
+                  35 &&
+                matches.length >=
+                  5
+              ? "warning"
+              : "neutral"
+          }
+        />
+
+        <AnalysisSummaryCard
+          label="Attaque"
+          value={analysis.overall.goalsForPerMatch.toFixed(
+            2
+          )}
+          subtitle={`${analysis.scoringRate.toFixed(
+            0
+          )}% des matchs avec but`}
+          tone={
+            analysis.scoringRate >=
+            85
+              ? "positive"
+              : analysis.scoringRate <
+                  70 &&
+                matches.length >=
+                  5
+              ? "warning"
+              : "neutral"
+          }
+        />
+
+        <AnalysisSummaryCard
+          label="Défense"
+          value={analysis.overall.goalsAgainstPerMatch.toFixed(
+            2
+          )}
+          subtitle={`${analysis.cleanSheetRate.toFixed(
+            0
+          )}% de clean sheets`}
+          tone={
+            analysis.cleanSheetRate >=
+            40
+              ? "positive"
+              : analysis.overall.goalsAgainstPerMatch >=
+                  2 &&
+                matches.length >=
+                  5
+              ? "warning"
+              : "neutral"
+          }
+        />
+
+        <AnalysisSummaryCard
+          label="Réussite passes"
+          value={`${analysis.teamPassSuccess.toFixed(
+            1
+          )}%`}
+          subtitle="Pondérée par les tentatives"
+          tone={
+            analysis.teamPassSuccess >=
+            80
+              ? "positive"
+              : analysis.teamPassSuccess >
+                    0 &&
+                  analysis.teamPassSuccess <
+                    70
               ? "warning"
               : "neutral"
           }
@@ -12222,249 +13145,583 @@ function AnalysisDashboard({
 
         <AnalysisSummaryCard
           label="Note collective"
-          value={analysis.averageRating.toFixed(2)}
+          value={analysis.averageRating.toFixed(
+            2
+          )}
           subtitle={`${players.length} joueurs`}
           tone="neutral"
         />
 
-        <AnalysisSummaryCard
-          label="Réussite passes"
-          value={`${analysis.teamPassSuccess.toFixed(1)}%`}
-          subtitle="Pondérée par les tentatives"
-          tone={
-            analysis.teamPassSuccess >= 80
-              ? "positive"
-              : analysis.teamPassSuccess > 0 &&
-                analysis.teamPassSuccess < 70
-              ? "warning"
-              : "neutral"
-          }
-        />
-
-        <AnalysisSummaryCard
-          label="Clean sheets"
-          value={`${analysis.cleanSheetRate.toFixed(1)}%`}
-          subtitle={`${analysis.cleanSheets} match(s)`}
-          tone="neutral"
-        />
       </div>
 
-      <div className="grid gap-5 2xl:grid-cols-12">
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-7">
+      <section className="mb-5 overflow-hidden rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.055] via-[#091626] to-cyan-400/[0.025]">
+
+        <div className="border-b border-white/[0.07] px-5 py-4">
+
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
+            Brief staff
+          </p>
+
+          <h3 className="mt-1 text-xl font-black">
+            Ce que disent les chiffres
+          </h3>
+
+        </div>
+
+        <div className="grid gap-3 p-5 lg:grid-cols-3">
+
+          <AnalysisBriefCard
+            label="Point fort"
+            value={
+              analysis.strongestPoint
+            }
+            tone="positive"
+          />
+
+          <AnalysisBriefCard
+            label="Vigilance"
+            value={
+              analysis.vigilance
+            }
+            tone={
+              analysis.vigilance.startsWith(
+                "Pas de"
+              )
+                ? "neutral"
+                : "warning"
+            }
+          />
+
+          <AnalysisBriefCard
+            label="Contexte compétition"
+            value={
+              analysis.strongestCompetition
+                ? `${analysis.strongestCompetition.name} ressort actuellement à ${analysis.strongestCompetition.stats.winRate.toFixed(
+                    0
+                  )}% de victoires sur ${analysis.strongestCompetition.stats.played} matchs.`
+                : analysis.competitionInsights.length >
+                    0
+                ? "Il faut au moins 3 matchs dans une compétition pour dégager une tendance fiable."
+                : "Aucune compétition disponible dans ce filtre."
+            }
+            tone="neutral"
+          />
+
+        </div>
+
+      </section>
+
+      <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+        <section className="rounded-3xl border border-cyan-400/15 bg-[#091626] 2xl:col-span-7">
+
           <PanelHeader
             title="5 DERNIERS VS 5 PRÉCÉDENTS"
             right={
-              analysis.previous.played > 0
+              analysis.previous.played >
+              0
                 ? "Comparaison active"
                 : "Historique insuffisant"
             }
           />
 
           <div className="grid gap-4 p-5 md:grid-cols-2">
+
             <AnalysisWindowCard
               title="5 derniers"
-              stats={analysis.recent}
+              stats={
+                analysis.recent
+              }
               highlight
             />
 
             <AnalysisWindowCard
               title="5 précédents"
-              stats={analysis.previous}
+              stats={
+                analysis.previous
+              }
             />
+
           </div>
 
-          {analysis.recent.played > 0 &&
-            analysis.previous.played > 0 && (
-              <div className="grid gap-3 border-t border-white/5 p-5 md:grid-cols-3">
-                <DeltaBox
-                  label="Taux de victoire"
-                  value={
-                    analysis.recent.winRate -
-                    analysis.previous.winRate
-                  }
-                  suffix=" pts"
-                  higherIsBetter
-                />
+          {analysis.recent.played >
+            0 &&
+            analysis.previous.played >
+              0 && (
 
-                <DeltaBox
-                  label="Buts marqués / match"
-                  value={
-                    analysis.recent.goalsForPerMatch -
-                    analysis.previous.goalsForPerMatch
-                  }
-                  higherIsBetter
-                />
+            <div className="grid gap-3 border-t border-white/5 p-5 md:grid-cols-3">
 
-                <DeltaBox
-                  label="Buts encaissés / match"
-                  value={
-                    analysis.recent.goalsAgainstPerMatch -
-                    analysis.previous.goalsAgainstPerMatch
-                  }
-                  higherIsBetter={false}
-                />
-              </div>
-            )}
+              <DeltaBox
+                label="Taux de victoire"
+                value={
+                  analysis.recent.winRate -
+                  analysis.previous.winRate
+                }
+                suffix=" pts"
+                higherIsBetter
+              />
+
+              <DeltaBox
+                label="Buts marqués / match"
+                value={
+                  analysis.recent.goalsForPerMatch -
+                  analysis.previous.goalsForPerMatch
+                }
+                higherIsBetter
+              />
+
+              <DeltaBox
+                label="Buts encaissés / match"
+                value={
+                  analysis.recent.goalsAgainstPerMatch -
+                  analysis.previous.goalsAgainstPerMatch
+                }
+                higherIsBetter={
+                  false
+                }
+              />
+
+            </div>
+
+          )}
+
         </section>
 
-        <section className="rounded-2xl border border-yellow-400/20 bg-[#091626] 2xl:col-span-5">
+        <section className="rounded-3xl border border-yellow-400/20 bg-[#091626] 2xl:col-span-5">
+
           <PanelHeader
-            title="SÉRIES ACTUELLES"
-            right="Depuis le dernier match"
+            title="SÉRIES & MATCHS SERRÉS"
+            right="Situation actuelle"
           />
 
-          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-3 2xl:grid-cols-1">
+          <div className="grid grid-cols-2 gap-3 p-5">
+
             <StreakCard
               label="Résultat"
               value={
-                analysis.resultStreak.count > 0
+                analysis.resultStreak.count >
+                0
                   ? `${analysis.resultStreak.count} ${resultLabel(
                       analysis.resultStreak.result
                     )}`
                   : "-"
               }
-              subtitle={
-                analysis.resultStreak.count > 0
-                  ? `Série de ${analysis.resultStreak.result}`
-                  : "Aucun match"
-              }
+              subtitle="Série actuelle"
             />
 
             <StreakCard
               label="Sans défaite"
-              value={analysis.unbeatenStreak}
+              value={
+                analysis.unbeatenStreak
+              }
               subtitle="Match(s) consécutif(s)"
             />
 
             <StreakCard
-              label="Avec au moins un but"
-              value={analysis.scoringStreak}
+              label="Avec un but"
+              value={
+                analysis.scoringStreak
+              }
               subtitle="Match(s) consécutif(s)"
             />
+
+            <StreakCard
+              label="Matchs serrés"
+              value={`${analysis.closeWinRate.toFixed(
+                0
+              )}%`}
+              subtitle={`${analysis.closeWins}V sur ${analysis.closeMatches}`}
+            />
+
           </div>
+
+          <div className="grid grid-cols-2 gap-3 border-t border-white/[0.07] p-5">
+
+            <AnalysisMiniMetric
+              label="2+ buts marqués"
+              value={
+                analysis.multiGoalMatches
+              }
+              helper="match(s)"
+            />
+
+            <AnalysisMiniMetric
+              label="2+ buts encaissés"
+              value={
+                analysis.concededTwoPlus
+              }
+              helper="match(s)"
+            />
+
+          </div>
+
         </section>
 
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-6">
+      </div>
+
+      <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+        <section className="overflow-hidden rounded-3xl border border-blue-400/15 bg-[#091626] 2xl:col-span-7">
+
           <PanelHeader
-            title="SIGNAUX DÉTECTÉS"
-            right={`${analysis.signals.length} constat(s)`}
+            title="LECTURE PAR COMPÉTITION"
+            right="Minimum conseillé : 3 matchs"
           />
 
-          <div className="space-y-3 p-5">
-            {analysis.signals.length > 0 ? (
-              analysis.signals.map((signal, index) => (
-                <AnalysisSignalCard
-                  key={`${signal.title}-${index}`}
-                  signal={signal}
-                />
-              ))
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-600">
-                Pas assez de données pour générer des signaux.
-              </p>
-            )}
-          </div>
+          {analysis.competitionInsights.length >
+          0 ? (
+
+            <div className="grid gap-3 p-5 md:grid-cols-2">
+
+              {analysis.competitionInsights.map(
+                (
+                  item,
+                  index
+                ) => (
+
+                  <CompetitionAnalysisCard
+                    key={
+                      item.id ??
+                      item.name
+                    }
+                    name={
+                      item.name
+                    }
+                    stats={
+                      item.stats
+                    }
+                    rank={
+                      index +
+                      1
+                    }
+                    qualified={
+                      item.stats.played >=
+                      3
+                    }
+                    strongest={
+                      analysis.strongestCompetition?.id ===
+                        item.id &&
+                      analysis.strongestCompetition?.name ===
+                        item.name
+                    }
+                    weakest={
+                      analysis.weakestCompetition?.id ===
+                        item.id &&
+                      analysis.weakestCompetition?.name ===
+                        item.name
+                    }
+                  />
+
+                )
+              )}
+
+            </div>
+
+          ) : (
+
+            <p className="p-8 text-center text-sm font-bold text-gray-600">
+              Aucune compétition disponible.
+            </p>
+
+          )}
+
         </section>
 
-        <section className="rounded-2xl border border-yellow-400/25 bg-[#091626] 2xl:col-span-6">
+        <section className="rounded-3xl border border-yellow-400/20 bg-[#091626] 2xl:col-span-5">
+
           <PanelHeader
             title="AXES DE TRAVAIL"
-            right="Calcul automatique"
+            right="Priorités calculées"
           />
 
           <div className="space-y-3 p-5">
-            {analysis.recommendations.map((recommendation, index) => (
-              <RecommendationCard
-                key={`${recommendation.title}-${index}`}
-                recommendation={recommendation}
-              />
-            ))}
+
+            {analysis.recommendations.map(
+              (
+                recommendation,
+                index
+              ) => (
+
+                <RecommendationCard
+                  key={`${recommendation.title}-${index}`}
+                  recommendation={
+                    recommendation
+                  }
+                />
+
+              )
+            )}
+
           </div>
+
         </section>
 
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-6">
+      </div>
+
+      <section className="mb-5 rounded-3xl border border-cyan-400/15 bg-[#091626]">
+
+        <PanelHeader
+          title="SIGNAUX DÉTECTÉS"
+          right={`${analysis.signals.length} constat(s)`}
+        />
+
+        <div className="grid gap-3 p-5 lg:grid-cols-2">
+
+          {analysis.signals.length >
+          0 ? (
+
+            analysis.signals.map(
+              (
+                signal,
+                index
+              ) => (
+
+                <AnalysisSignalCard
+                  key={`${signal.title}-${index}`}
+                  signal={
+                    signal
+                  }
+                />
+
+              )
+            )
+
+          ) : (
+
+            <p className="py-8 text-center text-sm text-gray-600 lg:col-span-2">
+              Pas assez de données pour générer des signaux.
+            </p>
+
+          )}
+
+        </div>
+
+      </section>
+
+      <div className="mb-5 grid gap-5 2xl:grid-cols-3">
+
+        <section className="rounded-3xl border border-emerald-400/15 bg-[#091626]">
+
           <PanelHeader
             title="JOUEURS EN PROGRESSION"
-            right="Notes récentes"
+            right="Poste principal"
           />
 
           <div className="p-5">
-            {analysis.improvingPlayers.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {analysis.improvingPlayers.map((item) => (
-                  <PlayerFormCard
-                    key={item.player.id}
-                    player={item.player}
-                    delta={item.delta}
-                    recentAverage={item.recentAverage}
-                    olderAverage={item.olderAverage}
-                    onOpenPlayer={onOpenPlayer}
-                  />
-                ))}
+
+            {analysis.improvingPlayers.length >
+            0 ? (
+
+              <div className="space-y-3">
+
+                {analysis.improvingPlayers.map(
+                  (item) => (
+
+                    <PlayerFormCard
+                      key={
+                        item.player.id
+                      }
+                      player={
+                        item.player
+                      }
+                      position={
+                        item.position
+                      }
+                      delta={
+                        item.delta
+                      }
+                      recentAverage={
+                        item.recentAverage
+                      }
+                      olderAverage={
+                        item.olderAverage
+                      }
+                      onOpenPlayer={
+                        onOpenPlayer
+                      }
+                    />
+
+                  )
+                )}
+
               </div>
+
             ) : (
+
               <p className="py-8 text-center text-sm text-gray-600">
-                Aucun joueur ne présente actuellement une hausse nette
-                d&apos;au moins 0,20 point sur ses notes récentes.
+                Aucune hausse nette d&apos;au moins 0,20 point sur le poste principal.
               </p>
+
             )}
+
           </div>
+
         </section>
 
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-6">
+        <section className="rounded-3xl border border-cyan-400/15 bg-[#091626]">
+
+          <PanelHeader
+            title="JOUEURS LES PLUS RÉGULIERS"
+            right="4 notes mini"
+          />
+
+          <div className="p-5">
+
+            {analysis.regularPlayers.length >
+            0 ? (
+
+              <div className="space-y-3">
+
+                {analysis.regularPlayers.map(
+                  (item) => (
+
+                    <PlayerConsistencyCard
+                      key={
+                        item.player.id
+                      }
+                      player={
+                        item.player
+                      }
+                      position={
+                        item.position
+                      }
+                      average={
+                        item.average
+                      }
+                      deviation={
+                        item.deviation
+                      }
+                      sample={
+                        item.sample
+                      }
+                      onOpenPlayer={
+                        onOpenPlayer
+                      }
+                    />
+
+                  )
+                )}
+
+              </div>
+
+            ) : (
+
+              <p className="py-8 text-center text-sm text-gray-600">
+                Pas encore assez de notes par poste pour mesurer la régularité.
+              </p>
+
+            )}
+
+          </div>
+
+        </section>
+
+        <section className="rounded-3xl border border-rose-400/15 bg-[#091626]">
+
           <PanelHeader
             title="JOUEURS À SURVEILLER"
-            right="Notes récentes"
+            right="Poste principal"
           />
 
           <div className="p-5">
-            {analysis.decliningPlayers.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {analysis.decliningPlayers.map((item) => (
-                  <PlayerFormCard
-                    key={item.player.id}
-                    player={item.player}
-                    delta={item.delta}
-                    recentAverage={item.recentAverage}
-                    olderAverage={item.olderAverage}
-                    onOpenPlayer={onOpenPlayer}
-                  />
-                ))}
+
+            {analysis.decliningPlayers.length >
+            0 ? (
+
+              <div className="space-y-3">
+
+                {analysis.decliningPlayers.map(
+                  (item) => (
+
+                    <PlayerFormCard
+                      key={
+                        item.player.id
+                      }
+                      player={
+                        item.player
+                      }
+                      position={
+                        item.position
+                      }
+                      delta={
+                        item.delta
+                      }
+                      recentAverage={
+                        item.recentAverage
+                      }
+                      olderAverage={
+                        item.olderAverage
+                      }
+                      onOpenPlayer={
+                        onOpenPlayer
+                      }
+                    />
+
+                  )
+                )}
+
               </div>
+
             ) : (
+
               <p className="py-8 text-center text-sm text-gray-600">
-                Aucun joueur ne présente actuellement une baisse nette
-                d&apos;au moins 0,20 point.
+                Aucune baisse nette d&apos;au moins 0,20 point sur le poste principal.
               </p>
+
             )}
+
           </div>
+
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-[#091626] 2xl:col-span-12">
-          <PanelHeader
-            title="LECTURE DES DERNIERS MATCHS"
-            right="5 derniers"
-          />
+      </div>
 
-          <div className="grid gap-3 p-5 md:grid-cols-5">
-            {analysis.recentMatches.map((match, index) => (
+      <section className="mb-5 rounded-3xl border border-white/10 bg-[#091626]">
+
+        <PanelHeader
+          title="LECTURE DES DERNIERS MATCHS"
+          right="5 derniers"
+        />
+
+        <div className="grid gap-3 p-5 md:grid-cols-5">
+
+          {analysis.recentMatches.map(
+            (
+              match,
+              index
+            ) => (
+
               <button
-                key={match.id ?? match.matchId}
+                key={
+                  match.id ??
+                  match.matchId
+                }
                 onClick={() => {
-                  if (match.id) {
-                    onOpenMatch(match.id);
+                  if (
+                    match.id
+                  ) {
+                    onOpenMatch(
+                      match.id
+                    );
                   }
                 }}
                 className={`rounded-2xl border p-4 text-left transition ${getMatchCardStyle(
                   match.result
                 )}`}
               >
+
                 <div className="flex items-center justify-between">
+
                   <span className="text-xs font-black text-gray-600">
                     M{index + 1}
                   </span>
 
-                  <ResultBadge result={match.result} />
+                  <ResultBadge
+                    result={
+                      match.result
+                    }
+                  />
+
                 </div>
 
                 <p className="mt-4 truncate font-black">
@@ -12476,31 +13733,279 @@ function AnalysisDashboard({
                 </p>
 
                 <p className="mt-2 text-[10px] text-gray-600">
-                  {formatDate(match.date)}
+                  {formatDate(
+                    match.date
+                  )}
                 </p>
+
               </button>
-            ))}
-          </div>
-        </section>
 
-        <section className="rounded-2xl border border-white/10 bg-[#07111f] 2xl:col-span-12">
-          <div className="p-5">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
-              Limites de l&apos;analyse
-            </p>
+            )
+          )}
 
-            <p className="mt-3 max-w-5xl text-sm leading-6 text-gray-600">
-              Cette analyse repose sur les scores, résultats et statistiques
-              individuelles disponibles dans l&apos;API EA. Elle ne connaît
-              pas la possession, les xG, les zones de perte, les hauteurs de
-              bloc, les courses sans ballon ni les consignes réellement
-              appliquées. Les axes proposés sont donc des pistes de travail,
-              pas des diagnostics tactiques certains.
-            </p>
-          </div>
-        </section>
-      </div>
+        </div>
+
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-[#07111f]">
+
+        <div className="p-5">
+
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
+            Limites de l&apos;analyse
+          </p>
+
+          <p className="mt-3 max-w-6xl text-sm leading-6 text-gray-600">
+            Analyses 2.0 utilise les scores, résultats, notes et statistiques individuelles réellement enregistrés. Le module ne connaît pas la possession, les xG, les zones de perte, les hauteurs de bloc, les courses sans ballon ni les consignes réellement appliquées. Les axes proposés sont donc des indicateurs pour le staff à vérifier dans les matchs, et non des diagnostics tactiques certains.
+          </p>
+
+        </div>
+
+      </section>
+
     </>
+  );
+}
+
+function AnalysisBriefCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone:
+    | "positive"
+    | "warning"
+    | "neutral";
+}) {
+  const style =
+    tone ===
+    "positive"
+      ? "border-emerald-400/15 bg-emerald-400/[0.04]"
+      : tone ===
+        "warning"
+      ? "border-rose-400/15 bg-rose-400/[0.04]"
+      : "border-white/[0.07] bg-black/10";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${style}`}>
+
+      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+        {label}
+      </p>
+
+      <p className="mt-2 text-sm font-bold leading-6 text-gray-300">
+        {value}
+      </p>
+
+    </div>
+  );
+}
+
+function AnalysisMiniMetric({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+
+      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-gray-700">
+        {label}
+      </p>
+
+      <p className="mt-1 text-xl font-black text-white">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[9px] font-bold text-gray-600">
+        {helper}
+      </p>
+
+    </div>
+  );
+}
+
+function CompetitionAnalysisCard({
+  name,
+  stats,
+  rank,
+  qualified,
+  strongest,
+  weakest,
+}: {
+  name: string;
+  stats: WindowStats;
+  rank: number;
+  qualified: boolean;
+  strongest: boolean;
+  weakest: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl border p-4 ${
+      strongest
+        ? "border-emerald-400/20 bg-emerald-400/[0.04]"
+        : weakest
+        ? "border-rose-400/15 bg-rose-400/[0.035]"
+        : "border-white/[0.07] bg-black/10"
+    }`}>
+
+      <div className="flex items-start justify-between gap-3">
+
+        <div className="min-w-0">
+
+          <div className="flex flex-wrap items-center gap-2">
+
+            <p className="truncate font-black text-white">
+              {name}
+            </p>
+
+            {strongest && (
+
+              <span className="rounded-md border border-emerald-400/15 bg-emerald-400/[0.07] px-2 py-1 text-[8px] font-black uppercase text-emerald-300">
+                Meilleure tendance
+              </span>
+
+            )}
+
+            {weakest && !strongest && (
+
+              <span className="rounded-md border border-rose-400/15 bg-rose-400/[0.07] px-2 py-1 text-[8px] font-black uppercase text-rose-300">
+                À surveiller
+              </span>
+
+            )}
+
+          </div>
+
+          <p className="mt-1 text-[10px] font-bold text-gray-600">
+            {stats.played} match{stats.played > 1 ? "s" : ""} • {stats.wins}V {stats.draws}N {stats.losses}D
+          </p>
+
+        </div>
+
+        <span className="text-[10px] font-black text-gray-700">
+          #{rank}
+        </span>
+
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+
+        <AnalysisMiniMetric
+          label="Victoires"
+          value={`${stats.winRate.toFixed(
+            0
+          )}%`}
+          helper="taux"
+        />
+
+        <AnalysisMiniMetric
+          label="BP / M"
+          value={stats.goalsForPerMatch.toFixed(
+            2
+          )}
+          helper="attaque"
+        />
+
+        <AnalysisMiniMetric
+          label="BC / M"
+          value={stats.goalsAgainstPerMatch.toFixed(
+            2
+          )}
+          helper="défense"
+        />
+
+      </div>
+
+      {!qualified && (
+
+        <p className="mt-3 text-[9px] font-bold text-yellow-200/60">
+          Tendance indicative : moins de 3 matchs.
+        </p>
+
+      )}
+
+    </div>
+  );
+}
+
+function PlayerConsistencyCard({
+  player,
+  position,
+  average,
+  deviation,
+  sample,
+  onOpenPlayer,
+}: {
+  player: Player;
+  position: string;
+  average: number;
+  deviation: number;
+  sample: number;
+  onOpenPlayer: (
+    player: Player
+  ) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        onOpenPlayer(
+          player
+        )
+      }
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-[#06111f] p-4 text-left transition hover:border-cyan-400/25"
+    >
+
+      <div className="flex min-w-0 items-center gap-3">
+
+        <PlayerAvatar
+          player={
+            player
+          }
+        />
+
+        <div className="min-w-0">
+
+          <p className="truncate font-black">
+            {formatPlayerName(
+              player.name
+            )}
+          </p>
+
+          <p className="mt-1 text-[10px] font-bold text-gray-600">
+            {formatPosition(
+              position
+            )} • {sample} notes • moy. {average.toFixed(
+              2
+            )}
+          </p>
+
+        </div>
+
+      </div>
+
+      <div className="text-right">
+
+        <p className="text-lg font-black text-cyan-300">
+          ±{deviation.toFixed(
+            2
+          )}
+        </p>
+
+        <p className="text-[8px] font-black uppercase text-gray-700">
+          variation
+        </p>
+
+      </div>
+
+    </button>
   );
 }
 
@@ -12524,6 +14029,7 @@ function AnalysisSummaryCard({
 
   return (
     <div className={`rounded-2xl border p-5 ${style}`}>
+
       <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
         {label}
       </p>
@@ -12535,6 +14041,7 @@ function AnalysisSummaryCard({
       <p className="mt-2 text-xs text-gray-600">
         {subtitle}
       </p>
+
     </div>
   );
 }
@@ -12556,7 +14063,9 @@ function AnalysisWindowCard({
           : "border-white/10 bg-[#06111f]"
       }`}
     >
+
       <div className="flex items-center justify-between">
+
         <p className="font-black">
           {title}
         </p>
@@ -12564,35 +14073,66 @@ function AnalysisWindowCard({
         <span className="text-xs text-gray-600">
           {stats.played} match(s)
         </span>
+
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-3">
-        <Kpi value={stats.wins} label="V" />
-        <Kpi value={stats.draws} label="N" />
-        <Kpi value={stats.losses} label="D" />
+
+        <Kpi
+          value={
+            stats.wins
+          }
+          label="V"
+        />
+
+        <Kpi
+          value={
+            stats.draws
+          }
+          label="N"
+        />
+
+        <Kpi
+          value={
+            stats.losses
+          }
+          label="D"
+        />
+
       </div>
 
       <div className="mt-4 space-y-3">
+
         <ReportLine
           label="Taux de victoire"
-          value={`${stats.winRate.toFixed(1)}%`}
+          value={`${stats.winRate.toFixed(
+            1
+          )}%`}
         />
 
         <ReportLine
           label="Buts / match"
-          value={stats.goalsForPerMatch.toFixed(2)}
+          value={stats.goalsForPerMatch.toFixed(
+            2
+          )}
         />
 
         <ReportLine
           label="Encaissés / match"
-          value={stats.goalsAgainstPerMatch.toFixed(2)}
+          value={stats.goalsAgainstPerMatch.toFixed(
+            2
+          )}
         />
 
         <ReportLine
           label="Diff. buts / match"
-          value={formatSigned(stats.goalDifferencePerMatch)}
+          value={formatSigned(
+            stats.goalDifferencePerMatch
+          )}
         />
+
       </div>
+
     </div>
   );
 }
@@ -12609,30 +14149,42 @@ function DeltaBox({
   higherIsBetter: boolean;
 }) {
   const good =
-    Math.abs(value) < 0.01
+    Math.abs(
+      value
+    ) <
+    0.01
       ? null
       : higherIsBetter
-      ? value > 0
-      : value < 0;
+      ? value >
+        0
+      : value <
+        0;
 
   const style =
     good === true
       ? "text-green-400"
-      : good === false
+      : good ===
+        false
       ? "text-red-400"
       : "text-gray-400";
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#06111f] p-4">
+
       <p className="text-[10px] font-black uppercase text-gray-600">
         {label}
       </p>
 
       <p className={`mt-2 text-xl font-black ${style}`}>
-        {value > 0 ? "+" : ""}
-        {value.toFixed(2)}
+        {value > 0
+          ? "+"
+          : ""}
+        {value.toFixed(
+          2
+        )}
         {suffix}
       </p>
+
     </div>
   );
 }
@@ -12648,6 +14200,7 @@ function StreakCard({
 }) {
   return (
     <div className="rounded-xl border border-white/10 bg-[#06111f] p-4">
+
       <p className="text-[10px] font-black uppercase tracking-wider text-gray-600">
         {label}
       </p>
@@ -12659,6 +14212,7 @@ function StreakCard({
       <p className="mt-1 text-xs text-gray-600">
         {subtitle}
       </p>
+
     </div>
   );
 }
@@ -12669,27 +14223,34 @@ function AnalysisSignalCard({
   signal: AnalysisSignal;
 }) {
   const style =
-    signal.tone === "positive"
+    signal.tone ===
+    "positive"
       ? "border-green-400/20 bg-green-400/[0.04]"
-      : signal.tone === "warning"
+      : signal.tone ===
+        "warning"
       ? "border-red-400/20 bg-red-400/[0.04]"
       : "border-white/10 bg-[#06111f]";
 
   const dot =
-    signal.tone === "positive"
+    signal.tone ===
+    "positive"
       ? "bg-green-400"
-      : signal.tone === "warning"
+      : signal.tone ===
+        "warning"
       ? "bg-red-400"
       : "bg-yellow-400";
 
   return (
     <div className={`rounded-xl border p-4 ${style}`}>
+
       <div className="flex gap-3">
+
         <span
           className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`}
         />
 
         <div>
+
           <p className="font-black">
             {signal.title}
           </p>
@@ -12697,8 +14258,11 @@ function AnalysisSignalCard({
           <p className="mt-2 text-sm leading-6 text-gray-500">
             {signal.description}
           </p>
+
         </div>
+
       </div>
+
     </div>
   );
 }
@@ -12706,16 +14270,21 @@ function AnalysisSignalCard({
 function RecommendationCard({
   recommendation,
 }: {
-  recommendation: AnalysisRecommendation;
+  recommendation:
+    AnalysisRecommendation;
 }) {
   return (
     <div className="rounded-xl border border-white/10 bg-[#06111f] p-4">
+
       <div className="flex items-start gap-4">
+
         <div
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black ${
-            recommendation.priority === 1
+            recommendation.priority ===
+            1
               ? "bg-red-400/10 text-red-400"
-              : recommendation.priority === 2
+              : recommendation.priority ===
+                2
               ? "bg-yellow-400/10 text-yellow-400"
               : "bg-blue-400/10 text-blue-400"
           }`}
@@ -12724,74 +14293,156 @@ function RecommendationCard({
         </div>
 
         <div>
+
           <p className="font-black">
             {recommendation.title}
           </p>
 
           <p className="mt-2 text-sm leading-6 text-gray-500">
+
             <span className="font-bold text-gray-400">
               Pourquoi :
             </span>{" "}
+
             {recommendation.reason}
+
           </p>
 
           <p className="mt-2 text-sm leading-6 text-gray-500">
+
             <span className="font-bold text-gray-400">
               Action :
             </span>{" "}
+
             {recommendation.action}
+
           </p>
+
         </div>
+
       </div>
+
     </div>
   );
 }
 
 function PlayerFormCard({
   player,
+  position,
   delta,
   recentAverage,
   olderAverage,
   onOpenPlayer,
 }: {
   player: Player;
+  position: string;
   delta: number;
   recentAverage: number;
   olderAverage: number;
-  onOpenPlayer: (player: Player) => void;
+  onOpenPlayer: (
+    player: Player
+  ) => void;
 }) {
-  const positive = delta >= 0;
+  const positive =
+    delta >=
+    0;
 
   return (
     <button
-      onClick={() => onOpenPlayer(player)}
+      onClick={() =>
+        onOpenPlayer(
+          player
+        )
+      }
       className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#06111f] p-4 text-left transition hover:border-yellow-400/30"
     >
+
       <div className="flex min-w-0 items-center gap-3">
-        <PlayerAvatar player={player} />
+
+        <PlayerAvatar
+          player={
+            player
+          }
+        />
 
         <div className="min-w-0">
+
           <p className="truncate font-black">
-            {formatPlayerName(player.name)}
+            {formatPlayerName(
+              player.name
+            )}
           </p>
 
           <p className="mt-1 text-[10px] text-gray-600">
-            {olderAverage.toFixed(2)} → {recentAverage.toFixed(2)}
+            {formatPosition(
+              position
+            )} • {olderAverage.toFixed(
+              2
+            )} → {recentAverage.toFixed(
+              2
+            )}
           </p>
+
         </div>
+
       </div>
 
       <p
         className={`shrink-0 font-black ${
-          positive ? "text-green-400" : "text-red-400"
+          positive
+            ? "text-green-400"
+            : "text-red-400"
         }`}
       >
-        {delta > 0 ? "+" : ""}
-        {delta.toFixed(2)}
+        {delta >
+        0
+          ? "+"
+          : ""}
+        {delta.toFixed(
+          2
+        )}
       </p>
+
     </button>
   );
 }
+
+function standardDeviation(
+  values: number[]
+) {
+  if (
+    values.length <
+    2
+  ) {
+    return 0;
+  }
+
+  const mean =
+    averageNumber(
+      values
+    );
+
+  const variance =
+    values.reduce(
+      (
+        total,
+        value
+      ) =>
+        total +
+        (
+          value -
+          mean
+        ) **
+          2,
+      0
+    ) /
+    values.length;
+
+  return Math.sqrt(
+    variance
+  );
+}
+
 
 /* =========================================================
    COMPOSANTS
