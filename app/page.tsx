@@ -69,6 +69,24 @@ type Match = {
   competitionId?: number | null;
 };
 
+type PlayerPositionStats = {
+  position: string;
+  games: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  shots: number;
+  passesMade: number;
+  passAttempts: number;
+  passSuccess: number;
+  tacklesMade: number;
+  tackleAttempts: number;
+  tackleSuccess: number;
+  saves: number;
+  redCards: number;
+  recentRatings: number[];
+};
+
 type Player = {
   id: string;
   name: string;
@@ -87,6 +105,7 @@ type Player = {
   saves: number;
   redCards: number;
   recentRatings: number[];
+  positionStats: PlayerPositionStats[];
 };
 
 type LineupSpot = {
@@ -4900,13 +4919,8 @@ function RosterManager({
   onOpenPlayer,
 }: {
   players: Player[];
-
-  currentFilterLabel:
-    string;
-
-  onOpenPlayer: (
-    player: Player
-  ) => void;
+  currentFilterLabel: string;
+  onOpenPlayer: (player: Player) => void;
 }) {
   const [search, setSearch] =
     useState("");
@@ -4918,6 +4932,134 @@ function RosterManager({
 
   const [sortBy, setSortBy] =
     useState("rating");
+
+  const [
+    compareLeftId,
+    setCompareLeftId,
+  ] = useState("");
+
+  const [
+    compareRightId,
+    setCompareRightId,
+  ] = useState("");
+
+  const [
+    comparePosition,
+    setComparePosition,
+  ] = useState("global");
+
+  useEffect(() => {
+    if (
+      players.length > 0 &&
+      !players.some(
+        (player) =>
+          player.id ===
+          compareLeftId
+      )
+    ) {
+      setCompareLeftId(
+        players[0].id
+      );
+    }
+
+    if (
+      players.length > 1 &&
+      !players.some(
+        (player) =>
+          player.id ===
+          compareRightId
+      )
+    ) {
+      setCompareRightId(
+        players[1].id
+      );
+    }
+  }, [
+    players,
+    compareLeftId,
+    compareRightId,
+  ]);
+
+  const compareLeft =
+    players.find(
+      (player) =>
+        player.id ===
+        compareLeftId
+    ) ?? null;
+
+  const compareRight =
+    players.find(
+      (player) =>
+        player.id ===
+        compareRightId
+    ) ?? null;
+
+  const commonComparisonPositions =
+    useMemo(() => {
+      if (
+        !compareLeft ||
+        !compareRight
+      ) {
+        return [];
+      }
+
+      const positions = [
+        "goalkeeper",
+        "defender",
+        "midfielder",
+        "forward",
+      ];
+
+      return positions.filter(
+        (position) =>
+          Boolean(
+            getPlayerPositionStats(
+              compareLeft,
+              position
+            )
+          ) &&
+          Boolean(
+            getPlayerPositionStats(
+              compareRight,
+              position
+            )
+          )
+      );
+    }, [
+      compareLeft,
+      compareRight,
+    ]);
+
+  useEffect(() => {
+    if (
+      comparePosition !==
+        "global" &&
+      !commonComparisonPositions.includes(
+        comparePosition
+      )
+    ) {
+      setComparePosition(
+        commonComparisonPositions[0] ??
+          "global"
+      );
+    }
+
+    if (
+      comparePosition ===
+        "global" &&
+      commonComparisonPositions.length >
+        0
+    ) {
+      setComparePosition(
+        commonComparisonPositions[0]
+      );
+    }
+  }, [
+    compareLeftId,
+    compareRightId,
+    commonComparisonPositions,
+    comparePosition,
+  ]);
 
   const filteredPlayers =
     useMemo(
@@ -4951,43 +5093,58 @@ function RosterManager({
           result =
             result.filter(
               (player) =>
-                player.position
-                  .toLowerCase() ===
-                positionFilter
+                Boolean(
+                  getPlayerPositionStats(
+                    player,
+                    positionFilter
+                  )
+                )
             );
         }
 
         result.sort(
           (a, b) => {
+            const aStats =
+              getPlayerStatsForScope(
+                a,
+                positionFilter
+              );
+
+            const bStats =
+              getPlayerStatsForScope(
+                b,
+                positionFilter
+              );
+
             switch (sortBy) {
               case "games":
                 return (
-                  b.games -
-                  a.games
+                  bStats.games -
+                  aStats.games
                 );
 
               case "goals":
                 return (
-                  b.goals -
-                  a.goals
+                  bStats.goals -
+                  aStats.goals
                 );
 
               case "assists":
                 return (
-                  b.assists -
-                  a.assists
+                  bStats.assists -
+                  aStats.assists
                 );
 
               case "passes":
                 return (
-                  b.passesMade -
-                  a.passesMade
+                  bStats.passesMade -
+                  aStats.passesMade
                 );
 
               default:
                 return (
-                  b.averageRating -
-                  a.averageRating
+                  bStats.averageRating -
+                  aStats.averageRating
                 );
             }
           }
@@ -5003,37 +5160,55 @@ function RosterManager({
       ]
     );
 
-  const goalkeepers =
+  const countForPosition = (
+    position: string
+  ) =>
     players.filter(
       (player) =>
-        player.position
-          .toLowerCase() ===
-        "goalkeeper"
+        Boolean(
+          getPlayerPositionStats(
+            player,
+            position
+          )
+        )
     ).length;
 
-  const defenders =
-    players.filter(
-      (player) =>
-        player.position
-          .toLowerCase() ===
-        "defender"
-    ).length;
+  const leftComparisonStats =
+    compareLeft
+      ? getPlayerStatsForScope(
+          compareLeft,
+          comparePosition
+        )
+      : null;
 
-  const midfielders =
-    players.filter(
-      (player) =>
-        player.position
-          .toLowerCase() ===
-        "midfielder"
-    ).length;
+  const rightComparisonStats =
+    compareRight
+      ? getPlayerStatsForScope(
+          compareRight,
+          comparePosition
+        )
+      : null;
 
-  const forwards =
-    players.filter(
-      (player) =>
-        player.position
-          .toLowerCase() ===
-        "forward"
-    ).length;
+  const ratingDifference =
+    leftComparisonStats &&
+    rightComparisonStats
+      ? Math.abs(
+          leftComparisonStats.averageRating -
+            rightComparisonStats.averageRating
+        )
+      : 0;
+
+  const comparisonLeader =
+    leftComparisonStats &&
+    rightComparisonStats
+      ? leftComparisonStats.averageRating >
+        rightComparisonStats.averageRating
+        ? compareLeft
+        : rightComparisonStats.averageRating >
+          leftComparisonStats.averageRating
+        ? compareRight
+        : null
+      : null;
 
   return (
     <>
@@ -5041,20 +5216,18 @@ function RosterManager({
       <div className="mb-6">
 
         <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
-          GX NOVA
+          GX NOVA • JOUEURS 2.0
         </p>
 
         <h2 className="mt-2 text-3xl font-black">
-          Effectif
+          Effectif & comparaison
         </h2>
 
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 max-w-3xl text-sm text-gray-500">
 
-          Statistiques individuelles •{" "}
-
-          {
-            currentFilterLabel
-          }
+          Les notes sont maintenant séparées selon le poste réellement joué à chaque match.
+          Un même joueur peut donc avoir une moyenne différente comme gardien, défenseur,
+          milieu ou attaquant.
 
         </p>
 
@@ -5064,45 +5237,241 @@ function RosterManager({
 
         <SmallStatCard
           title="Joueurs"
-          value={
-            players.length
-          }
+          value={players.length}
           subtitle="Détectés"
         />
 
         <SmallStatCard
           title="Gardiens"
-          value={
-            goalkeepers
-          }
-          subtitle="G"
+          value={countForPosition(
+            "goalkeeper"
+          )}
+          subtitle="Au moins 1 match"
         />
 
         <SmallStatCard
           title="Défenseurs"
-          value={
-            defenders
-          }
-          subtitle="DEF"
+          value={countForPosition(
+            "defender"
+          )}
+          subtitle="Au moins 1 match"
         />
 
         <SmallStatCard
           title="Milieux"
-          value={
-            midfielders
-          }
-          subtitle="MIL"
+          value={countForPosition(
+            "midfielder"
+          )}
+          subtitle="Au moins 1 match"
         />
 
         <SmallStatCard
           title="Attaquants"
-          value={
-            forwards
-          }
-          subtitle="ATT"
+          value={countForPosition(
+            "forward"
+          )}
+          subtitle="Au moins 1 match"
         />
 
       </div>
+
+      <section className="mb-5 overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-cyan-400/[0.045] via-[#091626] to-yellow-400/[0.025]">
+
+        <div className="border-b border-white/[0.07] p-5">
+
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">
+            Comparateur par poste
+          </p>
+
+          <h3 className="mt-1 text-xl font-black">
+            Comparer deux joueurs sur le même rôle
+          </h3>
+
+          <p className="mt-1 text-xs font-semibold text-gray-500">
+            Pour une comparaison équitable, la note utilisée correspond uniquement aux matchs joués au poste sélectionné.
+          </p>
+
+        </div>
+
+        <div className="grid gap-4 p-5 lg:grid-cols-[1fr_220px_1fr] lg:items-end">
+
+          <div>
+
+            <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.15em] text-gray-600">
+              Joueur A
+            </label>
+
+            <select
+              value={compareLeftId}
+              onChange={(event) =>
+                setCompareLeftId(
+                  event.target.value
+                )
+              }
+              className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-bold text-white outline-none"
+            >
+
+              {players.map(
+                (player) => (
+
+                  <option
+                    key={player.id}
+                    value={player.id}
+                  >
+                    {formatPlayerName(
+                      player.name
+                    )}
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.15em] text-gray-600">
+              Poste comparé
+            </label>
+
+            <select
+              value={comparePosition}
+              onChange={(event) =>
+                setComparePosition(
+                  event.target.value
+                )
+              }
+              className="w-full rounded-xl border border-yellow-400/20 bg-[#050d18] px-4 py-3 text-sm font-black text-yellow-300 outline-none"
+            >
+
+              {commonComparisonPositions.map(
+                (position) => (
+
+                  <option
+                    key={position}
+                    value={position}
+                  >
+                    {formatPositionLong(
+                      position
+                    )}
+                  </option>
+
+                )
+              )}
+
+              <option value="global">
+                Global (indicatif)
+              </option>
+
+            </select>
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.15em] text-gray-600">
+              Joueur B
+            </label>
+
+            <select
+              value={compareRightId}
+              onChange={(event) =>
+                setCompareRightId(
+                  event.target.value
+                )
+              }
+              className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-bold text-white outline-none"
+            >
+
+              {players.map(
+                (player) => (
+
+                  <option
+                    key={player.id}
+                    value={player.id}
+                  >
+                    {formatPlayerName(
+                      player.name
+                    )}
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </div>
+
+        </div>
+
+        {compareLeft &&
+        compareRight &&
+        leftComparisonStats &&
+        rightComparisonStats ? (
+
+          <div className="grid gap-4 border-t border-white/[0.07] p-5 lg:grid-cols-[1fr_180px_1fr] lg:items-stretch">
+
+            <ComparisonPlayerCard
+              player={compareLeft}
+              stats={leftComparisonStats}
+              side="left"
+            />
+
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.07] bg-black/10 p-4 text-center">
+
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-600">
+                Écart de note
+              </p>
+
+              <p className="mt-2 text-3xl font-black text-yellow-300">
+                {ratingDifference.toFixed(
+                  2
+                )}
+              </p>
+
+              <p className="mt-2 text-xs font-bold text-gray-500">
+                {comparisonLeader
+                  ? `${formatPlayerName(
+                      comparisonLeader.name
+                    )} devant`
+                  : "Égalité"}
+              </p>
+
+            </div>
+
+            <ComparisonPlayerCard
+              player={compareRight}
+              stats={rightComparisonStats}
+              side="right"
+            />
+
+          </div>
+
+        ) : null}
+
+        {comparePosition ===
+          "global" && (
+
+          <div className="border-t border-orange-400/10 bg-orange-400/[0.035] px-5 py-3 text-xs font-semibold text-orange-200/80">
+            La vue globale mélange les postes joués. Elle reste informative, mais ne doit pas servir seule pour classer deux joueurs ayant des rôles différents.
+          </div>
+
+        )}
+
+        {commonComparisonPositions.length ===
+          0 &&
+          compareLeft &&
+          compareRight && (
+
+          <div className="border-t border-yellow-400/10 bg-yellow-400/[0.035] px-5 py-3 text-xs font-semibold text-yellow-200/80">
+            Ces deux joueurs n&apos;ont aucun poste en commun dans les matchs enregistrés. La comparaison par note de poste n&apos;est donc pas pertinente.
+          </div>
+
+        )}
+
+      </section>
 
       <div className="mb-5 grid gap-3 rounded-2xl border border-white/10 bg-[#091626] p-4 lg:grid-cols-[1fr_220px_220px]">
 
@@ -5114,15 +5483,10 @@ function RosterManager({
           />
 
           <input
-            value={
-              search
-            }
-            onChange={(
-              event
-            ) =>
+            value={search}
+            onChange={(event) =>
               setSearch(
-                event.target
-                  .value
+                event.target.value
               )
             }
             placeholder="Rechercher un joueur..."
@@ -5132,15 +5496,10 @@ function RosterManager({
         </div>
 
         <select
-          value={
-            positionFilter
-          }
-          onChange={(
-            event
-          ) =>
+          value={positionFilter}
+          onChange={(event) =>
             setPositionFilter(
-              event.target
-                .value
+              event.target.value
             )
           }
           className="rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm text-white outline-none"
@@ -5169,15 +5528,10 @@ function RosterManager({
         </select>
 
         <select
-          value={
-            sortBy
-          }
-          onChange={(
-            event
-          ) =>
+          value={sortBy}
+          onChange={(event) =>
             setSortBy(
-              event.target
-                .value
+              event.target.value
             )
           }
           className="rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm text-white outline-none"
@@ -5204,6 +5558,23 @@ function RosterManager({
           </option>
 
         </select>
+
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
+
+        <p className="text-xs font-semibold text-gray-600">
+          {currentFilterLabel}
+        </p>
+
+        <p className="text-xs font-black text-cyan-300">
+          {positionFilter ===
+          "all"
+            ? "NOTE GLOBALE"
+            : `NOTE ${formatPosition(
+                positionFilter
+              )} UNIQUEMENT`}
+        </p>
 
       </div>
 
@@ -5271,134 +5642,125 @@ function RosterManager({
                 (
                   player,
                   index
-                ) => (
+                ) => {
+                  const displayStats =
+                    getPlayerStatsForScope(
+                      player,
+                      positionFilter
+                    );
 
-                  <button
-                    key={
-                      player.id
-                    }
-                    onClick={() =>
-                      onOpenPlayer(
-                        player
-                      )
-                    }
-                    className="grid w-full grid-cols-[55px_210px_70px_75px_70px_70px_75px_105px_90px_105px_90px_70px_70px] items-center border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/[0.03]"
-                  >
+                  return (
 
-                    <span className="text-sm font-black text-gray-600">
-                      {
-                        index +
-                        1
-                      }
-                    </span>
-
-                    <div className="flex items-center gap-3">
-
-                      <PlayerAvatar
-                        player={
+                    <button
+                      key={player.id}
+                      onClick={() =>
+                        onOpenPlayer(
                           player
-                        }
-                      />
+                        )
+                      }
+                      className="grid w-full grid-cols-[55px_210px_70px_75px_70px_70px_75px_105px_90px_105px_90px_70px_70px] items-center border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/[0.03]"
+                    >
 
-                      <div className="min-w-0">
+                      <span className="text-sm font-black text-gray-600">
+                        {index + 1}
+                      </span>
 
-                        <p className="truncate text-sm font-black">
-                          {
-                            formatPlayerName(
+                      <div className="flex items-center gap-3">
+
+                        <PlayerAvatar
+                          player={player}
+                        />
+
+                        <div className="min-w-0">
+
+                          <p className="truncate text-sm font-black">
+                            {formatPlayerName(
                               player.name
-                            )
-                          }
-                        </p>
+                            )}
+                          </p>
 
-                        <p className="mt-1 text-[9px] font-bold uppercase text-gray-600">
-                          {
-                            formatPosition(
-                              player.position
-                            )
-                          }
-                        </p>
+                          <p className="mt-1 text-[9px] font-bold uppercase text-gray-600">
+                            {positionFilter ===
+                            "all"
+                              ? `${formatPosition(
+                                  player.position
+                                )} • ${formatPlayerRoleSummary(
+                                  player
+                                )}`
+                              : `${formatPosition(
+                                  positionFilter
+                                )} • ${displayStats.games} match${
+                                  displayStats.games >
+                                  1
+                                    ? "s"
+                                    : ""
+                                }`}
+                          </p>
+
+                        </div>
 
                       </div>
 
-                    </div>
+                      <StatCell
+                        value={displayStats.games}
+                      />
 
-                    <StatCell
-                      value={
-                        player.games
-                      }
-                    />
+                      <div className="text-center">
 
-                    <div className="text-center">
-
-                      <span
-                        className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-black ${getRatingStyle(
-                          player.averageRating
-                        )}`}
-                      >
-                        {
-                          player.averageRating.toFixed(
+                        <span
+                          className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-black ${getRatingStyle(
+                            displayStats.averageRating
+                          )}`}
+                        >
+                          {displayStats.averageRating.toFixed(
                             2
-                          )
-                        }
-                      </span>
+                          )}
+                        </span>
 
-                    </div>
+                      </div>
 
-                    <StatCell
-                      value={
-                        player.goals
-                      }
-                      strong
-                    />
+                      <StatCell
+                        value={displayStats.goals}
+                        strong
+                      />
 
-                    <StatCell
-                      value={
-                        player.assists
-                      }
-                      strong
-                    />
+                      <StatCell
+                        value={displayStats.assists}
+                        strong
+                      />
 
-                    <StatCell
-                      value={
-                        player.shots
-                      }
-                    />
+                      <StatCell
+                        value={displayStats.shots}
+                      />
 
-                    <StatCell
-                      value={`${player.passesMade}/${player.passAttempts}`}
-                    />
+                      <StatCell
+                        value={`${displayStats.passesMade}/${displayStats.passAttempts}`}
+                      />
 
-                    <PercentageCell
-                      value={
-                        player.passSuccess
-                      }
-                    />
+                      <PercentageCell
+                        value={displayStats.passSuccess}
+                      />
 
-                    <StatCell
-                      value={`${player.tacklesMade}/${player.tackleAttempts}`}
-                    />
+                      <StatCell
+                        value={`${displayStats.tacklesMade}/${displayStats.tackleAttempts}`}
+                      />
 
-                    <PercentageCell
-                      value={
-                        player.tackleSuccess
-                      }
-                    />
+                      <PercentageCell
+                        value={displayStats.tackleSuccess}
+                      />
 
-                    <StatCell
-                      value={
-                        player.saves
-                      }
-                    />
+                      <StatCell
+                        value={displayStats.saves}
+                      />
 
-                    <StatCell
-                      value={
-                        player.redCards
-                      }
-                    />
+                      <StatCell
+                        value={displayStats.redCards}
+                      />
 
-                  </button>
+                    </button>
 
-                )
+                  );
+                }
               )
 
             ) : (
@@ -5428,6 +5790,123 @@ function RosterManager({
   );
 }
 
+function ComparisonPlayerCard({
+  player,
+  stats,
+  side,
+}: {
+  player: Player;
+  stats:
+    | Player
+    | PlayerPositionStats;
+  side: "left" | "right";
+}) {
+  return (
+    <div className={`rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 ${
+      side === "right"
+        ? "lg:text-right"
+        : ""
+    }`}>
+
+      <div className={`flex items-center gap-3 ${
+        side === "right"
+          ? "lg:flex-row-reverse"
+          : ""
+      }`}>
+
+        <PlayerAvatar
+          player={player}
+        />
+
+        <div className="min-w-0">
+
+          <p className="truncate text-lg font-black text-white">
+            {formatPlayerName(
+              player.name
+            )}
+          </p>
+
+          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-gray-600">
+            {stats.games} match{stats.games > 1 ? "s" : ""}
+          </p>
+
+        </div>
+
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+
+        <ComparisonMiniStat
+          label="Note"
+          value={stats.averageRating.toFixed(
+            2
+          )}
+          highlight
+        />
+
+        <ComparisonMiniStat
+          label="Buts"
+          value={stats.goals}
+        />
+
+        <ComparisonMiniStat
+          label="PD"
+          value={stats.assists}
+        />
+
+        <ComparisonMiniStat
+          label="% passes"
+          value={`${stats.passSuccess.toFixed(
+            0
+          )}%`}
+        />
+
+        <ComparisonMiniStat
+          label="% tacles"
+          value={`${stats.tackleSuccess.toFixed(
+            0
+          )}%`}
+        />
+
+        <ComparisonMiniStat
+          label="Arrêts"
+          value={stats.saves}
+        />
+
+      </div>
+
+    </div>
+  );
+}
+
+function ComparisonMiniStat({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: string | number;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3 text-center">
+
+      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">
+        {label}
+      </p>
+
+      <p className={`mt-1 text-lg font-black ${
+        highlight
+          ? "text-yellow-300"
+          : "text-white"
+      }`}>
+        {value}
+      </p>
+
+    </div>
+  );
+}
+
 /* =========================================================
    FICHE JOUEUR
 ========================================================= */
@@ -5438,25 +5917,45 @@ function PlayerDetailModal({
   onClose,
 }: {
   player: Player;
-
-  currentFilterLabel:
-    string;
-
+  currentFilterLabel: string;
   onClose: () => void;
 }) {
+  const [
+    selectedPosition,
+    setSelectedPosition,
+  ] = useState("global");
+
+  const availablePositions =
+    player.positionStats
+      .filter(
+        (stats) =>
+          stats.games > 0
+      )
+      .sort(
+        (a, b) =>
+          b.games -
+          a.games
+      );
+
+  const displayedStats =
+    getPlayerStatsForScope(
+      player,
+      selectedPosition
+    );
+
   const goalsPerGame =
-    player.games > 0
+    displayedStats.games > 0
       ? (
-          player.goals /
-          player.games
+          displayedStats.goals /
+          displayedStats.games
         ).toFixed(2)
       : "0.00";
 
   const assistsPerGame =
-    player.games > 0
+    displayedStats.games > 0
       ? (
-          player.assists /
-          player.games
+          displayedStats.assists /
+          displayedStats.games
         ).toFixed(2)
       : "0.00";
 
@@ -5465,12 +5964,10 @@ function PlayerDetailModal({
 
       <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-yellow-400/20 bg-[#07111f]">
 
-        <div className="relative border-b border-white/10 bg-gradient-to-r from-yellow-400/10 to-transparent p-7">
+        <div className="relative border-b border-white/10 bg-gradient-to-r from-yellow-400/10 via-transparent to-cyan-400/[0.04] p-7">
 
           <button
-            onClick={
-              onClose
-            }
+            onClick={onClose}
             className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-gray-400"
           >
 
@@ -5486,29 +5983,25 @@ function PlayerDetailModal({
 
               <span className="text-3xl font-black text-yellow-400">
 
-                {
-                  getPlayerInitials(
-                    player.name
-                  )
-                }
+                {getPlayerInitials(
+                  player.name
+                )}
 
               </span>
 
             </div>
 
-            <div>
+            <div className="min-w-0">
 
               <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
-                GX NOVA
+                GX NOVA • FICHE JOUEUR
               </p>
 
-              <h2 className="mt-2 text-3xl font-black">
+              <h2 className="mt-2 truncate text-3xl font-black">
 
-                {
-                  formatPlayerName(
-                    player.name
-                  )
-                }
+                {formatPlayerName(
+                  player.name
+                )}
 
               </h2>
 
@@ -5516,41 +6009,95 @@ function PlayerDetailModal({
 
                 <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-gray-400">
 
-                  {
-                    formatPositionLong(
-                      player.position
-                    )
-                  }
+                  Poste principal :{" "}
+                  {formatPositionLong(
+                    player.position
+                  )}
 
                 </span>
 
                 <span
                   className={`rounded-lg border px-3 py-1.5 text-xs font-black ${getRatingStyle(
-                    player.averageRating
+                    displayedStats.averageRating
                   )}`}
                 >
 
                   Note{" "}
-
-                  {
-                    player.averageRating.toFixed(
-                      2
-                    )
-                  }
+                  {displayedStats.averageRating.toFixed(
+                    2
+                  )}
 
                 </span>
 
               </div>
 
               <p className="mt-3 text-xs text-gray-600">
-                {
-                  currentFilterLabel
-                }
+                {currentFilterLabel}
               </p>
 
             </div>
 
           </div>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedPosition(
+                  "global"
+                )
+              }
+              className={`rounded-xl border px-4 py-2 text-xs font-black transition ${
+                selectedPosition ===
+                "global"
+                  ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-300"
+                  : "border-white/10 bg-white/[0.03] text-gray-500 hover:text-white"
+              }`}
+            >
+              Global • {player.games} MJ
+            </button>
+
+            {availablePositions.map(
+              (stats) => (
+
+                <button
+                  key={stats.position}
+                  type="button"
+                  onClick={() =>
+                    setSelectedPosition(
+                      stats.position
+                    )
+                  }
+                  className={`rounded-xl border px-4 py-2 text-xs font-black transition ${
+                    selectedPosition ===
+                    stats.position
+                      ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
+                      : "border-white/10 bg-white/[0.03] text-gray-500 hover:text-white"
+                  }`}
+                >
+                  {formatPosition(
+                    stats.position
+                  )} • {stats.games} MJ • {stats.averageRating.toFixed(
+                    2
+                  )}
+                </button>
+
+              )
+            )}
+
+          </div>
+
+          {selectedPosition ===
+            "global" &&
+            availablePositions.length >
+              1 && (
+
+            <p className="mt-4 text-xs font-semibold text-orange-200/70">
+              La moyenne globale regroupe plusieurs postes. Pour analyser ou comparer le joueur, sélectionne de préférence un poste précis.
+            </p>
+
+          )}
 
         </div>
 
@@ -5558,34 +6105,26 @@ function PlayerDetailModal({
 
           <PlayerKpi
             label="Matchs"
-            value={
-              player.games
-            }
+            value={displayedStats.games}
           />
 
           <PlayerKpi
             label="Buts"
-            value={
-              player.goals
-            }
+            value={displayedStats.goals}
             yellow
           />
 
           <PlayerKpi
             label="Passes décisives"
-            value={
-              player.assists
-            }
+            value={displayedStats.assists}
             yellow
           />
 
           <PlayerKpi
             label="Note moyenne"
-            value={
-              player.averageRating.toFixed(
-                2
-              )
-            }
+            value={displayedStats.averageRating.toFixed(
+              2
+            )}
           />
 
         </div>
@@ -5596,44 +6135,41 @@ function PlayerDetailModal({
 
             <PanelHeader
               title="ATTAQUE"
-              right="Performance"
+              right={
+                selectedPosition ===
+                "global"
+                  ? "Tous postes"
+                  : formatPositionLong(
+                      selectedPosition
+                    )
+              }
             />
 
             <div className="p-5">
 
               <PlayerStatLine
                 label="Buts"
-                value={
-                  player.goals
-                }
+                value={displayedStats.goals}
               />
 
               <PlayerStatLine
                 label="Buts / match"
-                value={
-                  goalsPerGame
-                }
+                value={goalsPerGame}
               />
 
               <PlayerStatLine
                 label="Passes décisives"
-                value={
-                  player.assists
-                }
+                value={displayedStats.assists}
               />
 
               <PlayerStatLine
                 label="PD / match"
-                value={
-                  assistsPerGame
-                }
+                value={assistsPerGame}
               />
 
               <PlayerStatLine
                 label="Tirs"
-                value={
-                  player.shots
-                }
+                value={displayedStats.shots}
               />
 
             </div>
@@ -5644,7 +6180,7 @@ function PlayerDetailModal({
 
             <PanelHeader
               title="PASSES"
-              right={`${player.passSuccess.toFixed(
+              right={`${displayedStats.passSuccess.toFixed(
                 1
               )}%`}
             />
@@ -5653,23 +6189,17 @@ function PlayerDetailModal({
 
               <PlayerStatLine
                 label="Passes réussies"
-                value={
-                  player.passesMade
-                }
+                value={displayedStats.passesMade}
               />
 
               <PlayerStatLine
                 label="Passes tentées"
-                value={
-                  player.passAttempts
-                }
+                value={displayedStats.passAttempts}
               />
 
               <ProgressStat
                 label="Précision"
-                value={
-                  player.passSuccess
-                }
+                value={displayedStats.passSuccess}
               />
 
             </div>
@@ -5680,7 +6210,7 @@ function PlayerDetailModal({
 
             <PanelHeader
               title="DÉFENSE"
-              right={`${player.tackleSuccess.toFixed(
+              right={`${displayedStats.tackleSuccess.toFixed(
                 1
               )}%`}
             />
@@ -5689,30 +6219,22 @@ function PlayerDetailModal({
 
               <PlayerStatLine
                 label="Tacles réussis"
-                value={
-                  player.tacklesMade
-                }
+                value={displayedStats.tacklesMade}
               />
 
               <PlayerStatLine
                 label="Tacles tentés"
-                value={
-                  player.tackleAttempts
-                }
+                value={displayedStats.tackleAttempts}
               />
 
               <ProgressStat
                 label="Réussite tacles"
-                value={
-                  player.tackleSuccess
-                }
+                value={displayedStats.tackleSuccess}
               />
 
               <PlayerStatLine
                 label="Cartons rouges"
-                value={
-                  player.redCards
-                }
+                value={displayedStats.redCards}
               />
 
             </div>
@@ -5723,44 +6245,44 @@ function PlayerDetailModal({
 
             <PanelHeader
               title="FORME RÉCENTE"
-              right="5 derniers matchs"
+              right={
+                selectedPosition ===
+                "global"
+                  ? "5 dernières notes"
+                  : `5 dernières • ${formatPosition(
+                      selectedPosition
+                    )}`
+              }
             />
 
             <div className="p-5">
 
-              {player.recentRatings.length >
+              {displayedStats.recentRatings.length >
               0 ? (
 
                 <div className="grid grid-cols-5 gap-3">
 
-                  {player.recentRatings.map(
+                  {displayedStats.recentRatings.map(
                     (
                       rating,
                       index
                     ) => (
 
                       <div
-                        key={
-                          index
-                        }
+                        key={index}
                         className={`rounded-xl border p-3 text-center ${getRatingStyle(
                           rating
                         )}`}
                       >
 
                         <p className="text-lg font-black">
-                          {
-                            rating.toFixed(
-                              1
-                            )
-                          }
+                          {rating.toFixed(
+                            1
+                          )}
                         </p>
 
                         <p className="mt-1 text-[8px] uppercase opacity-60">
-                          M{
-                            index +
-                            1
-                          }
+                          M{index + 1}
                         </p>
 
                       </div>
@@ -5778,15 +6300,28 @@ function PlayerDetailModal({
 
               )}
 
-              {player.position.toLowerCase() ===
-                "goalkeeper" && (
+              {(selectedPosition ===
+                "goalkeeper" ||
+                displayedStats.saves >
+                  0) && (
 
                 <div className="mt-5">
 
                   <PlayerStatLine
                     label="Arrêts"
+                    value={displayedStats.saves}
+                  />
+
+                  <PlayerStatLine
+                    label="Arrêts / match"
                     value={
-                      player.saves
+                      displayedStats.games >
+                      0
+                        ? (
+                            displayedStats.saves /
+                            displayedStats.games
+                          ).toFixed(2)
+                        : "0.00"
                     }
                   />
 
@@ -5805,6 +6340,7 @@ function PlayerDetailModal({
     </div>
   );
 }
+
 
 /* =========================================================
    COMPOSITION
@@ -10677,6 +11213,68 @@ function initials(
       3
     )
     .toUpperCase();
+}
+
+function getPlayerPositionStats(
+  player: Player,
+  position: string
+) {
+  return (
+    player.positionStats ??
+    []
+  ).find(
+    (stats) =>
+      stats.position.toLowerCase() ===
+      position.toLowerCase()
+  );
+}
+
+function getPlayerStatsForScope(
+  player: Player,
+  scope: string
+): Player | PlayerPositionStats {
+  if (
+    !scope ||
+    scope === "all" ||
+    scope === "global"
+  ) {
+    return player;
+  }
+
+  return (
+    getPlayerPositionStats(
+      player,
+      scope
+    ) ?? player
+  );
+}
+
+function formatPlayerRoleSummary(
+  player: Player
+) {
+  const positions =
+    (player.positionStats ?? [])
+      .filter(
+        (stats) =>
+          stats.games > 0
+      )
+      .sort(
+        (a, b) =>
+          b.games -
+          a.games
+      )
+      .map(
+        (stats) =>
+          `${formatPosition(
+            stats.position
+          )} ${stats.games}`
+      );
+
+  return positions.length
+    ? positions.join(" • ")
+    : formatPosition(
+        player.position
+      );
 }
 
 function formatPlayerName(

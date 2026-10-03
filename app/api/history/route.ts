@@ -21,54 +21,40 @@ type DatabasePlayer = {
   player_ea_id: string | null;
   player_name: string;
   position: string | null;
-
   rating: number | string;
-
   goals: number;
   assists: number;
-
   shots: number;
-
   passes_made: number;
   pass_attempts: number;
-
   tackles_made: number;
   tackle_attempts: number;
-
   saves: number;
   red_cards: number;
 };
 
-type AggregatedPlayer = {
-  id: string;
-  name: string;
-  position: string;
-
+type StatBucket = {
   games: number;
-
   goals: number;
   assists: number;
-
   ratingTotal: number;
   ratingCount: number;
-
   shots: number;
-
   passesMade: number;
   passAttempts: number;
-
   tacklesMade: number;
   tackleAttempts: number;
-
   saves: number;
   redCards: number;
-
   recentRatings: number[];
 };
 
-/* =========================================================
-   GET
-========================================================= */
+type AggregatedPlayer = StatBucket & {
+  id: string;
+  name: string;
+  latestPosition: string;
+  positions: Map<string, StatBucket>;
+};
 
 export async function GET(
   request: Request
@@ -82,29 +68,19 @@ export async function GET(
         request.url
       );
 
-    const seasonParam =
-      url.searchParams.get(
-        "seasonId"
-      );
-
-    const competitionParam =
-      url.searchParams.get(
-        "competitionId"
-      );
-
     const seasonId =
       parseFilterId(
-        seasonParam
+        url.searchParams.get(
+          "seasonId"
+        )
       );
 
     const competitionId =
       parseFilterId(
-        competitionParam
+        url.searchParams.get(
+          "competitionId"
+        )
       );
-
-    /* =====================================================
-       MATCHS
-    ===================================================== */
 
     let matchQuery =
       supabase
@@ -224,10 +200,6 @@ export async function GET(
         })
       );
 
-    /* =====================================================
-       AUCUN MATCH
-    ===================================================== */
-
     if (
       databaseMatches.length ===
       0
@@ -246,18 +218,12 @@ export async function GET(
 
         totals: {
           matches: 0,
-
           playerPerformances:
             0,
-
           players: 0,
         },
       });
     }
-
-    /* =====================================================
-       IDS DES MATCHS
-    ===================================================== */
 
     const matchIds =
       databaseMatches.map(
@@ -285,10 +251,6 @@ export async function GET(
           : 0
       );
     }
-
-    /* =====================================================
-       PERFORMANCES JOUEURS
-    ===================================================== */
 
     const {
       data: playersData,
@@ -331,11 +293,6 @@ export async function GET(
         []
       ) as DatabasePlayer[];
 
-    /*
-     * Du match le plus récent
-     * au plus ancien.
-     */
-
     performances.sort(
       (a, b) =>
         (matchDateMap.get(
@@ -345,10 +302,6 @@ export async function GET(
           a.match_id
         ) ?? 0)
     );
-
-    /* =====================================================
-       AGRÉGATION PAR JOUEUR
-    ===================================================== */
 
     const playerMap =
       new Map<
@@ -367,6 +320,11 @@ export async function GET(
               performance.player_name
             )}`;
 
+      const position =
+        normalizeEaPosition(
+          performance.position
+        );
+
       let player =
         playerMap.get(
           playerId
@@ -383,30 +341,16 @@ export async function GET(
           name:
             performance.player_name,
 
-          position:
-            performance.position ??
-            "",
+          latestPosition:
+            position,
 
-          games: 0,
+          ...createStatBucket(),
 
-          goals: 0,
-          assists: 0,
-
-          ratingTotal: 0,
-          ratingCount: 0,
-
-          shots: 0,
-
-          passesMade: 0,
-          passAttempts: 0,
-
-          tacklesMade: 0,
-          tackleAttempts: 0,
-
-          saves: 0,
-          redCards: 0,
-
-          recentRatings: [],
+          positions:
+            new Map<
+              string,
+              StatBucket
+            >(),
         };
 
         playerMap.set(
@@ -416,88 +360,43 @@ export async function GET(
       }
 
       if (
-        player.games === 0
+        player.games ===
+        0
       ) {
         player.name =
           performance.player_name;
 
-        player.position =
-          performance.position ??
-          player.position;
+        player.latestPosition =
+          position;
       }
 
-      player.games++;
+      addPerformanceToBucket(
+        player,
+        performance
+      );
 
-      player.goals +=
-        numberValue(
-          performance.goals
+      let positionBucket =
+        player.positions.get(
+          position
         );
 
-      player.assists +=
-        numberValue(
-          performance.assists
+      if (
+        !positionBucket
+      ) {
+        positionBucket =
+          createStatBucket();
+
+        player.positions.set(
+          position,
+          positionBucket
         );
-
-      player.shots +=
-        numberValue(
-          performance.shots
-        );
-
-      player.passesMade +=
-        numberValue(
-          performance.passes_made
-        );
-
-      player.passAttempts +=
-        numberValue(
-          performance.pass_attempts
-        );
-
-      player.tacklesMade +=
-        numberValue(
-          performance.tackles_made
-        );
-
-      player.tackleAttempts +=
-        numberValue(
-          performance.tackle_attempts
-        );
-
-      player.saves +=
-        numberValue(
-          performance.saves
-        );
-
-      player.redCards +=
-        numberValue(
-          performance.red_cards
-        );
-
-      const rating =
-        numberValue(
-          performance.rating
-        );
-
-      if (rating > 0) {
-        player.ratingTotal +=
-          rating;
-
-        player.ratingCount++;
-
-        if (
-          player.recentRatings
-            .length < 5
-        ) {
-          player.recentRatings.push(
-            rating
-          );
-        }
       }
+
+      addPerformanceToBucket(
+        positionBucket,
+        performance
+      );
     }
-
-    /* =====================================================
-       FORMAT FINAL JOUEURS
-    ===================================================== */
 
     const players =
       Array.from(
@@ -505,28 +404,32 @@ export async function GET(
       )
         .map(
           (player) => {
-            const averageRating =
-              player.ratingCount >
-              0
-                ? player.ratingTotal /
-                  player.ratingCount
-                : 0;
+            const positionStats =
+              Array.from(
+                player.positions.entries()
+              )
+                .map(
+                  ([
+                    position,
+                    stats,
+                  ]) => ({
+                    position,
+                    ...formatBucket(
+                      stats
+                    ),
+                  })
+                )
+                .sort(
+                  (a, b) =>
+                    b.games -
+                    a.games
+                );
 
-            const passSuccess =
-              player.passAttempts >
-              0
-                ? (player.passesMade /
-                    player.passAttempts) *
-                  100
-                : 0;
-
-            const tackleSuccess =
-              player.tackleAttempts >
-              0
-                ? (player.tacklesMade /
-                    player.tackleAttempts) *
-                  100
-                : 0;
+            const primaryPosition =
+              positionStats[0]
+                ?.position ??
+              player.latestPosition ??
+              "";
 
             return {
               id:
@@ -536,58 +439,13 @@ export async function GET(
                 player.name,
 
               position:
-                player.position,
+                primaryPosition,
 
-              games:
-                player.games,
+              ...formatBucket(
+                player
+              ),
 
-              goals:
-                player.goals,
-
-              assists:
-                player.assists,
-
-              averageRating:
-                round(
-                  averageRating,
-                  2
-                ),
-
-              shots:
-                player.shots,
-
-              passesMade:
-                player.passesMade,
-
-              passAttempts:
-                player.passAttempts,
-
-              passSuccess:
-                round(
-                  passSuccess,
-                  1
-                ),
-
-              tacklesMade:
-                player.tacklesMade,
-
-              tackleAttempts:
-                player.tackleAttempts,
-
-              tackleSuccess:
-                round(
-                  tackleSuccess,
-                  1
-                ),
-
-              saves:
-                player.saves,
-
-              redCards:
-                player.redCards,
-
-              recentRatings:
-                player.recentRatings,
+              positionStats,
             };
           }
         )
@@ -647,9 +505,220 @@ export async function GET(
   }
 }
 
-/* =========================================================
-   OUTILS
-========================================================= */
+function createStatBucket(): StatBucket {
+  return {
+    games: 0,
+    goals: 0,
+    assists: 0,
+    ratingTotal: 0,
+    ratingCount: 0,
+    shots: 0,
+    passesMade: 0,
+    passAttempts: 0,
+    tacklesMade: 0,
+    tackleAttempts: 0,
+    saves: 0,
+    redCards: 0,
+    recentRatings: [],
+  };
+}
+
+function addPerformanceToBucket(
+  bucket: StatBucket,
+  performance: DatabasePlayer
+) {
+  bucket.games++;
+
+  bucket.goals +=
+    numberValue(
+      performance.goals
+    );
+
+  bucket.assists +=
+    numberValue(
+      performance.assists
+    );
+
+  bucket.shots +=
+    numberValue(
+      performance.shots
+    );
+
+  bucket.passesMade +=
+    numberValue(
+      performance.passes_made
+    );
+
+  bucket.passAttempts +=
+    numberValue(
+      performance.pass_attempts
+    );
+
+  bucket.tacklesMade +=
+    numberValue(
+      performance.tackles_made
+    );
+
+  bucket.tackleAttempts +=
+    numberValue(
+      performance.tackle_attempts
+    );
+
+  bucket.saves +=
+    numberValue(
+      performance.saves
+    );
+
+  bucket.redCards +=
+    numberValue(
+      performance.red_cards
+    );
+
+  const rating =
+    numberValue(
+      performance.rating
+    );
+
+  if (
+    rating > 0
+  ) {
+    bucket.ratingTotal +=
+      rating;
+
+    bucket.ratingCount++;
+
+    if (
+      bucket.recentRatings
+        .length < 5
+    ) {
+      bucket.recentRatings.push(
+        rating
+      );
+    }
+  }
+}
+
+function formatBucket(
+  bucket: StatBucket
+) {
+  const averageRating =
+    bucket.ratingCount > 0
+      ? bucket.ratingTotal /
+        bucket.ratingCount
+      : 0;
+
+  const passSuccess =
+    bucket.passAttempts > 0
+      ? (
+          bucket.passesMade /
+          bucket.passAttempts
+        ) * 100
+      : 0;
+
+  const tackleSuccess =
+    bucket.tackleAttempts > 0
+      ? (
+          bucket.tacklesMade /
+          bucket.tackleAttempts
+        ) * 100
+      : 0;
+
+  return {
+    games:
+      bucket.games,
+
+    goals:
+      bucket.goals,
+
+    assists:
+      bucket.assists,
+
+    averageRating:
+      round(
+        averageRating,
+        2
+      ),
+
+    shots:
+      bucket.shots,
+
+    passesMade:
+      bucket.passesMade,
+
+    passAttempts:
+      bucket.passAttempts,
+
+    passSuccess:
+      round(
+        passSuccess,
+        1
+      ),
+
+    tacklesMade:
+      bucket.tacklesMade,
+
+    tackleAttempts:
+      bucket.tackleAttempts,
+
+    tackleSuccess:
+      round(
+        tackleSuccess,
+        1
+      ),
+
+    saves:
+      bucket.saves,
+
+    redCards:
+      bucket.redCards,
+
+    recentRatings:
+      bucket.recentRatings,
+  };
+}
+
+function normalizeEaPosition(
+  value: string | null
+) {
+  const position =
+    (
+      value ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+  if (
+    position ===
+    "goalkeeper"
+  ) {
+    return "goalkeeper";
+  }
+
+  if (
+    position ===
+    "defender"
+  ) {
+    return "defender";
+  }
+
+  if (
+    position ===
+    "midfielder"
+  ) {
+    return "midfielder";
+  }
+
+  if (
+    position ===
+    "forward"
+  ) {
+    return "forward";
+  }
+
+  return position ||
+    "unknown";
+}
 
 function parseFilterId(
   value: string | null
