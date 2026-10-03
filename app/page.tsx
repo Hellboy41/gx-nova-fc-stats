@@ -278,6 +278,40 @@ type AvailableAuthUser = {
   email: string | null;
 };
 
+type DashboardProgrammeEvent = {
+  weekStart: string;
+  eventDate: string;
+  eventId: string;
+  time: string;
+  type: "competition" | "tournament";
+  competitionId: number | null;
+  competitionName: string;
+  title: string;
+  opponentName: string;
+  opponentLogoUrl: string;
+  notes: string;
+  status: "upcoming" | "played";
+  linkedMatchId: number | null;
+  goalsFor: number | null;
+  goalsAgainst: number | null;
+  result: "V" | "N" | "D" | null;
+  plan: null | {
+    formation: string;
+    lineupCount: number;
+    benchCount: number;
+    available: number;
+    maybe: number;
+    absent: number;
+  };
+};
+
+type DashboardResponse = {
+  currentWeekStart: string;
+  nextEvent: DashboardProgrammeEvent | null;
+  weekEvents: DashboardProgrammeEvent[];
+  upcomingEvents: DashboardProgrammeEvent[];
+};
+
 /* =========================================================
    PAGE
 ========================================================= */
@@ -297,6 +331,9 @@ export default function Home() {
   ] = useState("all");
 
   const [matches, setMatches] =
+    useState<Match[]>([]);
+
+  const [allMatches, setAllMatches] =
     useState<Match[]>([]);
 
   const [players, setPlayers] =
@@ -397,6 +434,15 @@ export default function Home() {
     useState("");
 
   const [message, setMessage] =
+    useState("");
+
+  const [dashboardData, setDashboardData] =
+    useState<DashboardResponse | null>(null);
+
+  const [dashboardLoading, setDashboardLoading] =
+    useState(true);
+
+  const [dashboardError, setDashboardError] =
     useState("");
 
   const [
@@ -543,6 +589,11 @@ export default function Home() {
               []
           );
 
+          setAllMatches(
+            allHistoryData.matches ??
+              []
+          );
+
           setPlayers(
             historyData.players ??
               []
@@ -665,6 +716,54 @@ export default function Home() {
     [loadData]
   );
 
+  const loadDashboard = useCallback(
+    async () => {
+      try {
+        setDashboardLoading(true);
+        setDashboardError("");
+
+        const response = await fetch(
+          "/api/dashboard",
+          {
+            cache: "no-store",
+          }
+        );
+
+        const data =
+          (await response.json()) as DashboardResponse & {
+            error?: string;
+            details?: string;
+          };
+
+        if (!response.ok) {
+          throw new Error(
+            data.details ??
+              data.error ??
+              "Impossible de charger le cockpit."
+          );
+        }
+
+        setDashboardData(data);
+      } catch (err) {
+        setDashboardError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger le cockpit."
+        );
+      } finally {
+        setDashboardLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(
+    () => {
+      void loadDashboard();
+    },
+    [loadDashboard]
+  );
+
   /* =======================================================
      SYNCHRONISATION
   ======================================================= */
@@ -696,6 +795,7 @@ export default function Home() {
       }
 
       await loadData(false);
+      await loadDashboard();
 
       setMessage(
         `${data.matchesSynchronized ?? 0} matchs amicaux synchronisés`
@@ -1787,8 +1887,6 @@ export default function Home() {
             )}
 
             {(activeTab ===
-              "overview" ||
-              activeTab ===
                 "roster" ||
               activeTab ===
                 "stats" ||
@@ -1835,31 +1933,37 @@ export default function Home() {
               "overview" && (
 
               <OverviewDashboard
-                players={
-                  players
+                matches={
+                  allMatches
                 }
-                lineup={
-                  lineup
+                players={
+                  allPlayers
+                }
+                competitions={
+                  competitions
+                }
+                dashboardData={
+                  dashboardData
+                }
+                dashboardLoading={
+                  dashboardLoading
+                }
+                dashboardError={
+                  dashboardError
                 }
                 formation={
                   formation
                 }
-                stats={
-                  stats
-                }
-                lastMatch={
-                  lastMatch
-                }
-                totalPlayerPerformances={
-                  totalPlayerPerformances
-                }
-                currentFilterLabel={
-                  currentFilterLabel
+                lineup={
+                  lineup
                 }
                 onEditLineup={() =>
                   setActiveTab(
                     "lineup"
                   )
+                }
+                onRefreshDashboard={() =>
+                  void loadDashboard()
                 }
               />
 
@@ -7438,167 +7542,869 @@ function GlobalFilters({
 ========================================================= */
 
 function OverviewDashboard({
+  matches,
   players,
-  lineup,
+  competitions,
+  dashboardData,
+  dashboardLoading,
+  dashboardError,
   formation,
-  stats,
-  lastMatch,
-  totalPlayerPerformances,
-  currentFilterLabel,
+  lineup,
   onEditLineup,
+  onRefreshDashboard,
 }: {
-  players:
-    Player[];
-
-  lineup:
-    LineupSpot[];
-
-  formation:
-    string;
-
-  stats: {
-    played: number;
-    wins: number;
-    draws: number;
-    losses: number;
-    goalsFor: number;
-    goalsAgainst: number;
-    winRate: number;
-    goalDifference: number;
-    goalsPerMatch: string;
-  };
-
-  lastMatch:
-    Match | undefined;
-
-  totalPlayerPerformances:
-    number;
-
-  currentFilterLabel:
-    string;
-
-  onEditLineup:
-    () => void;
+  matches: Match[];
+  players: Player[];
+  competitions: Competition[];
+  dashboardData: DashboardResponse | null;
+  dashboardLoading: boolean;
+  dashboardError: string;
+  formation: string;
+  lineup: LineupSpot[];
+  onEditLineup: () => void;
+  onRefreshDashboard: () => void;
 }) {
+  const cockpitStats = useMemo(() => {
+    const played = matches.length;
+    const wins = matches.filter((match) => match.result === "V").length;
+    const draws = matches.filter((match) => match.result === "N").length;
+    const losses = matches.filter((match) => match.result === "D").length;
+    const goalsFor = matches.reduce(
+      (total, match) => total + match.goalsFor,
+      0
+    );
+    const goalsAgainst = matches.reduce(
+      (total, match) => total + match.goalsAgainst,
+      0
+    );
+
+    return {
+      played,
+      wins,
+      draws,
+      losses,
+      goalsFor,
+      goalsAgainst,
+      winRate:
+        played > 0
+          ? Math.round((wins / played) * 100)
+          : 0,
+      goalDifference:
+        goalsFor - goalsAgainst,
+    };
+  }, [matches]);
+
+  const bestRecentPlayer = useMemo(() => {
+    if (!players.length) return null;
+
+    return [...players]
+      .map((player) => {
+        const ratings = player.recentRatings
+          .filter((rating) => rating > 0)
+          .slice(0, 5);
+
+        const recentAverage =
+          ratings.length > 0
+            ? ratings.reduce(
+                (total, rating) => total + rating,
+                0
+              ) / ratings.length
+            : player.averageRating;
+
+        return {
+          player,
+          recentAverage,
+        };
+      })
+      .sort((a, b) => {
+        if (b.recentAverage !== a.recentAverage) {
+          return b.recentAverage - a.recentAverage;
+        }
+
+        return (
+          b.player.goals +
+          b.player.assists -
+          (a.player.goals + a.player.assists)
+        );
+      })[0];
+  }, [players]);
+
+  const nextEvent =
+    dashboardData?.nextEvent ?? null;
+
+  const nextPlan =
+    nextEvent?.plan ?? null;
+
+  const nextPlanReady =
+    (nextPlan?.lineupCount ?? 0) >= 11;
+
+  const recentMatches =
+    matches.slice(0, 5);
+
+  const weekEvents =
+    dashboardData?.weekEvents ?? [];
+
+  const upcomingEvents =
+    dashboardData?.upcomingEvents ?? [];
+
+  const displayedWeekEvents =
+    weekEvents.length > 0
+      ? weekEvents.slice(0, 6)
+      : upcomingEvents.slice(0, 6);
+
+  function eventTitle(
+    event: DashboardProgrammeEvent
+  ) {
+    if (event.opponentName) {
+      return `GX NOVA vs ${event.opponentName}`;
+    }
+
+    return (
+      event.title ||
+      event.competitionName ||
+      "Événement GX NOVA"
+    );
+  }
+
+  function eventHref(
+    event: DashboardProgrammeEvent
+  ) {
+    return `/programme?weekStart=${encodeURIComponent(
+      event.weekStart
+    )}&eventId=${encodeURIComponent(
+      event.eventId
+    )}&openPlan=1`;
+  }
+
+  function competitionNameForMatch(
+    match: Match
+  ) {
+    if (!match.competitionId) {
+      return "Amical";
+    }
+
+    const competition =
+      competitions.find(
+        (item) =>
+          item.id ===
+          match.competitionId
+      );
+
+    return (
+      competition?.short_name ??
+      competition?.name ??
+      "Compétition"
+    );
+  }
+
   return (
-    <>
+    <div className="space-y-5">
 
-      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-[#06192b] via-[#071321] to-[#030812] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
 
-        <SmallStatCard
-          title="Matchs"
-          value={
-            stats.played
-          }
-          subtitle={`${stats.wins}V • ${stats.draws}N • ${stats.losses}D`}
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-yellow-400/[0.08] blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
+          <div className="flex items-center gap-4">
+
+            <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.06] p-2">
+              <ClubLogo size={70} />
+            </div>
+
+            <div>
+
+              <p className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                GX NOVA COMMAND CENTER
+              </p>
+
+              <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                Cockpit équipe
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-400">
+                Programme, disponibilités, compositions et résultats réunis au même endroit.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+
+            <a
+              href="/programme"
+              className="flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.08] px-4 py-3 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/[0.14]"
+            >
+              <CalendarDays size={16} />
+              Programme
+            </a>
+
+            <a
+              href="/match-center"
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-white transition hover:bg-white/[0.08]"
+            >
+              <Swords size={16} />
+              Match Center
+            </a>
+
+            <button
+              type="button"
+              onClick={onEditLineup}
+              className="flex items-center justify-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.07] px-4 py-3 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/[0.14]"
+            >
+              <Users size={16} />
+              Composition
+            </button>
+
+            <button
+              type="button"
+              onClick={onRefreshDashboard}
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-black text-slate-300 transition hover:bg-white/[0.07]"
+            >
+              <RefreshCw size={15} />
+              Actualiser
+            </button>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {dashboardError && (
+
+        <div className="rounded-2xl border border-orange-400/20 bg-orange-400/[0.06] p-4 text-sm font-semibold text-orange-200">
+          Le cockpit du programme n&apos;a pas pu être chargé : {dashboardError}
+        </div>
+
+      )}
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+
+        <section className="relative overflow-hidden rounded-[26px] border border-yellow-400/20 bg-gradient-to-br from-[#101b2a] via-[#071321] to-[#050b13] p-6 xl:col-span-8">
+
+          <div className="pointer-events-none absolute right-0 top-0 h-56 w-56 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.14),transparent_68%)]" />
+
+          <div className="relative z-10">
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+
+              <div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">
+                  Prochain rendez-vous
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black text-white">
+                  {dashboardLoading
+                    ? "Chargement du programme..."
+                    : nextEvent
+                    ? eventTitle(nextEvent)
+                    : "Aucun match à venir programmé"}
+                </h2>
+
+              </div>
+
+              {nextEvent && (
+
+                <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.07] px-4 py-2 text-right">
+
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                    {formatDashboardEventDate(
+                      nextEvent.eventDate
+                    )}
+                  </p>
+
+                  <p className="mt-1 text-2xl font-black text-white">
+                    {nextEvent.time || "--:--"}
+                  </p>
+
+                </div>
+
+              )}
+
+            </div>
+
+            {nextEvent ? (
+
+              <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+
+                <div className="flex flex-col items-center text-center">
+
+                  <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-yellow-400/20 bg-yellow-400/[0.05]">
+                    <ClubLogo size={72} />
+                  </div>
+
+                  <p className="mt-3 text-lg font-black">
+                    GX NOVA
+                  </p>
+
+                </div>
+
+                <div className="text-center">
+
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+                    {nextEvent.competitionName ||
+                      (nextEvent.type === "tournament"
+                        ? "Tournoi"
+                        : "Compétition")}
+                  </p>
+
+                  <p className="mt-2 text-4xl font-black text-yellow-300">
+                    VS
+                  </p>
+
+                  <p className="mt-2 text-xs font-bold text-slate-500">
+                    {nextEvent.notes || "FC27"}
+                  </p>
+
+                </div>
+
+                <div className="flex flex-col items-center text-center">
+
+                  <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-cyan-400/20 bg-cyan-400/[0.05]">
+
+                    {nextEvent.opponentLogoUrl ? (
+
+                      <img
+                        src={nextEvent.opponentLogoUrl}
+                        alt=""
+                        className="h-20 w-20 object-contain"
+                      />
+
+                    ) : (
+
+                      <span className="text-2xl font-black text-cyan-300">
+                        {initials(
+                          nextEvent.opponentName ||
+                            nextEvent.title ||
+                            "FC"
+                        )}
+                      </span>
+
+                    )}
+
+                  </div>
+
+                  <p className="mt-3 max-w-[260px] truncate text-lg font-black">
+                    {nextEvent.opponentName ||
+                      nextEvent.title ||
+                      "Adversaire à confirmer"}
+                  </p>
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              <div className="mt-7 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
+
+                <CalendarDays
+                  size={30}
+                  className="mx-auto text-slate-600"
+                />
+
+                <p className="mt-3 text-sm font-bold text-slate-500">
+                  Ajoute le prochain rendez-vous dans le Programme de la semaine.
+                </p>
+
+              </div>
+
+            )}
+
+            {nextEvent && (
+
+              <div className="mt-7 flex flex-wrap justify-center gap-2">
+
+                <a
+                  href={eventHref(nextEvent)}
+                  className="rounded-xl bg-yellow-400 px-5 py-3 text-xs font-black text-black transition hover:bg-yellow-300"
+                >
+                  {nextPlan
+                    ? "Voir la préparation"
+                    : "Préparer le match"}
+                </a>
+
+                {nextEvent.linkedMatchId && (
+
+                  <a
+                    href={`/match-center?matchId=${nextEvent.linkedMatchId}`}
+                    className="rounded-xl border border-cyan-400/25 bg-cyan-400/[0.08] px-5 py-3 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/[0.14]"
+                  >
+                    Ouvrir Match Center
+                  </a>
+
+                )}
+
+              </div>
+
+            )}
+
+          </div>
+
+        </section>
+
+        <section className="rounded-[26px] border border-cyan-400/20 bg-[#071321] p-5 xl:col-span-4">
+
+          <div className="flex items-center justify-between gap-3">
+
+            <div>
+
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                Préparation
+              </p>
+
+              <h2 className="mt-1 text-lg font-black text-white">
+                État du prochain match
+              </h2>
+
+            </div>
+
+            <CheckCircle2
+              size={22}
+              className={
+                nextPlanReady
+                  ? "text-emerald-300"
+                  : "text-slate-600"
+              }
+            />
+
+          </div>
+
+          {nextEvent ? (
+
+            <div className="mt-5 space-y-3">
+
+              <DashboardPreparationRow
+                label="Disponibles"
+                value={nextPlan?.available ?? 0}
+                tone="green"
+              />
+
+              <DashboardPreparationRow
+                label="Incertains"
+                value={nextPlan?.maybe ?? 0}
+                tone="yellow"
+              />
+
+              <DashboardPreparationRow
+                label="Absents"
+                value={nextPlan?.absent ?? 0}
+                tone="red"
+              />
+
+              <div className="my-4 border-t border-white/[0.07]" />
+
+              <DashboardPreparationRow
+                label="Composition"
+                value={
+                  nextPlan
+                    ? `${nextPlan.lineupCount}/11`
+                    : "0/11"
+                }
+                tone={
+                  nextPlanReady
+                    ? "green"
+                    : "cyan"
+                }
+              />
+
+              <DashboardPreparationRow
+                label="Formation"
+                value={nextPlan?.formation ?? "À définir"}
+                tone="cyan"
+              />
+
+              <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+
+                <p className="text-xs font-black text-white">
+                  {nextPlanReady
+                    ? "Composition prête"
+                    : nextPlan
+                    ? "Composition à compléter"
+                    : "Préparation non commencée"}
+                </p>
+
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  {nextPlanReady
+                    ? `${nextPlan?.lineupCount ?? 0} titulaires enregistrés${
+                        nextPlan?.benchCount
+                          ? ` • ${nextPlan.benchCount} banc`
+                          : ""
+                      }.`
+                    : "Ouvre le Programme pour préparer l'équipe."}
+                </p>
+
+              </div>
+
+            </div>
+
+          ) : (
+
+            <div className="mt-5 rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-600">
+              Aucun événement à préparer.
+            </div>
+
+          )}
+
+        </section>
+
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+
+        <DashboardKpiCard
+          label="Matchs"
+          value={cockpitStats.played}
+          helper={`${cockpitStats.wins}V • ${cockpitStats.draws}N • ${cockpitStats.losses}D`}
         />
 
-        <SmallStatCard
-          title="Taux de victoire"
-          value={`${stats.winRate}%`}
-          subtitle={
-            currentFilterLabel
-          }
+        <DashboardKpiCard
+          label="Taux de victoire"
+          value={`${cockpitStats.winRate}%`}
+          helper="Historique global"
         />
 
-        <SmallStatCard
-          title="Différence de buts"
+        <DashboardKpiCard
+          label="Différence buts"
           value={
-            stats.goalDifference >
-            0
-              ? `+${stats.goalDifference}`
-              : stats.goalDifference
+            cockpitStats.goalDifference > 0
+              ? `+${cockpitStats.goalDifference}`
+              : String(cockpitStats.goalDifference)
           }
-          subtitle={`${stats.goalsFor} marqués • ${stats.goalsAgainst} encaissés`}
+          helper={`${cockpitStats.goalsFor} BP • ${cockpitStats.goalsAgainst} BC`}
         />
 
-        <SmallStatCard
-          title="Buts / match"
-          value={
-            stats.goalsPerMatch
-          }
-          subtitle={
-            currentFilterLabel
-          }
+        <DashboardKpiCard
+          label="XI actuel"
+          value={`${lineup.length}/11`}
+          helper={`Formation ${formation}`}
         />
 
       </div>
 
       <div className="grid grid-cols-1 gap-5 2xl:grid-cols-12">
 
-        <section className="overflow-hidden rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-5">
+        <section className="rounded-[26px] border border-white/10 bg-[#071321] 2xl:col-span-7">
 
-          <PanelHeader
-            title="DERNIER MATCH"
-            right={
-              lastMatch
-                ? formatDate(
-                    lastMatch.date
-                  )
-                : currentFilterLabel
-            }
-          />
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
 
-          <div className="flex min-h-[310px] items-center justify-center p-7">
+            <div>
 
-            {lastMatch ? (
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                Planning
+              </p>
 
-              <div className="flex items-center justify-center gap-7">
+              <h2 className="mt-1 text-lg font-black">
+                Programme de la semaine
+              </h2>
 
-                <TeamLogo
-                  label="GX"
-                  name="GX NOVA"
-                  yellow
-                  clubLogo
-                />
+            </div>
 
-                <div className="text-center">
+            <a
+              href="/programme"
+              className="text-xs font-black text-yellow-300 transition hover:text-yellow-200"
+            >
+              Voir tout le programme →
+            </a>
 
-                  <p className="text-5xl font-black">
+          </div>
 
-                    {
-                      lastMatch.goalsFor
-                    }
+          <div className="p-4">
 
-                    <span className="mx-3 text-gray-600">
-                      -
-                    </span>
+            {dashboardLoading ? (
 
-                    {
-                      lastMatch.goalsAgainst
-                    }
+              <div className="rounded-2xl border border-white/[0.07] p-6 text-center text-sm font-bold text-slate-600">
+                Chargement du programme...
+              </div>
 
-                  </p>
+            ) : displayedWeekEvents.length ? (
 
-                  <div className="mt-4">
+              <div className="space-y-2">
 
-                    <ResultBadge
-                      result={
-                        lastMatch.result
+                {displayedWeekEvents.map(
+                  (event) => (
+
+                    <a
+                      key={event.eventId}
+                      href={
+                        event.status === "played" &&
+                        event.linkedMatchId
+                          ? `/match-center?matchId=${event.linkedMatchId}`
+                          : eventHref(event)
                       }
-                    />
+                      className="grid gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.018] p-4 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.035] sm:grid-cols-[110px_1fr_auto] sm:items-center"
+                    >
 
-                  </div>
+                      <div>
 
-                </div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                          {formatDashboardEventDate(
+                            event.eventDate
+                          )}
+                        </p>
 
-                <TeamLogo
-                  label={
-                    initials(
-                      lastMatch.opponent
-                    )
-                  }
-                  name={
-                    lastMatch.opponent
-                  }
-                />
+                        <p className="mt-1 text-lg font-black text-white">
+                          {event.time || "--:--"}
+                        </p>
+
+                      </div>
+
+                      <div className="min-w-0">
+
+                        <p className="truncate text-sm font-black text-white">
+                          {eventTitle(event)}
+                        </p>
+
+                        <p className="mt-1 truncate text-xs font-bold text-slate-500">
+                          {event.competitionName ||
+                            (event.type === "tournament"
+                              ? "Tournoi"
+                              : "Compétition")}
+                          {event.plan
+                            ? ` • ${event.plan.lineupCount}/11`
+                            : " • compo à préparer"}
+                        </p>
+
+                      </div>
+
+                      <div className="sm:text-right">
+
+                        {event.status === "played" ? (
+
+                          <div>
+
+                            <span
+                              className={`inline-flex rounded-lg border px-2 py-1 text-[10px] font-black ${
+                                event.result === "V"
+                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                                  : event.result === "D"
+                                  ? "border-rose-400/20 bg-rose-400/10 text-rose-300"
+                                  : "border-slate-400/20 bg-slate-400/10 text-slate-300"
+                              }`}
+                            >
+                              JOUÉ
+                            </span>
+
+                            <p className="mt-1 text-xl font-black text-white">
+                              {event.goalsFor ?? "-"} - {event.goalsAgainst ?? "-"}
+                            </p>
+
+                          </div>
+
+                        ) : event.plan ? (
+
+                          <div>
+
+                            <span
+                              className={`inline-flex rounded-lg border px-2 py-1 text-[10px] font-black ${
+                                event.plan.lineupCount >= 11
+                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                                  : "border-yellow-400/20 bg-yellow-400/10 text-yellow-300"
+                              }`}
+                            >
+                              {event.plan.lineupCount >= 11
+                                ? "COMPO PRÊTE"
+                                : "À COMPLÉTER"}
+                            </span>
+
+                            <p className="mt-1 text-xs font-bold text-slate-500">
+                              {event.plan.available} dispo • {event.plan.maybe} ?
+                            </p>
+
+                          </div>
+
+                        ) : (
+
+                          <span className="inline-flex rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-black text-slate-500">
+                            À PRÉPARER
+                          </span>
+
+                        )}
+
+                      </div>
+
+                    </a>
+
+                  )
+                )}
 
               </div>
 
             ) : (
 
-              <p className="text-gray-500">
-                Aucun match pour ce filtre.
+              <div className="rounded-2xl border border-dashed border-white/10 p-7 text-center">
+
+                <CalendarDays
+                  size={28}
+                  className="mx-auto text-slate-700"
+                />
+
+                <p className="mt-3 text-sm font-bold text-slate-600">
+                  Aucun événement enregistré cette semaine.
+                </p>
+
+              </div>
+
+            )}
+
+          </div>
+
+        </section>
+
+        <section className="rounded-[26px] border border-white/10 bg-[#071321] 2xl:col-span-5">
+
+          <div className="border-b border-white/[0.07] px-5 py-4">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
+              Forme récente
+            </p>
+
+            <h2 className="mt-1 text-lg font-black">
+              Derniers résultats
+            </h2>
+
+          </div>
+
+          <div className="space-y-2 p-4">
+
+            {recentMatches.length ? (
+
+              recentMatches.map(
+                (match) => (
+
+                  <a
+                    key={match.id ?? match.matchId}
+                    href={
+                      match.id
+                        ? `/match-center?matchId=${match.id}`
+                        : "/match-center"
+                    }
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.018] p-3 transition hover:bg-white/[0.04]"
+                  >
+
+                    <div className="min-w-0">
+
+                      <p className="truncate text-sm font-black">
+                        vs {match.opponent}
+                      </p>
+
+                      <p className="mt-1 text-[11px] font-bold text-slate-600">
+                        {formatDate(match.date)} • {competitionNameForMatch(match)}
+                      </p>
+
+                    </div>
+
+                    <div className="flex items-center gap-3">
+
+                      <ResultBadge
+                        result={match.result}
+                      />
+
+                      <span className="min-w-[64px] text-right text-xl font-black text-white">
+                        {match.goalsFor}-{match.goalsAgainst}
+                      </span>
+
+                    </div>
+
+                  </a>
+
+                )
+              )
+
+            ) : (
+
+              <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-600">
+                Aucun résultat disponible.
+              </div>
+
+            )}
+
+          </div>
+
+        </section>
+
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+        <section className="relative overflow-hidden rounded-[26px] border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.07] via-[#071321] to-[#071321] p-5">
+
+          <div className="absolute right-5 top-5 opacity-10">
+            <Star
+              size={96}
+              className="text-yellow-300"
+            />
+          </div>
+
+          <div className="relative z-10">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
+              Joueur en forme
+            </p>
+
+            {bestRecentPlayer ? (
+
+              <div className="mt-4">
+
+                <div className="flex items-end gap-4">
+
+                  <div>
+
+                    <p className="text-3xl font-black text-white">
+                      {bestRecentPlayer.player.name}
+                    </p>
+
+                    <p className="mt-1 text-sm font-bold text-slate-500">
+                      {formatPositionLong(
+                        bestRecentPlayer.player.position
+                      )}
+                    </p>
+
+                  </div>
+
+                  <div className="ml-auto text-right">
+
+                    <p className="text-4xl font-black text-yellow-300">
+                      {bestRecentPlayer.recentAverage.toFixed(2)}
+                    </p>
+
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
+                      moyenne récente
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-2">
+
+                  <DashboardPlayerStat
+                    label="Matchs"
+                    value={bestRecentPlayer.player.games}
+                  />
+
+                  <DashboardPlayerStat
+                    label="Buts"
+                    value={bestRecentPlayer.player.goals}
+                  />
+
+                  <DashboardPlayerStat
+                    label="Passes D."
+                    value={bestRecentPlayer.player.assists}
+                  />
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              <p className="mt-5 text-sm font-bold text-slate-600">
+                Pas encore assez de données joueur.
               </p>
 
             )}
@@ -7607,267 +8413,95 @@ function OverviewDashboard({
 
         </section>
 
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-4">
+        <section className="rounded-[26px] border border-cyan-400/15 bg-[#071321] p-5">
 
-          <PanelHeader
-            title="PÉRIMÈTRE"
-            right={
-              currentFilterLabel
-            }
-          />
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+            Accès rapides
+          </p>
 
-          <div className="grid grid-cols-2 gap-3 p-7">
+          <h2 className="mt-1 text-lg font-black">
+            Continuer la préparation
+          </h2>
 
-            <Kpi
-              value={
-                stats.played
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+
+            <DashboardQuickLink
+              href="/programme"
+              icon={
+                <CalendarDays
+                  size={18}
+                />
               }
-              label="Matchs"
+              title="Programme"
+              subtitle="Matchs, dispos et compositions"
             />
 
-            <Kpi
-              value={
-                totalPlayerPerformances
+            <DashboardQuickLink
+              href="/match-center"
+              icon={
+                <Swords
+                  size={18}
+                />
               }
-              label="Performances"
+              title="Match Center"
+              subtitle="Résultats, stats et exports"
             />
-
-            <Kpi
-              value={
-                stats.wins
-              }
-              label="Victoires"
-            />
-
-            <Kpi
-              value={
-                players.length
-              }
-              label="Joueurs"
-            />
-
-          </div>
-
-        </section>
-
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-3">
-
-          <PanelHeader
-            title="RÉSULTATS"
-            right="Historique"
-          />
-
-          <AlertItem
-            icon={
-              <Trophy
-                size={18}
-              />
-            }
-            title={`${stats.wins} victoires`}
-            subtitle={`${stats.winRate}% de réussite`}
-          />
-
-          <AlertItem
-            icon={
-              <Activity
-                size={18}
-              />
-            }
-            title={`${stats.goalsFor} buts`}
-            subtitle={`${stats.goalsAgainst} encaissés`}
-          />
-
-        </section>
-
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-4">
-
-          <PanelHeader
-            title="CLASSEMENT JOUEURS"
-            right={
-              currentFilterLabel
-            }
-          />
-
-          <div className="p-5">
-
-            {players
-              .slice(
-                0,
-                7
-              )
-              .map(
-                (
-                  player,
-                  index
-                ) => (
-
-                  <PlayerRankingRow
-                    key={
-                      player.id
-                    }
-                    player={
-                      player
-                    }
-                    rank={
-                      index +
-                      1
-                    }
-                  />
-
-                )
-              )}
-
-          </div>
-
-        </section>
-
-        <section className="overflow-hidden rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-5">
-
-          <PanelHeader
-            title="COMPOSITION"
-            right={
-              formation
-            }
-          />
-
-          <div
-            className="relative min-h-[560px] overflow-hidden bg-[#082f24]"
-            style={{
-              backgroundImage:
-                "linear-gradient(180deg, rgba(4,20,16,0.08), rgba(2,10,8,0.5)), repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 12.5%, rgba(0,0,0,0.025) 12.5%, rgba(0,0,0,0.025) 25%)",
-            }}
-          >
-
-            <div className="absolute left-5 top-4 z-20 flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-sm">
-              <ClubLogo size={34} />
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-gray-500">
-                  XI TITULAIRE
-                </p>
-                <p className="text-xs font-black text-white">GX NOVA</p>
-              </div>
-            </div>
-
-            <div className="absolute right-5 top-4 z-20 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-3 py-2 text-xs font-black text-yellow-400 backdrop-blur-sm">
-              {formation}
-            </div>
-
-            <div className="absolute inset-x-7 bottom-7 top-16 rounded-[22px] border-2 border-white/25 shadow-[inset_0_0_40px_rgba(0,0,0,0.2)]" />
-            <div className="absolute left-7 right-7 top-1/2 border-t-2 border-white/20" />
-            <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/20" />
-            <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/40" />
-
-            <div className="absolute left-1/2 top-16 h-24 w-[44%] -translate-x-1/2 border-x-2 border-b-2 border-white/20" />
-            <div className="absolute left-1/2 top-16 h-10 w-[20%] -translate-x-1/2 border-x-2 border-b-2 border-white/15" />
-            <div className="absolute bottom-7 left-1/2 h-24 w-[44%] -translate-x-1/2 border-x-2 border-t-2 border-white/20" />
-            <div className="absolute bottom-7 left-1/2 h-10 w-[20%] -translate-x-1/2 border-x-2 border-t-2 border-white/15" />
-
-            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.07]">
-              <ClubLogo size={115} />
-            </div>
-
-            {lineup.map(
-              (spot) => {
-                const player =
-                  findPlayer(
-                    players,
-                    spot.name
-                  );
-
-                return (
-
-                  <FormationPlayer
-                    key={
-                      spot.slot
-                    }
-                    x={
-                      spot.x
-                    }
-                    y={
-                      spot.y
-                    }
-                    slot={
-                      spot.slot
-                    }
-                    name={
-                      spot.name
-                    }
-                    rating={
-                      player
-                        ?.averageRating ??
-                      0
-                    }
-                  />
-
-                );
-              }
-            )}
 
             <button
-              onClick={
-                onEditLineup
-              }
-              className="absolute bottom-3 right-5 z-30 rounded-xl border border-yellow-400/40 bg-[#04110d]/90 px-4 py-2.5 text-xs font-black text-yellow-400 shadow-lg backdrop-blur-sm transition hover:bg-yellow-400 hover:text-black"
+              type="button"
+              onClick={onEditLineup}
+              className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition hover:border-yellow-400/20 hover:bg-yellow-400/[0.04]"
             >
-              Gérer la composition
+              <div className="rounded-xl bg-yellow-400/10 p-2 text-yellow-300">
+                <Users
+                  size={18}
+                />
+              </div>
+
+              <div>
+
+                <p className="text-sm font-black text-white">
+                  Composition globale
+                </p>
+
+                <p className="mt-1 text-xs font-semibold text-slate-600">
+                  Modifier le XI de référence
+                </p>
+
+              </div>
             </button>
 
-          </div>
+            {nextEvent ? (
 
-        </section>
+              <DashboardQuickLink
+                href={eventHref(nextEvent)}
+                icon={
+                  <Eye
+                    size={18}
+                  />
+                }
+                title="Prochain plan"
+                subtitle={
+                  nextPlanReady
+                    ? "Composition prête"
+                    : "Préparation à compléter"
+                }
+              />
 
-        <section className="rounded-2xl border border-yellow-400/25 bg-[#091626] 2xl:col-span-3">
+            ) : (
 
-          <PanelHeader
-            title="RAPPORT"
-            right={
-              currentFilterLabel
-            }
-          />
+              <DashboardQuickLink
+                href="/programme"
+                icon={
+                  <Plus
+                    size={18}
+                  />
+                }
+                title="Planifier"
+                subtitle="Ajouter le prochain rendez-vous"
+              />
 
-          <div className="p-6">
-
-            <ReportLine
-              label="Matchs"
-              value={
-                stats.played
-              }
-            />
-
-            <ReportLine
-              label="Victoires"
-              value={
-                stats.wins
-              }
-            />
-
-            <ReportLine
-              label="Nuls"
-              value={
-                stats.draws
-              }
-            />
-
-            <ReportLine
-              label="Défaites"
-              value={
-                stats.losses
-              }
-            />
-
-            <ReportLine
-              label="Buts marqués"
-              value={
-                stats.goalsFor
-              }
-            />
-
-            <ReportLine
-              label="Buts encaissés"
-              value={
-                stats.goalsAgainst
-              }
-            />
+            )}
 
           </div>
 
@@ -7875,7 +8509,154 @@ function OverviewDashboard({
 
       </div>
 
-    </>
+    </div>
+  );
+}
+
+function DashboardPreparationRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: ReactNode;
+  tone: "green" | "yellow" | "red" | "cyan";
+}) {
+  const toneClass =
+    tone === "green"
+      ? "text-emerald-300"
+      : tone === "yellow"
+      ? "text-yellow-300"
+      : tone === "red"
+      ? "text-rose-300"
+      : "text-cyan-300";
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.055] bg-white/[0.018] px-4 py-3">
+
+      <span className="text-xs font-bold text-slate-500">
+        {label}
+      </span>
+
+      <span className={`text-sm font-black ${toneClass}`}>
+        {value}
+      </span>
+
+    </div>
+  );
+}
+
+function DashboardKpiCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: ReactNode;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-[#071321] p-4">
+
+      <p className="text-[10px] font-black uppercase tracking-[0.17em] text-slate-600">
+        {label}
+      </p>
+
+      <p className="mt-2 text-3xl font-black text-white">
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs font-bold text-slate-600">
+        {helper}
+      </p>
+
+    </div>
+  );
+}
+
+function DashboardPlayerStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+
+      <p className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-600">
+        {label}
+      </p>
+
+      <p className="mt-1 text-xl font-black text-white">
+        {value}
+      </p>
+
+    </div>
+  );
+}
+
+function DashboardQuickLink({
+  href,
+  icon,
+  title,
+  subtitle,
+}: {
+  href: string;
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.04]"
+    >
+
+      <div className="rounded-xl bg-cyan-400/10 p-2 text-cyan-300">
+        {icon}
+      </div>
+
+      <div>
+
+        <p className="text-sm font-black text-white">
+          {title}
+        </p>
+
+        <p className="mt-1 text-xs font-semibold text-slate-600">
+          {subtitle}
+        </p>
+
+      </div>
+
+    </a>
+  );
+}
+
+function formatDashboardEventDate(
+  value: string
+) {
+  if (!value) return "";
+
+  const date = new Date(
+    `${value}T12:00:00`
+  );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleDateString(
+    "fr-FR",
+    {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+    }
   );
 }
 
