@@ -2280,6 +2280,29 @@ export default function Home() {
                     "lineup"
                   )
                 }
+                onOpenPlayer={
+                  setSelectedPlayer
+                }
+                onOpenReport={() =>
+                  setActiveTab(
+                    "report"
+                  )
+                }
+                onOpenAnalysis={() =>
+                  setActiveTab(
+                    "analysis"
+                  )
+                }
+                onOpenSeason={() =>
+                  setActiveTab(
+                    "season"
+                  )
+                }
+                onOpenRoster={() =>
+                  setActiveTab(
+                    "roster"
+                  )
+                }
                 onRefreshDashboard={() =>
                   void loadDashboard()
                 }
@@ -11001,6 +11024,11 @@ function OverviewDashboard({
   formation,
   lineup,
   onEditLineup,
+  onOpenPlayer,
+  onOpenReport,
+  onOpenAnalysis,
+  onOpenSeason,
+  onOpenRoster,
   onRefreshDashboard,
 }: {
   matches: Match[];
@@ -11012,169 +11040,633 @@ function OverviewDashboard({
   formation: string;
   lineup: LineupSpot[];
   onEditLineup: () => void;
+  onOpenPlayer: (player: Player) => void;
+  onOpenReport: () => void;
+  onOpenAnalysis: () => void;
+  onOpenSeason: () => void;
+  onOpenRoster: () => void;
   onRefreshDashboard: () => void;
 }) {
-  const cockpitStats = useMemo(() => {
-    const played = matches.length;
-    const wins = matches.filter((match) => match.result === "V").length;
-    const draws = matches.filter((match) => match.result === "N").length;
-    const losses = matches.filter((match) => match.result === "D").length;
-    const goalsFor = matches.reduce(
-      (total, match) => total + match.goalsFor,
-      0
-    );
-    const goalsAgainst = matches.reduce(
-      (total, match) => total + match.goalsAgainst,
-      0
-    );
-
-    return {
-      played,
-      wins,
-      draws,
-      losses,
-      goalsFor,
-      goalsAgainst,
-      winRate:
-        played > 0
-          ? Math.round((wins / played) * 100)
-          : 0,
-      goalDifference:
-        goalsFor - goalsAgainst,
-    };
-  }, [matches]);
-
-  const bestRecentPlayer = useMemo(() => {
-    if (!players.length) return null;
-
-    return [...players]
-      .map((player) => {
-        const ratings = player.recentRatings
-          .filter((rating) => rating > 0)
-          .slice(0, 5);
-
-        const recentAverage =
-          ratings.length > 0
-            ? ratings.reduce(
-                (total, rating) => total + rating,
-                0
-              ) / ratings.length
-            : player.averageRating;
-
-        return {
-          player,
-          recentAverage,
-        };
-      })
-      .sort((a, b) => {
-        if (b.recentAverage !== a.recentAverage) {
-          return b.recentAverage - a.recentAverage;
-        }
-
-        return (
-          b.player.goals +
-          b.player.assists -
-          (a.player.goals + a.player.assists)
-        );
-      })[0];
-  }, [players]);
-
   const nextEvent =
-    dashboardData?.nextEvent ?? null;
+    dashboardData?.nextEvent ??
+    null;
 
   const nextPlan =
-    nextEvent?.plan ?? null;
-
-  const nextPlanReady =
-    (nextPlan?.lineupCount ?? 0) >= 11;
-
-  const recentMatches =
-    matches.slice(0, 5);
+    nextEvent?.plan ??
+    null;
 
   const weekEvents =
-    dashboardData?.weekEvents ?? [];
+    dashboardData?.weekEvents ??
+    [];
 
-  const upcomingEvents =
-    dashboardData?.upcomingEvents ?? [];
-
-  const displayedWeekEvents =
-    weekEvents.length > 0
-      ? weekEvents.slice(0, 6)
-      : upcomingEvents.slice(0, 6);
-
-  function eventTitle(
-    event: DashboardProgrammeEvent
-  ) {
-    if (event.opponentName) {
-      return `GX NOVA vs ${event.opponentName}`;
-    }
-
-    return (
-      event.title ||
-      event.competitionName ||
-      "Événement GX NOVA"
+  const todayKey =
+    eveningDateKey(
+      new Date().toISOString()
     );
-  }
 
-  function eventHref(
-    event: DashboardProgrammeEvent
-  ) {
-    return `/programme?weekStart=${encodeURIComponent(
-      event.weekStart
-    )}&eventId=${encodeURIComponent(
-      event.eventId
-    )}&openPlan=1`;
-  }
+  const todayEvents =
+    weekEvents.filter(
+      (event) =>
+        event.eventDate ===
+        todayKey
+    );
 
-  function competitionNameForMatch(
-    match: Match
-  ) {
-    if (!match.competitionId) {
-      return "Amical";
-    }
+  const recentFive =
+    useMemo(
+      () =>
+        calculateWindowStats(
+          matches.slice(
+            0,
+            5
+          )
+        ),
+      [
+        matches,
+      ]
+    );
 
-    const competition =
-      competitions.find(
-        (item) =>
-          item.id ===
-          match.competitionId
+  const previousFive =
+    useMemo(
+      () =>
+        calculateWindowStats(
+          matches.slice(
+            5,
+            10
+          )
+        ),
+      [
+        matches,
+      ]
+    );
+
+  const latestEvening =
+    useMemo(
+      () => {
+        if (
+          matches.length ===
+          0
+        ) {
+          return null;
+        }
+
+        const date =
+          eveningDateKey(
+            matches[0].date
+          );
+
+        const eveningMatches =
+          matches.filter(
+            (match) =>
+              eveningDateKey(
+                match.date
+              ) ===
+              date
+          );
+
+        const stats =
+          calculateWindowStats(
+            eveningMatches
+          );
+
+        return {
+          date,
+          matches:
+            eveningMatches,
+          stats,
+        };
+      },
+      [
+        matches,
+      ]
+    );
+
+  const bestRecentPlayer =
+    useMemo(
+      () => {
+        const candidates =
+          players
+            .map(
+              (player) => {
+                const primary =
+                  getPlayerPositionStats(
+                    player,
+                    player.position
+                  );
+
+                const ratings =
+                  (
+                    primary?.recentRatings ??
+                    player.recentRatings
+                  )
+                    .filter(
+                      (rating) =>
+                        rating >
+                        0
+                    )
+                    .slice(
+                      0,
+                      5
+                    );
+
+                if (
+                  ratings.length ===
+                  0
+                ) {
+                  return null;
+                }
+
+                return {
+                  player,
+                  position:
+                    primary?.position ??
+                    player.position,
+                  sample:
+                    ratings.length,
+                  recentAverage:
+                    ratings.reduce(
+                      (
+                        total,
+                        rating
+                      ) =>
+                        total +
+                        rating,
+                      0
+                    ) /
+                    ratings.length,
+                };
+              }
+            )
+            .filter(
+              (
+                item
+              ): item is {
+                player: Player;
+                position: string;
+                sample: number;
+                recentAverage: number;
+              } =>
+                item !==
+                null
+            )
+            .sort(
+              (a, b) => {
+                const aQualified =
+                  a.sample >=
+                  3
+                    ? 1
+                    : 0;
+
+                const bQualified =
+                  b.sample >=
+                  3
+                    ? 1
+                    : 0;
+
+                if (
+                  aQualified !==
+                  bQualified
+                ) {
+                  return (
+                    bQualified -
+                    aQualified
+                  );
+                }
+
+                if (
+                  b.recentAverage !==
+                  a.recentAverage
+                ) {
+                  return (
+                    b.recentAverage -
+                    a.recentAverage
+                  );
+                }
+
+                return (
+                  b.player.goals +
+                  b.player.assists -
+                  (
+                    a.player.goals +
+                    a.player.assists
+                  )
+                );
+              }
+            );
+
+        return (
+          candidates[0] ??
+          null
+        );
+      },
+      [
+        players,
+      ]
+    );
+
+  const competitionToWatch =
+    useMemo(
+      () => {
+        const groups =
+          new Map<
+            number,
+            Match[]
+          >();
+
+        for (
+          const match
+          of matches
+        ) {
+          if (
+            !match.competitionId
+          ) {
+            continue;
+          }
+
+          if (
+            !groups.has(
+              match.competitionId
+            )
+          ) {
+            groups.set(
+              match.competitionId,
+              []
+            );
+          }
+
+          groups
+            .get(
+              match.competitionId
+            )
+            ?.push(
+              match
+            );
+        }
+
+        return Array.from(
+          groups.entries()
+        )
+          .map(
+            ([
+              competitionId,
+              competitionMatches,
+            ]) => {
+              const competition =
+                competitions.find(
+                  (item) =>
+                    item.id ===
+                    competitionId
+                );
+
+              return {
+                competitionId,
+                name:
+                  competition?.short_name ??
+                  competition?.name ??
+                  `Compétition ${competitionId}`,
+                stats:
+                  calculateWindowStats(
+                    competitionMatches
+                  ),
+              };
+            }
+          )
+          .filter(
+            (item) =>
+              item.stats.played >=
+              3
+          )
+          .sort(
+            (a, b) => {
+              if (
+                a.stats.winRate !==
+                b.stats.winRate
+              ) {
+                return (
+                  a.stats.winRate -
+                  b.stats.winRate
+                );
+              }
+
+              return (
+                a.stats.goalDifferencePerMatch -
+                b.stats.goalDifferencePerMatch
+              );
+            }
+          )[0] ??
+          null;
+      },
+      [
+        matches,
+        competitions,
+      ]
+    );
+
+  const staffAlerts =
+    useMemo(
+      () => {
+        const alerts:
+          Array<{
+            title: string;
+            description: string;
+            tone:
+              | "urgent"
+              | "warning"
+              | "info"
+              | "good";
+            action:
+              | "programme"
+              | "analysis"
+              | "report"
+              | null;
+          }> =
+          [];
+
+        if (
+          nextEvent
+        ) {
+          if (
+            !nextPlan
+          ) {
+            alerts.push({
+              title:
+                "Préparation du prochain match à démarrer",
+              description:
+                "Aucune disponibilité ni composition n'est encore enregistrée.",
+              tone:
+                "urgent",
+              action:
+                "programme",
+            });
+          } else if (
+            nextPlan.lineupCount <
+            11
+          ) {
+            alerts.push({
+              title:
+                "Composition incomplète",
+              description: `${nextPlan.lineupCount}/11 titulaires renseignés pour le prochain rendez-vous.`,
+              tone:
+                "urgent",
+              action:
+                "programme",
+            });
+          } else {
+            alerts.push({
+              title:
+                "Composition prête",
+              description: `XI complet en ${nextPlan.formation}.`,
+              tone:
+                "good",
+              action:
+                "programme",
+            });
+          }
+
+          if (
+            nextPlan &&
+            nextPlan.absent >
+              0
+          ) {
+            alerts.push({
+              title:
+                `${nextPlan.absent} absent${nextPlan.absent > 1 ? "s" : ""} déclaré${nextPlan.absent > 1 ? "s" : ""}`,
+              description:
+                "Vérifie que le XI et le banc restent cohérents avec les disponibilités.",
+              tone:
+                "warning",
+              action:
+                "programme",
+            });
+          }
+
+          if (
+            nextPlan &&
+            nextPlan.maybe >
+              0
+          ) {
+            alerts.push({
+              title:
+                `${nextPlan.maybe} joueur${nextPlan.maybe > 1 ? "s" : ""} incertain${nextPlan.maybe > 1 ? "s" : ""}`,
+              description:
+                "Une confirmation de disponibilité peut encore modifier la composition.",
+              tone:
+                "info",
+              action:
+                "programme",
+            });
+          }
+        }
+
+        if (
+          recentFive.played >=
+            5 &&
+          previousFive.played >=
+            5 &&
+          recentFive.winRate <=
+            previousFive.winRate -
+              20
+        ) {
+          alerts.push({
+            title:
+              "Forme récente en baisse",
+            description: `${recentFive.winRate.toFixed(
+              0
+            )}% de victoires sur les 5 derniers contre ${previousFive.winRate.toFixed(
+              0
+            )}% sur les 5 précédents.`,
+            tone:
+              "warning",
+            action:
+              "analysis",
+          });
+        }
+
+        if (
+          recentFive.played >=
+            3 &&
+          recentFive.goalsAgainstPerMatch >=
+            2
+        ) {
+          alerts.push({
+            title:
+              "Buts encaissés à surveiller",
+            description: `${recentFive.goalsAgainstPerMatch.toFixed(
+              2
+            )} buts encaissés par match sur les 5 derniers.`,
+            tone:
+              "warning",
+            action:
+              "analysis",
+          });
+        }
+
+        if (
+          competitionToWatch &&
+          competitionToWatch.stats.winRate <
+            40
+        ) {
+          alerts.push({
+            title:
+              `${competitionToWatch.name} à surveiller`,
+            description: `${competitionToWatch.stats.winRate.toFixed(
+              0
+            )}% de victoires sur ${competitionToWatch.stats.played} matchs.`,
+            tone:
+              "info",
+            action:
+              "analysis",
+          });
+        }
+
+        if (
+          alerts.length ===
+          0
+        ) {
+          alerts.push({
+            title:
+              "Aucune alerte majeure",
+            description:
+              "Les indicateurs disponibles ne remontent pas de priorité critique.",
+            tone:
+              "good",
+            action:
+              null,
+          });
+        }
+
+        return alerts.slice(
+          0,
+          5
+        );
+      },
+      [
+        nextEvent,
+        nextPlan,
+        recentFive,
+        previousFive,
+        competitionToWatch,
+      ]
+    );
+
+  const preparationScore =
+    useMemo(
+      () => {
+        if (
+          !nextEvent
+        ) {
+          return 0;
+        }
+
+        let score =
+          25;
+
+        if (
+          nextPlan
+        ) {
+          score +=
+            20;
+
+          if (
+            (
+              nextPlan.available +
+              nextPlan.maybe +
+              nextPlan.absent
+            ) >
+            0
+          ) {
+            score +=
+              20;
+          }
+
+          if (
+            nextPlan.lineupCount >=
+            11
+          ) {
+            score +=
+              30;
+          }
+
+          if (
+            nextPlan.benchCount >
+            0
+          ) {
+            score +=
+              5;
+          }
+        }
+
+        return Math.min(
+          100,
+          score
+        );
+      },
+      [
+        nextEvent,
+        nextPlan,
+      ]
+    );
+
+  const eventTitle =
+    (
+      event:
+        DashboardProgrammeEvent
+    ) => {
+      if (
+        event.opponentName
+      ) {
+        return `GX NOVA vs ${event.opponentName}`;
+      }
+
+      return (
+        event.title ||
+        event.competitionName ||
+        "Événement GX NOVA"
       );
+    };
 
-    return (
-      competition?.short_name ??
-      competition?.name ??
-      "Compétition"
-    );
-  }
+  const eventHref =
+    (
+      event:
+        DashboardProgrammeEvent
+    ) =>
+      `/programme?weekStart=${encodeURIComponent(
+        event.weekStart
+      )}&eventId=${encodeURIComponent(
+        event.eventId
+      )}&openPlan=1`;
 
   return (
     <div className="space-y-5">
 
-      <section className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-[#06192b] via-[#071321] to-[#030812] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
+      <section className="relative overflow-hidden rounded-[30px] border border-cyan-400/20 bg-gradient-to-br from-[#06192b] via-[#071321] to-[#030812] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.25)]">
 
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-yellow-400/[0.08] blur-3xl" />
+        <div className="pointer-events-none absolute -right-28 -top-28 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-yellow-400/[0.08] blur-3xl" />
 
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
 
           <div className="flex items-center gap-4">
 
             <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.06] p-2">
-              <ClubLogo size={70} />
+
+              <ClubLogo
+                size={72}
+              />
+
             </div>
 
             <div>
 
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
-                GX NOVA COMMAND CENTER
+                GX NOVA • HOME STAFF 2.0
               </p>
 
               <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                Cockpit équipe
+                Priorités du staff
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-400">
-                Programme, disponibilités, compositions et résultats réunis au même endroit.
+              <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-400">
+                Ce qu&apos;il faut préparer, surveiller et consulter en priorité aujourd&apos;hui.
               </p>
 
             </div>
@@ -11187,7 +11679,9 @@ function OverviewDashboard({
               href="/programme"
               className="flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.08] px-4 py-3 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/[0.14]"
             >
-              <CalendarDays size={16} />
+              <CalendarDays
+                size={16}
+              />
               Programme
             </a>
 
@@ -11195,25 +11689,35 @@ function OverviewDashboard({
               href="/match-center"
               className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-white transition hover:bg-white/[0.08]"
             >
-              <Swords size={16} />
+              <Swords
+                size={16}
+              />
               Match Center
             </a>
 
             <button
               type="button"
-              onClick={onEditLineup}
+              onClick={
+                onEditLineup
+              }
               className="flex items-center justify-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.07] px-4 py-3 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/[0.14]"
             >
-              <Users size={16} />
+              <Users
+                size={16}
+              />
               Composition
             </button>
 
             <button
               type="button"
-              onClick={onRefreshDashboard}
+              onClick={
+                onRefreshDashboard
+              }
               className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-black text-slate-300 transition hover:bg-white/[0.07]"
             >
-              <RefreshCw size={15} />
+              <RefreshCw
+                size={15}
+              />
               Actualiser
             </button>
 
@@ -11226,49 +11730,66 @@ function OverviewDashboard({
       {dashboardError && (
 
         <div className="rounded-2xl border border-orange-400/20 bg-orange-400/[0.06] p-4 text-sm font-semibold text-orange-200">
-          Le cockpit du programme n&apos;a pas pu être chargé : {dashboardError}
+          Les informations du Programme n&apos;ont pas pu être chargées : {dashboardError}
         </div>
 
       )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+      <div className="grid gap-5 2xl:grid-cols-12">
 
-        <section className="relative overflow-hidden rounded-[26px] border border-yellow-400/20 bg-gradient-to-br from-[#101b2a] via-[#071321] to-[#050b13] p-6 xl:col-span-8">
+        <section className="relative overflow-hidden rounded-[28px] border border-yellow-400/20 bg-gradient-to-br from-[#101b2a] via-[#071321] to-[#050b13] p-6 2xl:col-span-8">
 
-          <div className="pointer-events-none absolute right-0 top-0 h-56 w-56 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.14),transparent_68%)]" />
+          <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.14),transparent_68%)]" />
 
           <div className="relative z-10">
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-4">
 
               <div>
 
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
                   Prochain rendez-vous
                 </p>
 
-                <h2 className="mt-1 text-2xl font-black text-white">
+                <h2 className="mt-2 text-2xl font-black text-white">
                   {dashboardLoading
-                    ? "Chargement du programme..."
+                    ? "Chargement..."
                     : nextEvent
-                    ? eventTitle(nextEvent)
+                    ? eventTitle(
+                        nextEvent
+                      )
                     : "Aucun match à venir programmé"}
                 </h2>
+
+                {nextEvent && (
+
+                  <p className="mt-2 text-xs font-bold text-slate-500">
+                    {nextEvent.competitionName ||
+                      (
+                        nextEvent.type ===
+                        "tournament"
+                          ? "Tournoi"
+                          : "Compétition"
+                      )}
+                  </p>
+
+                )}
 
               </div>
 
               {nextEvent && (
 
-                <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.07] px-4 py-2 text-right">
+                <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.07] px-4 py-3 text-right">
 
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                  <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-300">
                     {formatDashboardEventDate(
                       nextEvent.eventDate
                     )}
                   </p>
 
                   <p className="mt-1 text-2xl font-black text-white">
-                    {nextEvent.time || "--:--"}
+                    {nextEvent.time ||
+                      "--:--"}
                   </p>
 
                 </div>
@@ -11279,70 +11800,196 @@ function OverviewDashboard({
 
             {nextEvent ? (
 
-              <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+              <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_310px]">
 
-                <div className="flex flex-col items-center text-center">
+                <div className="rounded-2xl border border-white/[0.07] bg-black/10 p-5">
 
-                  <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-yellow-400/20 bg-yellow-400/[0.05]">
-                    <ClubLogo size={72} />
-                  </div>
+                  <div className="flex items-center justify-between gap-4">
 
-                  <p className="mt-3 text-lg font-black">
-                    GX NOVA
-                  </p>
+                    <div className="flex min-w-0 items-center gap-3">
 
-                </div>
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.06]">
 
-                <div className="text-center">
+                        <ClubLogo
+                          size={50}
+                        />
 
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-                    {nextEvent.competitionName ||
-                      (nextEvent.type === "tournament"
-                        ? "Tournoi"
-                        : "Compétition")}
-                  </p>
+                      </div>
 
-                  <p className="mt-2 text-4xl font-black text-yellow-300">
-                    VS
-                  </p>
+                      <div className="min-w-0">
 
-                  <p className="mt-2 text-xs font-bold text-slate-500">
-                    {nextEvent.notes || "FC27"}
-                  </p>
+                        <p className="text-[9px] font-black uppercase tracking-[0.13em] text-gray-600">
+                          Adversaire
+                        </p>
 
-                </div>
+                        <p className="mt-1 truncate text-xl font-black">
+                          {nextEvent.opponentName ||
+                            nextEvent.title ||
+                            "À confirmer"}
+                        </p>
 
-                <div className="flex flex-col items-center text-center">
+                        {nextEvent.notes && (
 
-                  <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-cyan-400/20 bg-cyan-400/[0.05]">
+                          <p className="mt-1 truncate text-[10px] font-bold text-gray-600">
+                            {nextEvent.notes}
+                          </p>
 
-                    {nextEvent.opponentLogoUrl ? (
+                        )}
+
+                      </div>
+
+                    </div>
+
+                    {nextEvent.opponentLogoUrl && (
 
                       <img
-                        src={nextEvent.opponentLogoUrl}
+                        src={
+                          nextEvent.opponentLogoUrl
+                        }
                         alt=""
-                        className="h-20 w-20 object-contain"
+                        className="h-14 w-14 object-contain"
                       />
-
-                    ) : (
-
-                      <span className="text-2xl font-black text-cyan-300">
-                        {initials(
-                          nextEvent.opponentName ||
-                            nextEvent.title ||
-                            "FC"
-                        )}
-                      </span>
 
                     )}
 
                   </div>
 
-                  <p className="mt-3 max-w-[260px] truncate text-lg font-black">
-                    {nextEvent.opponentName ||
-                      nextEvent.title ||
-                      "Adversaire à confirmer"}
-                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+
+                    <a
+                      href={
+                        eventHref(
+                          nextEvent
+                        )
+                      }
+                      className="rounded-xl bg-yellow-400 px-4 py-2.5 text-xs font-black text-black transition hover:bg-yellow-300"
+                    >
+                      {nextPlan
+                        ? "Ouvrir la préparation"
+                        : "Préparer le match"}
+                    </a>
+
+                    <a
+                      href="/programme"
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-gray-300"
+                    >
+                      Programme complet
+                    </a>
+
+                  </div>
+
+                </div>
+
+                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.035] p-5">
+
+                  <div className="flex items-center justify-between gap-4">
+
+                    <div>
+
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-300">
+                        Préparation
+                      </p>
+
+                      <p className="mt-1 text-3xl font-black text-white">
+                        {preparationScore}%
+                      </p>
+
+                    </div>
+
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.07]">
+
+                      {preparationScore >=
+                      90 ? (
+
+                        <CheckCircle2
+                          size={27}
+                          className="text-emerald-300"
+                        />
+
+                      ) : (
+
+                        <Activity
+                          size={27}
+                          className="text-cyan-300"
+                        />
+
+                      )}
+
+                    </div>
+
+                  </div>
+
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-yellow-300"
+                      style={{
+                        width: `${preparationScore}%`,
+                      }}
+                    />
+
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+
+                    <DashboardPreparationRow
+                      label="XI"
+                      value={`${nextPlan?.lineupCount ?? 0}/11`}
+                      tone={
+                        (
+                          nextPlan?.lineupCount ??
+                          0
+                        ) >=
+                        11
+                          ? "green"
+                          : "yellow"
+                      }
+                    />
+
+                    <DashboardPreparationRow
+                      label="Banc"
+                      value={
+                        nextPlan?.benchCount ??
+                        0
+                      }
+                      tone="cyan"
+                    />
+
+                    <DashboardPreparationRow
+                      label="Absents"
+                      value={
+                        nextPlan?.absent ??
+                        0
+                      }
+                      tone={
+                        (
+                          nextPlan?.absent ??
+                          0
+                        ) >
+                        0
+                          ? "red"
+                          : "green"
+                      }
+                    />
+
+                    <DashboardPreparationRow
+                      label="Incertain"
+                      value={
+                        nextPlan?.maybe ??
+                        0
+                      }
+                      tone={
+                        (
+                          nextPlan?.maybe ??
+                          0
+                        ) >
+                        0
+                          ? "yellow"
+                          : "green"
+                      }
+                    />
+
+                  </div>
 
                 </div>
 
@@ -11350,44 +11997,23 @@ function OverviewDashboard({
 
             ) : (
 
-              <div className="mt-7 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
+              <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
 
                 <CalendarDays
-                  size={30}
-                  className="mx-auto text-slate-600"
+                  size={32}
+                  className="mx-auto text-slate-700"
                 />
 
                 <p className="mt-3 text-sm font-bold text-slate-500">
-                  Ajoute le prochain rendez-vous dans le Programme de la semaine.
+                  Aucun rendez-vous programmé.
                 </p>
-
-              </div>
-
-            )}
-
-            {nextEvent && (
-
-              <div className="mt-7 flex flex-wrap justify-center gap-2">
 
                 <a
-                  href={eventHref(nextEvent)}
-                  className="rounded-xl bg-yellow-400 px-5 py-3 text-xs font-black text-black transition hover:bg-yellow-300"
+                  href="/programme"
+                  className="mt-4 inline-flex rounded-xl bg-yellow-400 px-4 py-2.5 text-xs font-black text-black"
                 >
-                  {nextPlan
-                    ? "Voir la préparation"
-                    : "Préparer le match"}
+                  Ajouter au Programme
                 </a>
-
-                {nextEvent.linkedMatchId && (
-
-                  <a
-                    href={`/match-center?matchId=${nextEvent.linkedMatchId}`}
-                    className="rounded-xl border border-cyan-400/25 bg-cyan-400/[0.08] px-5 py-3 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/[0.14]"
-                  >
-                    Ouvrir Match Center
-                  </a>
-
-                )}
 
               </div>
 
@@ -11397,285 +12023,112 @@ function OverviewDashboard({
 
         </section>
 
-        <section className="rounded-[26px] border border-cyan-400/20 bg-[#071321] p-5 xl:col-span-4">
+        <section className="rounded-[28px] border border-white/10 bg-[#091626] 2xl:col-span-4">
 
-          <div className="flex items-center justify-between gap-3">
+          <PanelHeader
+            title="PRIORITÉS STAFF"
+            right={`${staffAlerts.length} signal(s)`}
+          />
 
-            <div>
+          <div className="space-y-3 p-4">
 
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-                Préparation
-              </p>
+            {staffAlerts.map(
+              (
+                alert,
+                index
+              ) => (
 
-              <h2 className="mt-1 text-lg font-black text-white">
-                État du prochain match
-              </h2>
+                <StaffAlertCard
+                  key={`${alert.title}-${index}`}
+                  alert={
+                    alert
+                  }
+                  onProgramme={() => {
+                    if (
+                      nextEvent
+                    ) {
+                      window.location.href =
+                        eventHref(
+                          nextEvent
+                        );
+                    } else {
+                      window.location.href =
+                        "/programme";
+                    }
+                  }}
+                  onAnalysis={
+                    onOpenAnalysis
+                  }
+                  onReport={
+                    onOpenReport
+                  }
+                />
 
-            </div>
-
-            <CheckCircle2
-              size={22}
-              className={
-                nextPlanReady
-                  ? "text-emerald-300"
-                  : "text-slate-600"
-              }
-            />
+              )
+            )}
 
           </div>
-
-          {nextEvent ? (
-
-            <div className="mt-5 space-y-3">
-
-              <DashboardPreparationRow
-                label="Disponibles"
-                value={nextPlan?.available ?? 0}
-                tone="green"
-              />
-
-              <DashboardPreparationRow
-                label="Incertains"
-                value={nextPlan?.maybe ?? 0}
-                tone="yellow"
-              />
-
-              <DashboardPreparationRow
-                label="Absents"
-                value={nextPlan?.absent ?? 0}
-                tone="red"
-              />
-
-              <div className="my-4 border-t border-white/[0.07]" />
-
-              <DashboardPreparationRow
-                label="Composition"
-                value={
-                  nextPlan
-                    ? `${nextPlan.lineupCount}/11`
-                    : "0/11"
-                }
-                tone={
-                  nextPlanReady
-                    ? "green"
-                    : "cyan"
-                }
-              />
-
-              <DashboardPreparationRow
-                label="Formation"
-                value={nextPlan?.formation ?? "À définir"}
-                tone="cyan"
-              />
-
-              <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-
-                <p className="text-xs font-black text-white">
-                  {nextPlanReady
-                    ? "Composition prête"
-                    : nextPlan
-                    ? "Composition à compléter"
-                    : "Préparation non commencée"}
-                </p>
-
-                <p className="mt-1 text-xs font-semibold text-slate-500">
-                  {nextPlanReady
-                    ? `${nextPlan?.lineupCount ?? 0} titulaires enregistrés${
-                        nextPlan?.benchCount
-                          ? ` • ${nextPlan.benchCount} banc`
-                          : ""
-                      }.`
-                    : "Ouvre le Programme pour préparer l'équipe."}
-                </p>
-
-              </div>
-
-            </div>
-
-          ) : (
-
-            <div className="mt-5 rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-600">
-              Aucun événement à préparer.
-            </div>
-
-          )}
 
         </section>
 
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid gap-5 2xl:grid-cols-12">
 
-        <DashboardKpiCard
-          label="Matchs"
-          value={cockpitStats.played}
-          helper={`${cockpitStats.wins}V • ${cockpitStats.draws}N • ${cockpitStats.losses}D`}
-        />
+        <section className="rounded-[28px] border border-cyan-400/15 bg-[#091626] 2xl:col-span-4">
 
-        <DashboardKpiCard
-          label="Taux de victoire"
-          value={`${cockpitStats.winRate}%`}
-          helper="Historique global"
-        />
-
-        <DashboardKpiCard
-          label="Différence buts"
-          value={
-            cockpitStats.goalDifference > 0
-              ? `+${cockpitStats.goalDifference}`
-              : String(cockpitStats.goalDifference)
-          }
-          helper={`${cockpitStats.goalsFor} BP • ${cockpitStats.goalsAgainst} BC`}
-        />
-
-        <DashboardKpiCard
-          label="XI actuel"
-          value={`${lineup.length}/11`}
-          helper={`Formation ${formation}`}
-        />
-
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-12">
-
-        <section className="rounded-[26px] border border-white/10 bg-[#071321] 2xl:col-span-7">
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
-
-            <div>
-
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-                Planning
-              </p>
-
-              <h2 className="mt-1 text-lg font-black">
-                Programme de la semaine
-              </h2>
-
-            </div>
-
-            <a
-              href="/programme"
-              className="text-xs font-black text-yellow-300 transition hover:text-yellow-200"
-            >
-              Voir tout le programme →
-            </a>
-
-          </div>
+          <PanelHeader
+            title="AUJOURD'HUI"
+            right={`${todayEvents.length} événement(s)`}
+          />
 
           <div className="p-4">
 
-            {dashboardLoading ? (
+            {todayEvents.length >
+            0 ? (
 
-              <div className="rounded-2xl border border-white/[0.07] p-6 text-center text-sm font-bold text-slate-600">
-                Chargement du programme...
-              </div>
+              <div className="space-y-3">
 
-            ) : displayedWeekEvents.length ? (
-
-              <div className="space-y-2">
-
-                {displayedWeekEvents.map(
-                  (event) => (
+                {todayEvents.map(
+                  (
+                    event
+                  ) => (
 
                     <a
-                      key={event.eventId}
-                      href={
-                        event.status === "played" &&
-                        event.linkedMatchId
-                          ? `/match-center?matchId=${event.linkedMatchId}`
-                          : eventHref(event)
+                      key={
+                        event.eventId
                       }
-                      className="grid gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.018] p-4 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.035] sm:grid-cols-[110px_1fr_auto] sm:items-center"
+                      href={
+                        eventHref(
+                          event
+                        )
+                      }
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-black/10 p-4 transition hover:border-cyan-400/20"
                     >
-
-                      <div>
-
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-                          {formatDashboardEventDate(
-                            event.eventDate
-                          )}
-                        </p>
-
-                        <p className="mt-1 text-lg font-black text-white">
-                          {event.time || "--:--"}
-                        </p>
-
-                      </div>
 
                       <div className="min-w-0">
 
                         <p className="truncate text-sm font-black text-white">
-                          {eventTitle(event)}
+                          {event.opponentName ||
+                            event.title ||
+                            "Rendez-vous"}
                         </p>
 
-                        <p className="mt-1 truncate text-xs font-bold text-slate-500">
+                        <p className="mt-1 truncate text-[10px] font-bold text-gray-600">
                           {event.competitionName ||
-                            (event.type === "tournament"
-                              ? "Tournoi"
-                              : "Compétition")}
-                          {event.plan
-                            ? ` • ${event.plan.lineupCount}/11`
-                            : " • compo à préparer"}
+                            (
+                              event.type ===
+                              "tournament"
+                                ? "Tournoi"
+                                : "Compétition"
+                            )}
                         </p>
 
                       </div>
 
-                      <div className="sm:text-right">
-
-                        {event.status === "played" ? (
-
-                          <div>
-
-                            <span
-                              className={`inline-flex rounded-lg border px-2 py-1 text-[10px] font-black ${
-                                event.result === "V"
-                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-                                  : event.result === "D"
-                                  ? "border-rose-400/20 bg-rose-400/10 text-rose-300"
-                                  : "border-slate-400/20 bg-slate-400/10 text-slate-300"
-                              }`}
-                            >
-                              JOUÉ
-                            </span>
-
-                            <p className="mt-1 text-xl font-black text-white">
-                              {event.goalsFor ?? "-"} - {event.goalsAgainst ?? "-"}
-                            </p>
-
-                          </div>
-
-                        ) : event.plan ? (
-
-                          <div>
-
-                            <span
-                              className={`inline-flex rounded-lg border px-2 py-1 text-[10px] font-black ${
-                                event.plan.lineupCount >= 11
-                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-                                  : "border-yellow-400/20 bg-yellow-400/10 text-yellow-300"
-                              }`}
-                            >
-                              {event.plan.lineupCount >= 11
-                                ? "COMPO PRÊTE"
-                                : "À COMPLÉTER"}
-                            </span>
-
-                            <p className="mt-1 text-xs font-bold text-slate-500">
-                              {event.plan.available} dispo • {event.plan.maybe} ?
-                            </p>
-
-                          </div>
-
-                        ) : (
-
-                          <span className="inline-flex rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-black text-slate-500">
-                            À PRÉPARER
-                          </span>
-
-                        )}
-
-                      </div>
+                      <p className="shrink-0 text-xl font-black text-yellow-300">
+                        {event.time}
+                      </p>
 
                     </a>
 
@@ -11689,12 +12142,12 @@ function OverviewDashboard({
               <div className="rounded-2xl border border-dashed border-white/10 p-7 text-center">
 
                 <CalendarDays
-                  size={28}
-                  className="mx-auto text-slate-700"
+                  size={27}
+                  className="mx-auto text-gray-700"
                 />
 
-                <p className="mt-3 text-sm font-bold text-slate-600">
-                  Aucun événement enregistré cette semaine.
+                <p className="mt-3 text-xs font-bold text-gray-600">
+                  Aucun match prévu aujourd&apos;hui.
                 </p>
 
               </div>
@@ -11705,156 +12158,73 @@ function OverviewDashboard({
 
         </section>
 
-        <section className="rounded-[26px] border border-white/10 bg-[#071321] 2xl:col-span-5">
+        <section className="rounded-[28px] border border-yellow-400/15 bg-[#091626] 2xl:col-span-4">
 
-          <div className="border-b border-white/[0.07] px-5 py-4">
+          <PanelHeader
+            title="JOUEUR DU MOMENT"
+            right="Poste principal"
+          />
 
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
-              Forme récente
-            </p>
-
-            <h2 className="mt-1 text-lg font-black">
-              Derniers résultats
-            </h2>
-
-          </div>
-
-          <div className="space-y-2 p-4">
-
-            {recentMatches.length ? (
-
-              recentMatches.map(
-                (match) => (
-
-                  <a
-                    key={match.id ?? match.matchId}
-                    href={
-                      match.id
-                        ? `/match-center?matchId=${match.id}`
-                        : "/match-center"
-                    }
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.018] p-3 transition hover:bg-white/[0.04]"
-                  >
-
-                    <div className="min-w-0">
-
-                      <p className="truncate text-sm font-black">
-                        vs {match.opponent}
-                      </p>
-
-                      <p className="mt-1 text-[11px] font-bold text-slate-600">
-                        {formatDate(match.date)} • {competitionNameForMatch(match)}
-                      </p>
-
-                    </div>
-
-                    <div className="flex items-center gap-3">
-
-                      <ResultBadge
-                        result={match.result}
-                      />
-
-                      <span className="min-w-[64px] text-right text-xl font-black text-white">
-                        {match.goalsFor}-{match.goalsAgainst}
-                      </span>
-
-                    </div>
-
-                  </a>
-
-                )
-              )
-
-            ) : (
-
-              <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-600">
-                Aucun résultat disponible.
-              </div>
-
-            )}
-
-          </div>
-
-        </section>
-
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-        <section className="relative overflow-hidden rounded-[26px] border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.07] via-[#071321] to-[#071321] p-5">
-
-          <div className="absolute right-5 top-5 opacity-10">
-            <Star
-              size={96}
-              className="text-yellow-300"
-            />
-          </div>
-
-          <div className="relative z-10">
-
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
-              Joueur en forme
-            </p>
+          <div className="p-4">
 
             {bestRecentPlayer ? (
 
-              <div className="mt-4">
+              <button
+                type="button"
+                onClick={() =>
+                  onOpenPlayer(
+                    bestRecentPlayer.player
+                  )
+                }
+                className="w-full rounded-2xl border border-yellow-400/15 bg-yellow-400/[0.035] p-5 text-left transition hover:bg-yellow-400/[0.06]"
+              >
 
-                <div className="flex items-end gap-4">
+                <div className="flex items-center gap-4">
 
-                  <div>
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/25 bg-yellow-400/10 text-xl font-black text-yellow-300">
+                    {getPlayerInitials(
+                      bestRecentPlayer.player.name
+                    )}
+                  </div>
 
-                    <p className="text-3xl font-black text-white">
-                      {bestRecentPlayer.player.name}
+                  <div className="min-w-0 flex-1">
+
+                    <p className="truncate text-lg font-black text-white">
+                      {formatPlayerName(
+                        bestRecentPlayer.player.name
+                      )}
                     </p>
 
-                    <p className="mt-1 text-sm font-bold text-slate-500">
+                    <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">
                       {formatPositionLong(
-                        bestRecentPlayer.player.position
+                        bestRecentPlayer.position
                       )}
                     </p>
 
                   </div>
 
-                  <div className="ml-auto text-right">
+                  <div className="text-right">
 
-                    <p className="text-4xl font-black text-yellow-300">
-                      {bestRecentPlayer.recentAverage.toFixed(2)}
+                    <p className="text-3xl font-black text-yellow-300">
+                      {bestRecentPlayer.recentAverage.toFixed(
+                        2
+                      )}
                     </p>
 
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
-                      moyenne récente
+                    <p className="text-[8px] font-black uppercase text-gray-700">
+                      {bestRecentPlayer.sample} note(s)
                     </p>
 
                   </div>
 
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-2">
-
-                  <DashboardPlayerStat
-                    label="Matchs"
-                    value={bestRecentPlayer.player.games}
-                  />
-
-                  <DashboardPlayerStat
-                    label="Buts"
-                    value={bestRecentPlayer.player.goals}
-                  />
-
-                  <DashboardPlayerStat
-                    label="Passes D."
-                    value={bestRecentPlayer.player.assists}
-                  />
-
-                </div>
-
-              </div>
+              </button>
 
             ) : (
 
-              <p className="mt-5 text-sm font-bold text-slate-600">
-                Pas encore assez de données joueur.
+              <p className="py-8 text-center text-sm font-bold text-gray-600">
+                Pas encore assez de notes.
               </p>
 
             )}
@@ -11863,93 +12233,65 @@ function OverviewDashboard({
 
         </section>
 
-        <section className="rounded-[26px] border border-cyan-400/15 bg-[#071321] p-5">
+        <section className="rounded-[28px] border border-rose-400/15 bg-[#091626] 2xl:col-span-4">
 
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-            Accès rapides
-          </p>
+          <PanelHeader
+            title="COMPÉTITION À SURVEILLER"
+            right="3 matchs minimum"
+          />
 
-          <h2 className="mt-1 text-lg font-black">
-            Continuer la préparation
-          </h2>
+          <div className="p-4">
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {competitionToWatch ? (
 
-            <DashboardQuickLink
-              href="/programme"
-              icon={
-                <CalendarDays
-                  size={18}
-                />
-              }
-              title="Programme"
-              subtitle="Matchs, dispos et compositions"
-            />
+              <div className="rounded-2xl border border-rose-400/15 bg-rose-400/[0.035] p-5">
 
-            <DashboardQuickLink
-              href="/match-center"
-              icon={
-                <Swords
-                  size={18}
-                />
-              }
-              title="Match Center"
-              subtitle="Résultats, stats et exports"
-            />
-
-            <button
-              type="button"
-              onClick={onEditLineup}
-              className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition hover:border-yellow-400/20 hover:bg-yellow-400/[0.04]"
-            >
-              <div className="rounded-xl bg-yellow-400/10 p-2 text-yellow-300">
-                <Users
-                  size={18}
-                />
-              </div>
-
-              <div>
-
-                <p className="text-sm font-black text-white">
-                  Composition globale
+                <p className="text-lg font-black text-white">
+                  {competitionToWatch.name}
                 </p>
 
-                <p className="mt-1 text-xs font-semibold text-slate-600">
-                  Modifier le XI de référence
-                </p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
 
-              </div>
-            </button>
-
-            {nextEvent ? (
-
-              <DashboardQuickLink
-                href={eventHref(nextEvent)}
-                icon={
-                  <Eye
-                    size={18}
+                  <ReportMiniStat
+                    label="MJ"
+                    value={
+                      competitionToWatch.stats.played
+                    }
                   />
-                }
-                title="Prochain plan"
-                subtitle={
-                  nextPlanReady
-                    ? "Composition prête"
-                    : "Préparation à compléter"
-                }
-              />
+
+                  <ReportMiniStat
+                    label="% V"
+                    value={`${competitionToWatch.stats.winRate.toFixed(
+                      0
+                    )}%`}
+                  />
+
+                  <ReportMiniStat
+                    label="Diff/M"
+                    value={formatSigned(
+                      competitionToWatch.stats.goalDifferencePerMatch
+                    )}
+                  />
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    onOpenAnalysis
+                  }
+                  className="mt-4 w-full rounded-xl border border-rose-400/15 bg-rose-400/[0.05] px-4 py-2.5 text-xs font-black text-rose-200"
+                >
+                  Ouvrir Analyses 2.0
+                </button>
+
+              </div>
 
             ) : (
 
-              <DashboardQuickLink
-                href="/programme"
-                icon={
-                  <Plus
-                    size={18}
-                  />
-                }
-                title="Planifier"
-                subtitle="Ajouter le prochain rendez-vous"
-              />
+              <p className="py-8 text-center text-sm font-bold text-gray-600">
+                Pas encore assez de matchs par compétition.
+              </p>
 
             )}
 
@@ -11959,9 +12301,460 @@ function OverviewDashboard({
 
       </div>
 
+      <div className="grid gap-5 2xl:grid-cols-12">
+
+        <section className="rounded-[28px] border border-white/10 bg-[#091626] 2xl:col-span-7">
+
+          <PanelHeader
+            title="DERNIER RAPPORT DE SOIRÉE"
+            right={
+              latestEvening
+                ? formatEveningDateLabel(
+                    latestEvening.date
+                  )
+                : "Aucun match"
+            }
+          />
+
+          {latestEvening ? (
+
+            <div className="p-5">
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+
+                <DashboardKpiCard
+                  label="Matchs"
+                  value={
+                    latestEvening.stats.played
+                  }
+                  helper="soirée"
+                />
+
+                <DashboardKpiCard
+                  label="Victoires"
+                  value={
+                    latestEvening.stats.wins
+                  }
+                  helper={`${latestEvening.stats.winRate.toFixed(
+                    0
+                  )}%`}
+                />
+
+                <DashboardKpiCard
+                  label="Nuls"
+                  value={
+                    latestEvening.stats.draws
+                  }
+                  helper="soirée"
+                />
+
+                <DashboardKpiCard
+                  label="Défaites"
+                  value={
+                    latestEvening.stats.losses
+                  }
+                  helper="soirée"
+                />
+
+                <DashboardKpiCard
+                  label="Buts"
+                  value={`${latestEvening.stats.goalsFor}-${latestEvening.stats.goalsAgainst}`}
+                  helper="pour / contre"
+                />
+
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+
+                {latestEvening.matches
+                  .slice(
+                    0,
+                    6
+                  )
+                  .map(
+                    (
+                      match
+                    ) => (
+
+                      <span
+                        key={
+                          match.id ??
+                          match.matchId
+                        }
+                        className={`rounded-xl border px-3 py-2 text-xs font-black ${
+                          match.result ===
+                          "V"
+                            ? "border-emerald-400/15 bg-emerald-400/[0.05] text-emerald-300"
+                            : match.result ===
+                              "D"
+                            ? "border-rose-400/15 bg-rose-400/[0.05] text-rose-300"
+                            : "border-white/[0.08] bg-white/[0.025] text-gray-300"
+                        }`}
+                      >
+                        {match.goalsFor}-{match.goalsAgainst} {match.opponent}
+                      </span>
+
+                    )
+                  )}
+
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  onOpenReport
+                }
+                className="mt-5 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-2.5 text-xs font-black text-cyan-300"
+              >
+                Ouvrir le rapport complet
+              </button>
+
+            </div>
+
+          ) : (
+
+            <p className="p-8 text-center text-sm font-bold text-gray-600">
+              Aucun rapport disponible.
+            </p>
+
+          )}
+
+        </section>
+
+        <section className="rounded-[28px] border border-cyan-400/15 bg-[#091626] 2xl:col-span-5">
+
+          <PanelHeader
+            title="FORME RÉCENTE"
+            right="5 derniers"
+          />
+
+          <div className="grid gap-3 p-5 sm:grid-cols-2">
+
+            <div className="rounded-2xl border border-yellow-400/15 bg-yellow-400/[0.035] p-4">
+
+              <p className="text-[9px] font-black uppercase tracking-[0.13em] text-gray-600">
+                Résultats
+              </p>
+
+              <p className="mt-2 text-3xl font-black text-yellow-300">
+                {recentFive.winRate.toFixed(
+                  0
+                )}%
+              </p>
+
+              <p className="mt-1 text-xs font-bold text-gray-600">
+                {recentFive.wins}V • {recentFive.draws}N • {recentFive.losses}D
+              </p>
+
+            </div>
+
+            <div className="rounded-2xl border border-white/[0.07] bg-black/10 p-4">
+
+              <p className="text-[9px] font-black uppercase tracking-[0.13em] text-gray-600">
+                Différence / match
+              </p>
+
+              <p className={`mt-2 text-3xl font-black ${
+                recentFive.goalDifferencePerMatch >=
+                0
+                  ? "text-emerald-300"
+                  : "text-rose-300"
+              }`}>
+                {formatSigned(
+                  recentFive.goalDifferencePerMatch
+                )}
+              </p>
+
+              <p className="mt-1 text-xs font-bold text-gray-600">
+                {recentFive.goalsForPerMatch.toFixed(
+                  2
+                )} BP • {recentFive.goalsAgainstPerMatch.toFixed(
+                  2
+                )} BC
+              </p>
+
+            </div>
+
+          </div>
+
+          <div className="px-5 pb-5">
+
+            <button
+              type="button"
+              onClick={
+                onOpenAnalysis
+              }
+              className="w-full rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] px-4 py-2.5 text-xs font-black text-cyan-300"
+            >
+              Voir Analyses 2.0
+            </button>
+
+          </div>
+
+        </section>
+
+      </div>
+
+      <section className="rounded-[28px] border border-white/10 bg-[#07111f]">
+
+        <PanelHeader
+          title="ACCÈS RAPIDES STAFF"
+          right="Actions fréquentes"
+        />
+
+        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+
+          <DashboardQuickLink
+            href="/programme"
+            icon={
+              <CalendarDays
+                size={18}
+              />
+            }
+            title="Programme"
+            subtitle="Matchs & disponibilités"
+          />
+
+          <DashboardQuickLink
+            href="/match-center"
+            icon={
+              <Swords
+                size={18}
+              />
+            }
+            title="Match Center"
+            subtitle="Résultats & détails EA"
+          />
+
+          <button
+            type="button"
+            onClick={
+              onEditLineup
+            }
+            className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition hover:border-yellow-400/20 hover:bg-yellow-400/[0.04]"
+          >
+
+            <div className="rounded-xl bg-yellow-400/10 p-2 text-yellow-300">
+
+              <Users
+                size={18}
+              />
+
+            </div>
+
+            <div>
+
+              <p className="text-sm font-black text-white">
+                Composition
+              </p>
+
+              <p className="mt-1 text-[10px] font-semibold text-slate-600">
+                XI de référence • {formation} • {lineup.length}/11
+              </p>
+
+            </div>
+
+          </button>
+
+          <StaffHomeQuickButton
+            icon={
+              <FileText
+                size={18}
+              />
+            }
+            title="Rapport soirée"
+            subtitle="Synthèse & export Discord"
+            onClick={
+              onOpenReport
+            }
+          />
+
+          <StaffHomeQuickButton
+            icon={
+              <Activity
+                size={18}
+              />
+            }
+            title="Analyses"
+            subtitle="Signaux & tendances"
+            onClick={
+              onOpenAnalysis
+            }
+          />
+
+          <StaffHomeQuickButton
+            icon={
+              <Trophy
+                size={18}
+              />
+            }
+            title="Centre Saison"
+            subtitle="MVP, XI & records"
+            onClick={
+              onOpenSeason
+            }
+          />
+
+        </div>
+
+        <div className="border-t border-white/[0.06] px-5 py-4">
+
+          <button
+            type="button"
+            onClick={
+              onOpenRoster
+            }
+            className="text-xs font-black text-gray-500 transition hover:text-cyan-300"
+          >
+            Ouvrir l&apos;effectif et les comparaisons joueurs →
+          </button>
+
+        </div>
+
+      </section>
+
     </div>
   );
 }
+
+function StaffAlertCard({
+  alert,
+  onProgramme,
+  onAnalysis,
+  onReport,
+}: {
+  alert: {
+    title: string;
+    description: string;
+    tone:
+      | "urgent"
+      | "warning"
+      | "info"
+      | "good";
+    action:
+      | "programme"
+      | "analysis"
+      | "report"
+      | null;
+  };
+  onProgramme: () => void;
+  onAnalysis: () => void;
+  onReport: () => void;
+}) {
+  const style =
+    alert.tone ===
+    "urgent"
+      ? "border-rose-400/20 bg-rose-400/[0.05]"
+      : alert.tone ===
+        "warning"
+      ? "border-yellow-400/20 bg-yellow-400/[0.045]"
+      : alert.tone ===
+        "good"
+      ? "border-emerald-400/15 bg-emerald-400/[0.04]"
+      : "border-cyan-400/15 bg-cyan-400/[0.035]";
+
+  const dot =
+    alert.tone ===
+    "urgent"
+      ? "bg-rose-400"
+      : alert.tone ===
+        "warning"
+      ? "bg-yellow-400"
+      : alert.tone ===
+        "good"
+      ? "bg-emerald-400"
+      : "bg-cyan-400";
+
+  const action =
+    alert.action ===
+    "programme"
+      ? onProgramme
+      : alert.action ===
+        "analysis"
+      ? onAnalysis
+      : alert.action ===
+        "report"
+      ? onReport
+      : null;
+
+  return (
+    <button
+      type="button"
+      disabled={
+        !action
+      }
+      onClick={() =>
+        action?.()
+      }
+      className={`w-full rounded-2xl border p-4 text-left transition disabled:cursor-default ${style} ${
+        action
+          ? "hover:brightness-110"
+          : ""
+      }`}
+    >
+
+      <div className="flex gap-3">
+
+        <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
+
+        <div className="min-w-0">
+
+          <p className="text-sm font-black text-white">
+            {alert.title}
+          </p>
+
+          <p className="mt-1 text-[11px] font-semibold leading-5 text-gray-500">
+            {alert.description}
+          </p>
+
+        </div>
+
+      </div>
+
+    </button>
+  );
+}
+
+function StaffHomeQuickButton({
+  icon,
+  title,
+  subtitle,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={
+        onClick
+      }
+      className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.04]"
+    >
+
+      <div className="rounded-xl bg-cyan-400/10 p-2 text-cyan-300">
+        {icon}
+      </div>
+
+      <div>
+
+        <p className="text-sm font-black text-white">
+          {title}
+        </p>
+
+        <p className="mt-1 text-[10px] font-semibold text-slate-600">
+          {subtitle}
+        </p>
+
+      </div>
+
+    </button>
+  );
+}
+
 
 function DashboardPreparationRow({
   label,
