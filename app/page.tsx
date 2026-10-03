@@ -279,6 +279,7 @@ type TabName =
   | "stats"
   | "analysis"
   | "report"
+  | "season"
   | "settings";
 
 type WindowStats = {
@@ -362,6 +363,145 @@ type EveningReportResponse = {
     goalsFor: number;
     goalsAgainst: number;
     cleanSheets: number;
+  };
+};
+
+type SeasonCenterPositionStats = {
+  position: string;
+  games: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  shots: number;
+  passesMade: number;
+  passAttempts: number;
+  passSuccess: number;
+  tacklesMade: number;
+  tackleAttempts: number;
+  tackleSuccess: number;
+  saves: number;
+  redCards: number;
+};
+
+type SeasonCenterPlayer = {
+  id: string;
+  name: string;
+  primaryPosition: string;
+  games: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  saves: number;
+  positionStats: SeasonCenterPositionStats[];
+};
+
+type SeasonCenterMonth = {
+  key: string;
+  label: string;
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  winRate: number;
+  goalsForPerMatch: number;
+  goalsAgainstPerMatch: number;
+};
+
+type SeasonCenterCompetition = {
+  id: number | null;
+  name: string;
+  shortName: string;
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  winRate: number;
+};
+
+type SeasonCenterXiPlayer = {
+  slot: string;
+  role: string;
+  playerId: string;
+  playerName: string;
+  games: number;
+  averageRating: number;
+  qualified: boolean;
+};
+
+type SeasonCenterMatchRecord = {
+  id: number;
+  playedAt: string | null;
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  result: "V" | "N" | "D";
+};
+
+type SeasonCenterResponse = {
+  season: {
+    id: number;
+    name: string;
+    startsOn: string | null;
+    endsOn: string | null;
+    isActive: boolean;
+  };
+  totals: {
+    matches: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    goalDifference: number;
+    winRate: number;
+    cleanSheets: number;
+    cleanSheetRate: number;
+    goalsForPerMatch: number;
+    goalsAgainstPerMatch: number;
+  };
+  months: SeasonCenterMonth[];
+  competitions: SeasonCenterCompetition[];
+  players: SeasonCenterPlayer[];
+  mvp: null | {
+    playerId: string;
+    playerName: string;
+    position: string;
+    games: number;
+    averageRating: number;
+    goals: number;
+    assists: number;
+    saves: number;
+  };
+  mvpMinimumGames: number;
+  topByPosition: Record<string, Array<{
+    playerId: string;
+    playerName: string;
+    position: string;
+    games: number;
+    averageRating: number;
+    goals: number;
+    assists: number;
+    saves: number;
+    passSuccess: number;
+    tackleSuccess: number;
+  }>>;
+  bestXi: SeasonCenterXiPlayer[];
+  bestXiMinimumGames: number;
+  records: {
+    biggestWin: SeasonCenterMatchRecord | null;
+    biggestLoss: SeasonCenterMatchRecord | null;
+    highestScoring: SeasonCenterMatchRecord | null;
+    longestUnbeaten: number;
+    longestWinStreak: number;
+    topScorer: SeasonCenterPlayer | null;
+    topAssister: SeasonCenterPlayer | null;
+    topSaves: SeasonCenterPlayer | null;
   };
 };
 
@@ -1770,6 +1910,24 @@ export default function Home() {
               }
             />
 
+            <SidebarItem
+              icon={
+                <Trophy
+                  size={19}
+                />
+              }
+              label="Centre Saison"
+              active={
+                activeTab ===
+                "season"
+              }
+              onClick={() =>
+                setActiveTab(
+                  "season"
+                )
+              }
+            />
+
             <div className="my-5 border-t border-white/5" />
 
             <SidebarItem
@@ -1999,6 +2157,19 @@ export default function Home() {
                 onClick={() =>
                   setActiveTab(
                     "report"
+                  )
+                }
+              />
+
+              <TopTab
+                label="CENTRE SAISON"
+                active={
+                  activeTab ===
+                  "season"
+                }
+                onClick={() =>
+                  setActiveTab(
+                    "season"
                   )
                 }
               />
@@ -2364,6 +2535,28 @@ export default function Home() {
                 }
                 onOpenMatch={
                   openMatchDetail
+                }
+              />
+
+            )}
+
+            {/* CENTRE SAISON */}
+
+            {activeTab ===
+              "season" && (
+
+              <SeasonCenterDashboard
+                seasons={
+                  seasons
+                }
+                selectedSeason={
+                  selectedSeason
+                }
+                onOpenPlayer={
+                  setSelectedPlayer
+                }
+                allPlayers={
+                  allPlayers
                 }
               />
 
@@ -11920,6 +12113,2265 @@ function formatDashboardEventDate(
 /* =========================================================
    ANALYSES AUTOMATIQUES
 ========================================================= */
+
+
+
+function SeasonCenterDashboard({
+  seasons,
+  selectedSeason,
+  onOpenPlayer,
+  allPlayers,
+}: {
+  seasons: Season[];
+  selectedSeason: string;
+  onOpenPlayer: (player: Player) => void;
+  allPlayers: Player[];
+}) {
+  const defaultSeasonId =
+    useMemo(
+      () => {
+        if (
+          selectedSeason !==
+          "all" &&
+          seasons.some(
+            (season) =>
+              String(
+                season.id
+              ) ===
+              selectedSeason
+          )
+        ) {
+          return selectedSeason;
+        }
+
+        const active =
+          seasons.find(
+            (season) =>
+              season.is_active
+          );
+
+        return active
+          ? String(
+              active.id
+            )
+          : seasons[0]
+          ? String(
+              seasons[0].id
+            )
+          : "";
+      },
+      [
+        seasons,
+        selectedSeason,
+      ]
+    );
+
+  const [
+    seasonId,
+    setSeasonId,
+  ] = useState(
+    defaultSeasonId
+  );
+
+  const [
+    data,
+    setData,
+  ] = useState<SeasonCenterResponse | null>(
+    null
+  );
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(
+    false
+  );
+
+  const [
+    error,
+    setError,
+  ] = useState(
+    ""
+  );
+
+  const [
+    copied,
+    setCopied,
+  ] = useState(
+    false
+  );
+
+  const [
+    exporting,
+    setExporting,
+  ] = useState(
+    false
+  );
+
+  useEffect(() => {
+    if (
+      defaultSeasonId &&
+      !seasonId
+    ) {
+      setSeasonId(
+        defaultSeasonId
+      );
+    }
+  }, [
+    defaultSeasonId,
+    seasonId,
+  ]);
+
+  useEffect(() => {
+    let cancelled =
+      false;
+
+    async function loadSeasonCenter() {
+      if (
+        !seasonId
+      ) {
+        setData(
+          null
+        );
+        return;
+      }
+
+      try {
+        setLoading(
+          true
+        );
+        setError(
+          ""
+        );
+
+        const response =
+          await fetch(
+            `/api/season-center?seasonId=${encodeURIComponent(
+              seasonId
+            )}`,
+            {
+              cache:
+                "no-store",
+            }
+          );
+
+        const result =
+          (await response.json()) as SeasonCenterResponse & {
+            error?: string;
+            details?: string;
+          };
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            result.details ??
+              result.error ??
+              "Impossible de charger le Centre Saison."
+          );
+        }
+
+        if (
+          !cancelled
+        ) {
+          setData(
+            result
+          );
+        }
+      } catch (
+        err
+      ) {
+        if (
+          !cancelled
+        ) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger le Centre Saison."
+          );
+        }
+      } finally {
+        if (
+          !cancelled
+        ) {
+          setLoading(
+            false
+          );
+        }
+      }
+    }
+
+    void loadSeasonCenter();
+
+    return () => {
+      cancelled =
+        true;
+    };
+  }, [
+    seasonId,
+  ]);
+
+  const pagePlayer =
+    (
+      playerId: string,
+      playerName: string
+    ) =>
+      allPlayers.find(
+        (player) =>
+          player.id ===
+          playerId
+      ) ??
+      allPlayers.find(
+        (player) =>
+          normalizePlayerName(
+            player.name
+          ) ===
+          normalizePlayerName(
+            playerName
+          )
+      ) ??
+      null;
+
+  const openSeasonPlayer =
+    (
+      playerId: string,
+      playerName: string
+    ) => {
+      const player =
+        pagePlayer(
+          playerId,
+          playerName
+        );
+
+      if (
+        player
+      ) {
+        onOpenPlayer(
+          player
+        );
+      }
+    };
+
+  const copySeasonDiscord =
+    async () => {
+      if (
+        !data
+      ) {
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(
+          buildSeasonDiscordText(
+            data
+          )
+        );
+
+        setCopied(
+          true
+        );
+
+        window.setTimeout(
+          () =>
+            setCopied(
+              false
+            ),
+          1800
+        );
+      } catch {
+        setError(
+          "Le navigateur n'a pas autorisé la copie dans le presse-papiers."
+        );
+      }
+    };
+
+  const exportSeasonPoster =
+    async () => {
+      if (
+        !data
+      ) {
+        return;
+      }
+
+      try {
+        setExporting(
+          true
+        );
+        setError(
+          ""
+        );
+
+        await exportSeasonCenterPoster(
+          data
+        );
+      } catch (
+        err
+      ) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de générer le bilan de saison."
+        );
+      } finally {
+        setExporting(
+          false
+        );
+      }
+    };
+
+  if (
+    seasons.length ===
+    0
+  ) {
+    return (
+      <section className="rounded-3xl border border-white/10 bg-[#091626] p-10 text-center">
+
+        <Trophy
+          size={40}
+          className="mx-auto text-gray-700"
+        />
+
+        <h2 className="mt-4 text-2xl font-black">
+          Centre Saison
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-600">
+          Aucune saison n&apos;est configurée.
+        </p>
+
+      </section>
+    );
+  }
+
+  return (
+    <>
+
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+
+        <div>
+
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
+            GX NOVA • CENTRE SAISON
+          </p>
+
+          <h2 className="mt-2 text-3xl font-black">
+            Bilan & récompenses
+          </h2>
+
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-gray-500">
+            Résultats, progression mensuelle, compétitions, MVP, meilleurs joueurs par poste, XI de la saison et records dans une seule vue.
+          </p>
+
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+
+          <label className="min-w-[210px]">
+
+            <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.15em] text-gray-600">
+              Saison
+            </span>
+
+            <select
+              value={
+                seasonId
+              }
+              onChange={
+                (
+                  event
+                ) =>
+                  setSeasonId(
+                    event.target.value
+                  )
+              }
+              className="w-full rounded-xl border border-yellow-400/20 bg-[#050d18] px-4 py-3 text-sm font-black text-white outline-none"
+            >
+
+              {seasons.map(
+                (
+                  season
+                ) => (
+
+                  <option
+                    key={
+                      season.id
+                    }
+                    value={
+                      String(
+                        season.id
+                      )
+                    }
+                  >
+                    {season.name}
+                    {season.is_active
+                      ? " • Active"
+                      : ""}
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </label>
+
+          <button
+            type="button"
+            onClick={
+              copySeasonDiscord
+            }
+            disabled={
+              !data ||
+              loading
+            }
+            className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-black text-cyan-300 disabled:opacity-40"
+          >
+            <Copy
+              size={17}
+            />
+            {copied
+              ? "Copié"
+              : "Copier Discord"}
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              exportSeasonPoster
+            }
+            disabled={
+              !data ||
+              loading ||
+              exporting
+            }
+            className="flex items-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 disabled:opacity-40"
+          >
+            <Save
+              size={17}
+            />
+            {exporting
+              ? "Export..."
+              : "Bilan PNG"}
+          </button>
+
+        </div>
+
+      </div>
+
+      {error && (
+
+        <div className="mb-5 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-4 text-sm font-bold text-rose-200">
+          {error}
+        </div>
+
+      )}
+
+      {loading ? (
+
+        <div className="rounded-3xl border border-white/10 bg-[#091626] p-12 text-center">
+
+          <RefreshCw
+            size={28}
+            className="mx-auto animate-spin text-cyan-300"
+          />
+
+          <p className="mt-4 text-sm font-black text-gray-500">
+            Construction du bilan de saison...
+          </p>
+
+        </div>
+
+      ) : data ? (
+
+        <>
+
+          <div className="mb-5 rounded-3xl border border-yellow-400/20 bg-gradient-to-r from-yellow-400/[0.07] via-[#091626] to-cyan-400/[0.04] p-6">
+
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+
+              <div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                  {data.season.isActive
+                    ? "SAISON ACTIVE"
+                    : "ARCHIVE SAISON"}
+                </p>
+
+                <h3 className="mt-2 text-3xl font-black text-white">
+                  {data.season.name}
+                </h3>
+
+                <p className="mt-2 text-xs font-bold text-gray-600">
+                  {formatSeasonRange(
+                    data.season.startsOn,
+                    data.season.endsOn
+                  )}
+                </p>
+
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+
+                <SeasonHeroMetric
+                  label="Matchs"
+                  value={
+                    data.totals.matches
+                  }
+                />
+
+                <SeasonHeroMetric
+                  label="Victoires"
+                  value={`${data.totals.winRate.toFixed(
+                    0
+                  )}%`}
+                  yellow
+                />
+
+                <SeasonHeroMetric
+                  label="Diff. buts"
+                  value={`${data.totals.goalDifference > 0 ? "+" : ""}${data.totals.goalDifference}`}
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3 2xl:grid-cols-6">
+
+            <ReportKpi
+              label="Bilan"
+              value={`${data.totals.wins}V`}
+              helper={`${data.totals.draws}N • ${data.totals.losses}D`}
+              tone="green"
+            />
+
+            <ReportKpi
+              label="Buts marqués"
+              value={
+                data.totals.goalsFor
+              }
+              helper={`${data.totals.goalsForPerMatch.toFixed(
+                2
+              )} / match`}
+              tone="yellow"
+            />
+
+            <ReportKpi
+              label="Buts encaissés"
+              value={
+                data.totals.goalsAgainst
+              }
+              helper={`${data.totals.goalsAgainstPerMatch.toFixed(
+                2
+              )} / match`}
+              tone="red"
+            />
+
+            <ReportKpi
+              label="Clean sheets"
+              value={
+                data.totals.cleanSheets
+              }
+              helper={`${data.totals.cleanSheetRate.toFixed(
+                0
+              )}%`}
+              tone="cyan"
+            />
+
+            <ReportKpi
+              label="Joueurs"
+              value={
+                data.players.length
+              }
+              helper="utilisés cette saison"
+            />
+
+            <ReportKpi
+              label="Compétitions"
+              value={
+                data.competitions.length
+              }
+              helper="avec au moins un match"
+            />
+
+          </div>
+
+          <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+            <section className="overflow-hidden rounded-3xl border border-yellow-400/20 bg-[#091626] 2xl:col-span-5">
+
+              <PanelHeader
+                title="MVP DE LA SAISON"
+                right={`Minimum ${data.mvpMinimumGames} MJ`}
+              />
+
+              {data.mvp ? (
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    openSeasonPlayer(
+                      data.mvp!.playerId,
+                      data.mvp!.playerName
+                    )
+                  }
+                  className="w-full p-6 text-left transition hover:bg-yellow-400/[0.025]"
+                >
+
+                  <div className="flex items-center gap-4">
+
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-yellow-400/30 bg-yellow-400/10 text-2xl font-black text-yellow-300">
+                      {getPlayerInitials(
+                        data.mvp.playerName
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-gray-600">
+                        {formatPositionLong(
+                          data.mvp.position
+                        )}
+                      </p>
+
+                      <p className="mt-2 truncate text-2xl font-black">
+                        {formatPlayerName(
+                          data.mvp.playerName
+                        )}
+                      </p>
+
+                      <p className="mt-2 text-xs font-bold text-gray-600">
+                        {data.mvp.games} matchs au poste • {data.mvp.goals} B • {data.mvp.assists} PD
+                      </p>
+
+                    </div>
+
+                    <div className="text-right">
+
+                      <p className="text-4xl font-black text-yellow-300">
+                        {data.mvp.averageRating.toFixed(
+                          2
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-[9px] font-black uppercase text-gray-700">
+                        note EA
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </button>
+
+              ) : (
+
+                <p className="p-8 text-center text-sm font-bold text-gray-600">
+                  Pas encore assez de matchs pour désigner un MVP.
+                </p>
+
+              )}
+
+            </section>
+
+            <section className="rounded-3xl border border-cyan-400/15 bg-[#091626] 2xl:col-span-7">
+
+              <PanelHeader
+                title="PROGRESSION MOIS PAR MOIS"
+                right={`${data.months.length} mois`}
+              />
+
+              <SeasonMonthlyChart
+                months={
+                  data.months
+                }
+              />
+
+            </section>
+
+          </div>
+
+          <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+            <section className="overflow-hidden rounded-3xl border border-blue-400/15 bg-[#091626] 2xl:col-span-7">
+
+              <PanelHeader
+                title="RÉSULTATS PAR COMPÉTITION"
+                right="Saison complète"
+              />
+
+              <SeasonCompetitionTable
+                competitions={
+                  data.competitions
+                }
+              />
+
+            </section>
+
+            <section className="rounded-3xl border border-yellow-400/15 bg-[#091626] 2xl:col-span-5">
+
+              <PanelHeader
+                title="RECORDS DE LA SAISON"
+                right="GX NOVA"
+              />
+
+              <SeasonRecords
+                records={
+                  data.records
+                }
+                onOpenPlayer={
+                  openSeasonPlayer
+                }
+              />
+
+            </section>
+
+          </div>
+
+          <section className="mb-5 rounded-3xl border border-cyan-400/15 bg-[#091626]">
+
+            <PanelHeader
+              title="MEILLEURS JOUEURS PAR POSTE"
+              right="Notes séparées par rôle EA"
+            />
+
+            <div className="grid gap-4 p-5 xl:grid-cols-2 2xl:grid-cols-4">
+
+              {[
+                [
+                  "goalkeeper",
+                  "Gardien",
+                ],
+                [
+                  "defender",
+                  "Défenseurs",
+                ],
+                [
+                  "midfielder",
+                  "Milieux",
+                ],
+                [
+                  "forward",
+                  "Attaquants",
+                ],
+              ].map(
+                ([
+                  role,
+                  label,
+                ]) => (
+
+                  <SeasonRoleTop
+                    key={
+                      role
+                    }
+                    title={
+                      label
+                    }
+                    entries={
+                      data.topByPosition[
+                        role
+                      ] ??
+                      []
+                    }
+                    onOpenPlayer={
+                      openSeasonPlayer
+                    }
+                  />
+
+                )
+              )}
+
+            </div>
+
+          </section>
+
+          <section className="rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.04] via-[#091626] to-cyan-400/[0.025]">
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+
+              <div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.17em] text-yellow-300">
+                  XI TYPE 3-5-2
+                </p>
+
+                <h3 className="mt-1 text-lg font-black">
+                  Meilleur XI de la saison
+                </h3>
+
+              </div>
+
+              <span className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-xs font-black text-gray-500">
+                {data.bestXi.length}/11 • seuil conseillé {data.bestXiMinimumGames} MJ
+              </span>
+
+            </div>
+
+            <SeasonBestXi
+              players={
+                data.bestXi
+              }
+              onOpenPlayer={
+                openSeasonPlayer
+              }
+            />
+
+            <p className="border-t border-white/[0.07] px-5 py-4 text-[10px] font-semibold leading-5 text-gray-600">
+              Le XI respecte uniquement les rôles réellement fournis par EA : 1 gardien, 3 défenseurs, 5 milieux et 2 attaquants. Un joueur n&apos;est jamais placé dans une catégorie qu&apos;il n&apos;a pas jouée.
+            </p>
+
+          </section>
+
+        </>
+
+      ) : (
+
+        <section className="rounded-3xl border border-white/10 bg-[#091626] p-10 text-center">
+
+          <Trophy
+            size={38}
+            className="mx-auto text-gray-700"
+          />
+
+          <p className="mt-4 text-sm font-black text-gray-600">
+            Sélectionne une saison pour afficher son bilan.
+          </p>
+
+        </section>
+
+      )}
+
+    </>
+  );
+}
+
+function SeasonHeroMetric({
+  label,
+  value,
+  yellow = false,
+}: {
+  label: string;
+  value: string | number;
+  yellow?: boolean;
+}) {
+  return (
+    <div className="min-w-[105px] rounded-2xl border border-white/[0.07] bg-black/10 p-4 text-center">
+
+      <p className={`text-2xl font-black ${yellow ? "text-yellow-300" : "text-white"}`}>
+        {value}
+      </p>
+
+      <p className="mt-1 text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+        {label}
+      </p>
+
+    </div>
+  );
+}
+
+function SeasonMonthlyChart({
+  months,
+}: {
+  months: SeasonCenterMonth[];
+}) {
+  if (
+    months.length ===
+    0
+  ) {
+    return (
+      <p className="p-8 text-center text-sm font-bold text-gray-600">
+        Aucun mois avec des matchs.
+      </p>
+    );
+  }
+
+  const width =
+    900;
+  const height =
+    280;
+  const left =
+    48;
+  const right =
+    30;
+  const top =
+    32;
+  const bottom =
+    55;
+  const usableWidth =
+    width -
+    left -
+    right;
+  const usableHeight =
+    height -
+    top -
+    bottom;
+
+  const xFor =
+    (
+      index: number
+    ) =>
+      months.length ===
+      1
+        ? left +
+          usableWidth /
+            2
+        : left +
+          (
+            index /
+            (
+              months.length -
+              1
+            )
+          ) *
+            usableWidth;
+
+  const yFor =
+    (
+      winRate: number
+    ) =>
+      top +
+      (
+        1 -
+        Math.max(
+          0,
+          Math.min(
+            100,
+            winRate
+          )
+        ) /
+          100
+      ) *
+        usableHeight;
+
+  const line =
+    months
+      .map(
+        (
+          month,
+          index
+        ) =>
+          `${xFor(
+            index
+          )},${yFor(
+            month.winRate
+          )}`
+      )
+      .join(
+        " "
+      );
+
+  return (
+    <div className="overflow-x-auto p-4">
+
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-[285px] min-w-[720px] w-full"
+        role="img"
+        aria-label="Évolution du taux de victoire par mois"
+      >
+
+        {[0, 25, 50, 75, 100].map(
+          (
+            value
+          ) => {
+            const y =
+              yFor(
+                value
+              );
+
+            return (
+              <g
+                key={
+                  value
+                }
+              >
+
+                <line
+                  x1={
+                    left
+                  }
+                  x2={
+                    width -
+                    right
+                  }
+                  y1={
+                    y
+                  }
+                  y2={
+                    y
+                  }
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth="1"
+                />
+
+                <text
+                  x={
+                    left -
+                    10
+                  }
+                  y={
+                    y +
+                    4
+                  }
+                  fill="rgba(148,163,184,0.55)"
+                  fontSize="10"
+                  textAnchor="end"
+                >
+                  {value}%
+                </text>
+
+              </g>
+            );
+          }
+        )}
+
+        {months.length >
+          1 && (
+
+          <polyline
+            points={
+              line
+            }
+            fill="none"
+            stroke="rgb(34,211,238)"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+        )}
+
+        {months.map(
+          (
+            month,
+            index
+          ) => {
+            const x =
+              xFor(
+                index
+              );
+            const y =
+              yFor(
+                month.winRate
+              );
+
+            return (
+              <g
+                key={
+                  month.key
+                }
+              >
+
+                <circle
+                  cx={
+                    x
+                  }
+                  cy={
+                    y
+                  }
+                  r="7"
+                  fill="rgb(250,204,21)"
+                  stroke="#07111f"
+                  strokeWidth="3"
+                />
+
+                <text
+                  x={
+                    x
+                  }
+                  y={
+                    y -
+                    14
+                  }
+                  fill="white"
+                  fontSize="11"
+                  fontWeight="900"
+                  textAnchor="middle"
+                >
+                  {month.winRate.toFixed(
+                    0
+                  )}%
+                </text>
+
+                <text
+                  x={
+                    x
+                  }
+                  y={
+                    height -
+                    27
+                  }
+                  fill="rgba(203,213,225,0.75)"
+                  fontSize="10"
+                  fontWeight="800"
+                  textAnchor="middle"
+                >
+                  {month.label}
+                </text>
+
+                <text
+                  x={
+                    x
+                  }
+                  y={
+                    height -
+                    11
+                  }
+                  fill="rgba(100,116,139,0.8)"
+                  fontSize="9"
+                  fontWeight="700"
+                  textAnchor="middle"
+                >
+                  {month.wins}V {month.draws}N {month.losses}D
+                </text>
+
+              </g>
+            );
+          }
+        )}
+
+      </svg>
+
+    </div>
+  );
+}
+
+function SeasonCompetitionTable({
+  competitions,
+}: {
+  competitions: SeasonCenterCompetition[];
+}) {
+  if (
+    competitions.length ===
+    0
+  ) {
+    return (
+      <p className="p-8 text-center text-sm font-bold text-gray-600">
+        Aucune compétition.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+
+      <div className="min-w-[700px]">
+
+        <div className="grid grid-cols-[1fr_70px_100px_90px_80px_80px_80px] border-b border-white/[0.07] bg-[#071321] px-4 py-3 text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">
+
+          <span>Compétition</span>
+          <span className="text-center">MJ</span>
+          <span className="text-center">V/N/D</span>
+          <span className="text-center">% V</span>
+          <span className="text-center">BP</span>
+          <span className="text-center">BC</span>
+          <span className="text-center">Diff</span>
+
+        </div>
+
+        {competitions.map(
+          (
+            competition
+          ) => (
+
+            <div
+              key={
+                competition.id ??
+                competition.name
+              }
+              className="grid grid-cols-[1fr_70px_100px_90px_80px_80px_80px] items-center border-b border-white/[0.045] px-4 py-3 text-xs"
+            >
+
+              <span className="truncate font-black text-white">
+                {competition.shortName ||
+                  competition.name}
+              </span>
+
+              <span className="text-center font-bold text-gray-500">
+                {competition.matches}
+              </span>
+
+              <span className="text-center font-black text-gray-300">
+                {competition.wins}/{competition.draws}/{competition.losses}
+              </span>
+
+              <span className="text-center font-black text-yellow-300">
+                {competition.winRate.toFixed(
+                  0
+                )}%
+              </span>
+
+              <span className="text-center font-bold text-gray-400">
+                {competition.goalsFor}
+              </span>
+
+              <span className="text-center font-bold text-gray-400">
+                {competition.goalsAgainst}
+              </span>
+
+              <span className={`text-center font-black ${
+                competition.goalDifference >
+                0
+                  ? "text-emerald-300"
+                  : competition.goalDifference <
+                    0
+                  ? "text-rose-300"
+                  : "text-gray-400"
+              }`}>
+                {competition.goalDifference >
+                0
+                  ? "+"
+                  : ""}
+                {competition.goalDifference}
+              </span>
+
+            </div>
+
+          )
+        )}
+
+      </div>
+
+    </div>
+  );
+}
+
+function SeasonRecords({
+  records,
+  onOpenPlayer,
+}: {
+  records: SeasonCenterResponse["records"];
+  onOpenPlayer: (
+    playerId: string,
+    playerName: string
+  ) => void;
+}) {
+  const matchRecord =
+    (
+      label: string,
+      match:
+        SeasonCenterMatchRecord | null
+    ) => (
+      <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+
+        <p className="text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+          {label}
+        </p>
+
+        <p className="mt-2 truncate text-sm font-black text-white">
+          {match
+            ? `${match.goalsFor}-${match.goalsAgainst} vs ${match.opponent}`
+            : "—"}
+        </p>
+
+      </div>
+    );
+
+  const playerRecord =
+    (
+      label: string,
+      player:
+        SeasonCenterPlayer | null,
+      value: string
+    ) => (
+      <button
+        type="button"
+        disabled={
+          !player
+        }
+        onClick={() => {
+          if (
+            player
+          ) {
+            onOpenPlayer(
+              player.id,
+              player.name
+            );
+          }
+        }}
+        className="rounded-xl border border-white/[0.07] bg-black/10 p-3 text-left disabled:cursor-default"
+      >
+
+        <p className="text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+          {label}
+        </p>
+
+        <p className="mt-2 truncate text-sm font-black text-white">
+          {player
+            ? formatPlayerName(
+                player.name
+              )
+            : "—"}
+        </p>
+
+        <p className="mt-1 text-[10px] font-bold text-yellow-300">
+          {player
+            ? value
+            : ""}
+        </p>
+
+      </button>
+    );
+
+  return (
+    <div className="grid grid-cols-2 gap-3 p-5">
+
+      {matchRecord(
+        "Plus large victoire",
+        records.biggestWin
+      )}
+
+      {matchRecord(
+        "Match le + prolifique",
+        records.highestScoring
+      )}
+
+      <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+
+        <p className="text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+          Série invaincue
+        </p>
+
+        <p className="mt-2 text-2xl font-black text-cyan-300">
+          {records.longestUnbeaten}
+        </p>
+
+        <p className="text-[9px] font-bold text-gray-600">
+          matchs
+        </p>
+
+      </div>
+
+      <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+
+        <p className="text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+          Série de victoires
+        </p>
+
+        <p className="mt-2 text-2xl font-black text-emerald-300">
+          {records.longestWinStreak}
+        </p>
+
+        <p className="text-[9px] font-bold text-gray-600">
+          matchs
+        </p>
+
+      </div>
+
+      {playerRecord(
+        "Meilleur buteur",
+        records.topScorer,
+        `${records.topScorer?.goals ?? 0} buts`
+      )}
+
+      {playerRecord(
+        "Meilleur passeur",
+        records.topAssister,
+        `${records.topAssister?.assists ?? 0} PD`
+      )}
+
+      {playerRecord(
+        "Plus d'arrêts",
+        records.topSaves,
+        `${records.topSaves?.saves ?? 0} arrêts`
+      )}
+
+      {matchRecord(
+        "Plus large défaite",
+        records.biggestLoss
+      )}
+
+    </div>
+  );
+}
+
+function SeasonRoleTop({
+  title,
+  entries,
+  onOpenPlayer,
+}: {
+  title: string;
+  entries: Array<{
+    playerId: string;
+    playerName: string;
+    position: string;
+    games: number;
+    averageRating: number;
+    goals: number;
+    assists: number;
+    saves: number;
+    passSuccess: number;
+    tackleSuccess: number;
+  }>;
+  onOpenPlayer: (
+    playerId: string,
+    playerName: string
+  ) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#071321]">
+
+      <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
+
+        <div>
+
+          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-gray-700">
+            TOP 3
+          </p>
+
+          <h4 className="mt-1 font-black">
+            {title}
+          </h4>
+
+        </div>
+
+        <Medal
+          size={19}
+          className="text-yellow-300"
+        />
+
+      </div>
+
+      <div className="p-2">
+
+        {entries.length >
+        0 ? (
+
+          entries.slice(
+            0,
+            3
+          ).map(
+            (
+              player,
+              index
+            ) => (
+
+              <button
+                key={
+                  player.playerId
+                }
+                type="button"
+                onClick={() =>
+                  onOpenPlayer(
+                    player.playerId,
+                    player.playerName
+                  )
+                }
+                className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition hover:bg-white/[0.04] ${
+                  index === 0
+                    ? "border border-yellow-400/15 bg-yellow-400/[0.035]"
+                    : ""
+                }`}
+              >
+
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
+                  index === 0
+                    ? "bg-yellow-400 text-black"
+                    : "bg-white/[0.04] text-gray-500"
+                }`}>
+                  {index + 1}
+                </span>
+
+                <div className="min-w-0 flex-1">
+
+                  <p className="truncate text-sm font-black text-white">
+                    {formatPlayerName(
+                      player.playerName
+                    )}
+                  </p>
+
+                  <p className="mt-1 text-[9px] font-bold text-gray-600">
+                    {player.games} MJ • {seasonRoleExtra(
+                      player
+                    )}
+                  </p>
+
+                </div>
+
+                <p className="text-lg font-black text-yellow-300">
+                  {player.averageRating.toFixed(
+                    2
+                  )}
+                </p>
+
+              </button>
+
+            )
+          )
+
+        ) : (
+
+          <p className="p-5 text-center text-xs font-bold text-gray-700">
+            Pas encore de données.
+          </p>
+
+        )}
+
+      </div>
+
+    </div>
+  );
+}
+
+function seasonRoleExtra(
+  player: {
+    position: string;
+    goals: number;
+    assists: number;
+    saves: number;
+    passSuccess: number;
+    tackleSuccess: number;
+  }
+) {
+  if (
+    player.position ===
+    "goalkeeper"
+  ) {
+    return `${player.saves} arrêts`;
+  }
+
+  if (
+    player.position ===
+    "defender"
+  ) {
+    return `${player.tackleSuccess.toFixed(
+      0
+    )}% tacles`;
+  }
+
+  if (
+    player.position ===
+    "midfielder"
+  ) {
+    return `${player.assists} PD • ${player.passSuccess.toFixed(
+      0
+    )}% passes`;
+  }
+
+  return `${player.goals} B • ${player.assists} PD`;
+}
+
+function SeasonBestXi({
+  players,
+  onOpenPlayer,
+}: {
+  players: SeasonCenterXiPlayer[];
+  onOpenPlayer: (
+    playerId: string,
+    playerName: string
+  ) => void;
+}) {
+  const coords:
+    Record<
+      string,
+      {
+        x: number;
+        y: number;
+      }
+    > = {
+      GK: {
+        x: 50,
+        y: 86,
+      },
+      DCG: {
+        x: 27,
+        y: 66,
+      },
+      DC: {
+        x: 50,
+        y: 70,
+      },
+      DCD: {
+        x: 73,
+        y: 66,
+      },
+      MG: {
+        x: 15,
+        y: 43,
+      },
+      MCG: {
+        x: 35,
+        y: 47,
+      },
+      MC: {
+        x: 50,
+        y: 40,
+      },
+      MCD: {
+        x: 65,
+        y: 47,
+      },
+      MD: {
+        x: 85,
+        y: 43,
+      },
+      ATG: {
+        x: 38,
+        y: 19,
+      },
+      ATD: {
+        x: 62,
+        y: 19,
+      },
+    };
+
+  return (
+    <div className="p-5">
+
+      <div className="relative mx-auto min-h-[720px] max-w-5xl overflow-hidden rounded-[32px] border border-cyan-400/20 bg-[#071728]">
+
+        <div className="absolute inset-5 rounded-[26px] border-2 border-white/10" />
+
+        <div className="absolute left-1/2 top-5 h-[calc(100%-40px)] w-px -translate-x-1/2 bg-white/10" />
+
+        <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/10" />
+
+        <div className="absolute left-1/2 top-5 h-24 w-56 -translate-x-1/2 border-x-2 border-b-2 border-white/10" />
+
+        <div className="absolute bottom-5 left-1/2 h-24 w-56 -translate-x-1/2 border-x-2 border-t-2 border-white/10" />
+
+        {players.map(
+          (
+            player
+          ) => {
+            const coord =
+              coords[
+                player.slot
+              ] ?? {
+                x: 50,
+                y: 50,
+              };
+
+            return (
+              <button
+                key={`${player.slot}-${player.playerId}`}
+                type="button"
+                onClick={() =>
+                  onOpenPlayer(
+                    player.playerId,
+                    player.playerName
+                  )
+                }
+                className={`absolute w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-3 text-center shadow-2xl transition hover:scale-105 ${
+                  player.qualified
+                    ? "border-yellow-400/25 bg-[#08121f]/95"
+                    : "border-white/10 bg-[#08121f]/90"
+                }`}
+                style={{
+                  left: `${coord.x}%`,
+                  top: `${coord.y}%`,
+                }}
+              >
+
+                <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-300">
+                  {player.slot}
+                </p>
+
+                <p className="mt-1 truncate text-xs font-black text-white">
+                  {formatPlayerName(
+                    player.playerName
+                  )}
+                </p>
+
+                <p className="mt-1 text-lg font-black text-yellow-300">
+                  {player.averageRating.toFixed(
+                    2
+                  )}
+                </p>
+
+                <p className="text-[8px] font-bold text-gray-600">
+                  {player.games} MJ
+                  {!player.qualified
+                    ? " • faible échantillon"
+                    : ""}
+                </p>
+
+              </button>
+            );
+          }
+        )}
+
+      </div>
+
+    </div>
+  );
+}
+
+function formatSeasonRange(
+  startsOn: string | null,
+  endsOn: string | null
+) {
+  const format =
+    (
+      value: string | null
+    ) => {
+      if (
+        !value
+      ) {
+        return "—";
+      }
+
+      const date =
+        new Date(
+          `${value}T12:00:00Z`
+        );
+
+      if (
+        Number.isNaN(
+          date.getTime()
+        )
+      ) {
+        return value;
+      }
+
+      return date.toLocaleDateString(
+        "fr-FR"
+      );
+    };
+
+  if (
+    !startsOn &&
+    !endsOn
+  ) {
+    return "Dates non renseignées";
+  }
+
+  return `${format(
+    startsOn
+  )} → ${format(
+    endsOn
+  )}`;
+}
+
+function buildSeasonDiscordText(
+  data: SeasonCenterResponse
+) {
+  const lines = [
+    `🏆 **GX NOVA — BILAN ${data.season.name.toUpperCase()}**`,
+    "",
+    `📊 ${data.totals.matches} matchs • ${data.totals.wins}V ${data.totals.draws}N ${data.totals.losses}D • ${data.totals.winRate.toFixed(
+      0
+    )}% de victoires`,
+    `⚽ ${data.totals.goalsFor} buts marqués • ${data.totals.goalsAgainst} encaissés • Diff ${data.totals.goalDifference > 0 ? "+" : ""}${data.totals.goalDifference}`,
+    `🧤 ${data.totals.cleanSheets} clean sheet(s)`,
+  ];
+
+  if (
+    data.mvp
+  ) {
+    lines.push(
+      "",
+      `⭐ **MVP : ${formatPlayerName(
+        data.mvp.playerName
+      )}** — ${data.mvp.averageRating.toFixed(
+        2
+      )} • ${formatPosition(
+        data.mvp.position
+      )} • ${data.mvp.games} MJ`
+    );
+  }
+
+  lines.push(
+    "",
+    "**Top par poste :**"
+  );
+
+  for (
+    const [
+      role,
+      label,
+    ] of [
+      [
+        "goalkeeper",
+        "G",
+      ],
+      [
+        "defender",
+        "DEF",
+      ],
+      [
+        "midfielder",
+        "MIL",
+      ],
+      [
+        "forward",
+        "ATT",
+      ],
+    ]
+  ) {
+    const first =
+      data.topByPosition[
+        role
+      ]?.[0];
+
+    if (
+      first
+    ) {
+      lines.push(
+        `• ${label} : ${formatPlayerName(
+          first.playerName
+        )} — ${first.averageRating.toFixed(
+          2
+        )}`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    "**Compétitions :**",
+    ...data.competitions.map(
+      (
+        competition
+      ) =>
+        `• ${competition.shortName ||
+          competition.name} : ${competition.wins}V ${competition.draws}N ${competition.losses}D • ${competition.winRate.toFixed(
+          0
+        )}%`
+    )
+  );
+
+  return lines.join(
+    "\n"
+  );
+}
+
+async function exportSeasonCenterPoster(
+  data: SeasonCenterResponse
+) {
+  const canvas =
+    document.createElement(
+      "canvas"
+    );
+
+  canvas.width =
+    1600;
+  canvas.height =
+    900;
+
+  const ctx =
+    canvas.getContext(
+      "2d"
+    );
+
+  if (
+    !ctx
+  ) {
+    throw new Error(
+      "Canvas indisponible."
+    );
+  }
+
+  const background =
+    ctx.createLinearGradient(
+      0,
+      0,
+      1600,
+      900
+    );
+
+  background.addColorStop(
+    0,
+    "#030812"
+  );
+  background.addColorStop(
+    0.55,
+    "#071321"
+  );
+  background.addColorStop(
+    1,
+    "#05111d"
+  );
+
+  ctx.fillStyle =
+    background;
+  ctx.fillRect(
+    0,
+    0,
+    1600,
+    900
+  );
+
+  ctx.save();
+  ctx.globalAlpha =
+    0.16;
+  ctx.strokeStyle =
+    "#22d3ee";
+  ctx.lineWidth =
+    2;
+
+  for (
+    let x =
+      -350;
+    x <
+    1800;
+    x +=
+    185
+  ) {
+    ctx.beginPath();
+    ctx.moveTo(
+      x,
+      0
+    );
+    ctx.lineTo(
+      x +
+        550,
+      900
+    );
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  const logo =
+    await loadFirstCanvasImage(
+      CLUB_LOGO_CANDIDATES
+    );
+
+  if (
+    logo
+  ) {
+    ctx.drawImage(
+      logo,
+      70,
+      52,
+      130,
+      130
+    );
+  }
+
+  ctx.fillStyle =
+    "#facc15";
+  ctx.font =
+    "900 26px Arial";
+  ctx.fillText(
+    "GX NOVA • CENTRE SAISON",
+    235,
+    88
+  );
+
+  ctx.fillStyle =
+    "#ffffff";
+  ctx.font =
+    "900 58px Arial";
+  ctx.fillText(
+    data.season.name.toUpperCase(),
+    235,
+    151
+  );
+
+  drawPosterBox(
+    ctx,
+    70,
+    215,
+    540,
+    235,
+    "BILAN",
+    "#facc15"
+  );
+
+  ctx.fillStyle =
+    "#ffffff";
+  ctx.font =
+    "900 56px Arial";
+  ctx.fillText(
+    `${data.totals.wins}V  ${data.totals.draws}N  ${data.totals.losses}D`,
+    108,
+    318
+  );
+
+  ctx.fillStyle =
+    "#facc15";
+  ctx.font =
+    "900 34px Arial";
+  ctx.fillText(
+    `${data.totals.winRate.toFixed(
+      0
+    )}% DE VICTOIRES`,
+    108,
+    372
+  );
+
+  ctx.fillStyle =
+    "#94a3b8";
+  ctx.font =
+    "700 21px Arial";
+  ctx.fillText(
+    `${data.totals.goalsFor} BP • ${data.totals.goalsAgainst} BC • Diff ${data.totals.goalDifference > 0 ? "+" : ""}${data.totals.goalDifference} • ${data.totals.cleanSheets} CS`,
+    108,
+    414
+  );
+
+  drawPosterBox(
+    ctx,
+    640,
+    215,
+    890,
+    235,
+    "MVP & LEADERS",
+    "#22d3ee"
+  );
+
+  if (
+    data.mvp
+  ) {
+    ctx.fillStyle =
+      "#ffffff";
+    ctx.font =
+      "900 38px Arial";
+    ctx.fillText(
+      formatPlayerName(
+        data.mvp.playerName
+      ),
+      680,
+      305
+    );
+
+    ctx.fillStyle =
+      "#facc15";
+    ctx.font =
+      "900 58px Arial";
+    ctx.fillText(
+      data.mvp.averageRating.toFixed(
+        2
+      ),
+      680,
+      378
+    );
+
+    ctx.fillStyle =
+      "#94a3b8";
+    ctx.font =
+      "700 19px Arial";
+    ctx.fillText(
+      `${formatPosition(
+        data.mvp.position
+      )} • ${data.mvp.games} MJ • ${data.mvp.goals} B • ${data.mvp.assists} PD`,
+      825,
+      371
+    );
+  }
+
+  drawPosterBox(
+    ctx,
+    70,
+    480,
+    720,
+    340,
+    "COMPÉTITIONS",
+    "#facc15"
+  );
+
+  data.competitions.slice(
+    0,
+    6
+  ).forEach(
+    (
+      competition,
+      index
+    ) => {
+      const y =
+        565 +
+        index *
+          42;
+
+      ctx.fillStyle =
+        "#ffffff";
+      ctx.font =
+        "900 20px Arial";
+      ctx.fillText(
+        competition.shortName ||
+          competition.name,
+        110,
+        y
+      );
+
+      ctx.fillStyle =
+        "#94a3b8";
+      ctx.font =
+        "700 18px Arial";
+      ctx.fillText(
+        `${competition.wins}V ${competition.draws}N ${competition.losses}D`,
+        430,
+        y
+      );
+
+      ctx.fillStyle =
+        "#facc15";
+      ctx.font =
+        "900 18px Arial";
+      ctx.fillText(
+        `${competition.winRate.toFixed(
+          0
+        )}%`,
+        675,
+        y
+      );
+    }
+  );
+
+  drawPosterBox(
+    ctx,
+    820,
+    480,
+    710,
+    340,
+    "MEILLEURS PAR POSTE",
+    "#22d3ee"
+  );
+
+  const leaders = [
+    [
+      "GARDIEN",
+      data.topByPosition.goalkeeper?.[0],
+    ],
+    [
+      "DÉFENSE",
+      data.topByPosition.defender?.[0],
+    ],
+    [
+      "MILIEU",
+      data.topByPosition.midfielder?.[0],
+    ],
+    [
+      "ATTAQUE",
+      data.topByPosition.forward?.[0],
+    ],
+  ] as const;
+
+  leaders.forEach(
+    (
+      [
+        label,
+        player,
+      ],
+      index
+    ) => {
+      const y =
+        565 +
+        index *
+          58;
+
+      ctx.fillStyle =
+        "#64748b";
+      ctx.font =
+        "900 16px Arial";
+      ctx.fillText(
+        label,
+        860,
+        y
+      );
+
+      ctx.fillStyle =
+        "#ffffff";
+      ctx.font =
+        "900 21px Arial";
+      ctx.fillText(
+        player
+          ? formatPlayerName(
+              player.playerName
+            )
+          : "—",
+        990,
+        y
+      );
+
+      if (
+        player
+      ) {
+        ctx.fillStyle =
+          "#facc15";
+        ctx.font =
+          "900 22px Arial";
+        ctx.textAlign =
+          "right";
+        ctx.fillText(
+          player.averageRating.toFixed(
+            2
+          ),
+          1475,
+          y
+        );
+        ctx.textAlign =
+          "left";
+      }
+    }
+  );
+
+  ctx.fillStyle =
+    "#475569";
+  ctx.font =
+    "700 17px Arial";
+  ctx.fillText(
+    "GX NOVA • FC27 PERFORMANCE CENTER",
+    70,
+    866
+  );
+
+  ctx.textAlign =
+    "right";
+  ctx.fillText(
+    "Données EA • Bilan automatique de saison",
+    1530,
+    866
+  );
+  ctx.textAlign =
+    "left";
+
+  const blob =
+    await new Promise<Blob | null>(
+      (
+        resolve
+      ) =>
+        canvas.toBlob(
+          resolve,
+          "image/png"
+        )
+    );
+
+  if (
+    !blob
+  ) {
+    throw new Error(
+      "Impossible de générer le PNG."
+    );
+  }
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+  link.href =
+    url;
+  link.download =
+    `GX-NOVA-bilan-${data.season.name
+      .replace(
+        /[^a-z0-9]+/gi,
+        "-"
+      )
+      .replace(
+        /^-|-$/g,
+        ""
+      )}.png`;
+
+  document.body.appendChild(
+    link
+  );
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(
+    url
+  );
+}
 
 
 function EveningReportDashboard({
