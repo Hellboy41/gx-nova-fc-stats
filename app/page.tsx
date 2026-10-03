@@ -1432,23 +1432,13 @@ export default function Home() {
               }
             />
 
-            <SidebarItem
-              icon={
-                <Swords
-                  size={19}
-                />
-              }
-              label="Matchs"
-              active={
-                activeTab ===
-                "matches"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "matches"
-                )
-              }
-            />
+            <a
+              href="/match-center"
+              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-cyan-400/[0.06] hover:text-cyan-300"
+            >
+              <Medal size={19} />
+              Match Center
+            </a>
 
             <SidebarItem
               icon={
@@ -1715,18 +1705,12 @@ export default function Home() {
                 }
               />
 
-              <TopTab
-                label="MATCHS"
-                active={
-                  activeTab ===
-                  "matches"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "matches"
-                  )
-                }
-              />
+              <a
+                href="/match-center"
+                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
+              >
+                MATCH CENTER
+              </a>
 
               <TopTab
                 label="COMPÉTITIONS"
@@ -3383,7 +3367,7 @@ function CompetitionsDashboard({
               <p className="mt-4 font-black">Aucun match classé ici</p>
 
               <p className="mt-2 text-sm text-gray-600">
-                Assigne des matchs à {selectedCompetition.short_name ?? selectedCompetition.name} depuis l&apos;onglet MATCHS.
+                Assigne des matchs à {selectedCompetition.short_name ?? selectedCompetition.name} depuis le Match Center.
               </p>
             </section>
           )}
