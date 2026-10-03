@@ -4988,6 +4988,11 @@ function RosterManager({
     setComparePosition,
   ] = useState("global");
 
+  const [
+    minimumRankingGames,
+    setMinimumRankingGames,
+  ] = useState(3);
+
   useEffect(() => {
     if (
       players.length > 0 &&
@@ -5250,6 +5255,198 @@ function RosterManager({
         : null
       : null;
 
+  const roleRankings =
+    useMemo(() => {
+      const roles = [
+        "goalkeeper",
+        "defender",
+        "midfielder",
+        "forward",
+      ];
+
+      return Object.fromEntries(
+        roles.map((position) => {
+          const ranking =
+            players
+              .map((player) => {
+                const stats =
+                  getPlayerPositionStats(
+                    player,
+                    position
+                  );
+
+                return stats
+                  ? {
+                      player,
+                      stats,
+                    }
+                  : null;
+              })
+              .filter(
+                (
+                  entry
+                ): entry is {
+                  player: Player;
+                  stats: PlayerPositionStats;
+                } =>
+                  Boolean(
+                    entry &&
+                      entry.stats.games >=
+                        minimumRankingGames
+                  )
+              )
+              .sort((a, b) => {
+                if (
+                  b.stats.averageRating !==
+                  a.stats.averageRating
+                ) {
+                  return (
+                    b.stats.averageRating -
+                    a.stats.averageRating
+                  );
+                }
+
+                if (
+                  b.stats.games !==
+                  a.stats.games
+                ) {
+                  return (
+                    b.stats.games -
+                    a.stats.games
+                  );
+                }
+
+                return (
+                  b.stats.goals +
+                  b.stats.assists -
+                  (a.stats.goals +
+                    a.stats.assists)
+                );
+              })
+              .slice(0, 5);
+
+          return [
+            position,
+            ranking,
+          ];
+        })
+      ) as Record<
+        string,
+        Array<{
+          player: Player;
+          stats: PlayerPositionStats;
+        }>
+      >;
+    }, [
+      players,
+      minimumRankingGames,
+    ]);
+
+  const versatilityRanking =
+    useMemo(
+      () =>
+        players
+          .map(
+            (player) => {
+              const eligiblePositions =
+                (
+                  player.positionStats ??
+                  []
+                )
+                  .filter(
+                    (stats) =>
+                      stats.games >=
+                      minimumRankingGames
+                  )
+                  .sort(
+                    (a, b) =>
+                      b.games -
+                      a.games
+                  );
+
+              if (
+                eligiblePositions.length <
+                2
+              ) {
+                return null;
+              }
+
+              const averageRating =
+                eligiblePositions.reduce(
+                  (
+                    total,
+                    stats
+                  ) =>
+                    total +
+                    stats.averageRating,
+                  0
+                ) /
+                eligiblePositions.length;
+
+              return {
+                player,
+                positions:
+                  eligiblePositions,
+                averageRating,
+                totalGames:
+                  eligiblePositions.reduce(
+                    (
+                      total,
+                      stats
+                    ) =>
+                      total +
+                      stats.games,
+                    0
+                  ),
+              };
+            }
+          )
+          .filter(
+            (
+              entry
+            ): entry is {
+              player: Player;
+              positions: PlayerPositionStats[];
+              averageRating: number;
+              totalGames: number;
+            } =>
+              Boolean(entry)
+          )
+          .sort(
+            (a, b) => {
+              if (
+                b.positions.length !==
+                a.positions.length
+              ) {
+                return (
+                  b.positions.length -
+                  a.positions.length
+                );
+              }
+
+              if (
+                b.averageRating !==
+                a.averageRating
+              ) {
+                return (
+                  b.averageRating -
+                  a.averageRating
+                );
+              }
+
+              return (
+                b.totalGames -
+                a.totalGames
+              );
+            }
+          )
+          .slice(0, 5),
+      [
+        players,
+        minimumRankingGames,
+      ]
+    );
+
   return (
     <>
 
@@ -5314,6 +5511,239 @@ function RosterManager({
         />
 
       </div>
+
+      <section className="mb-5 overflow-hidden rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.05] via-[#091626] to-cyan-400/[0.025]">
+
+        <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 lg:flex-row lg:items-center lg:justify-between">
+
+          <div>
+
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+              Classement interne GX NOVA
+            </p>
+
+            <h3 className="mt-1 text-xl font-black">
+              Les meilleurs par poste
+            </h3>
+
+            <p className="mt-1 max-w-3xl text-xs font-semibold text-gray-500">
+              Classement basé sur la note EA moyenne uniquement au poste concerné.
+              Le nombre minimum de matchs évite qu&apos;une seule apparition suffise pour prendre la première place.
+            </p>
+
+          </div>
+
+          <div className="flex items-center gap-3">
+
+            <label className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-600">
+              Minimum
+            </label>
+
+            <select
+              value={minimumRankingGames}
+              onChange={(event) =>
+                setMinimumRankingGames(
+                  Number(
+                    event.target.value
+                  )
+                )
+              }
+              className="rounded-xl border border-yellow-400/20 bg-[#050d18] px-4 py-2.5 text-sm font-black text-yellow-300 outline-none"
+            >
+              <option value={1}>
+                1 match
+              </option>
+              <option value={3}>
+                3 matchs
+              </option>
+              <option value={5}>
+                5 matchs
+              </option>
+              <option value={10}>
+                10 matchs
+              </option>
+            </select>
+
+          </div>
+
+        </div>
+
+        <div className="grid gap-4 p-5 xl:grid-cols-2 2xl:grid-cols-4">
+
+          <RoleRankingCard
+            title="Gardien"
+            position="goalkeeper"
+            entries={
+              roleRankings.goalkeeper ??
+              []
+            }
+            minimumGames={
+              minimumRankingGames
+            }
+            onOpenPlayer={
+              onOpenPlayer
+            }
+          />
+
+          <RoleRankingCard
+            title="Défenseur"
+            position="defender"
+            entries={
+              roleRankings.defender ??
+              []
+            }
+            minimumGames={
+              minimumRankingGames
+            }
+            onOpenPlayer={
+              onOpenPlayer
+            }
+          />
+
+          <RoleRankingCard
+            title="Milieu"
+            position="midfielder"
+            entries={
+              roleRankings.midfielder ??
+              []
+            }
+            minimumGames={
+              minimumRankingGames
+            }
+            onOpenPlayer={
+              onOpenPlayer
+            }
+          />
+
+          <RoleRankingCard
+            title="Attaquant"
+            position="forward"
+            entries={
+              roleRankings.forward ??
+              []
+            }
+            minimumGames={
+              minimumRankingGames
+            }
+            onOpenPlayer={
+              onOpenPlayer
+            }
+          />
+
+        </div>
+
+        <div className="border-t border-white/[0.07] p-5">
+
+          <div className="mb-4">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+              Polyvalence
+            </p>
+
+            <h4 className="mt-1 text-lg font-black">
+              Joueurs performants à plusieurs postes
+            </h4>
+
+            <p className="mt-1 text-xs font-semibold text-gray-500">
+              Un joueur apparaît ici s&apos;il atteint le minimum de matchs sur au moins deux postes.
+              La moyenne affichée est simplement la moyenne de ses notes EA par poste, pas une nouvelle note calculée par le site.
+            </p>
+
+          </div>
+
+          {versatilityRanking.length >
+          0 ? (
+
+            <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
+
+              {versatilityRanking.map(
+                (
+                  entry,
+                  index
+                ) => (
+
+                  <button
+                    key={
+                      entry.player.id
+                    }
+                    type="button"
+                    onClick={() =>
+                      onOpenPlayer(
+                        entry.player
+                      )
+                    }
+                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 text-left transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.035]"
+                  >
+
+                    <div className="flex items-center justify-between gap-3">
+
+                      <span className="text-xs font-black text-gray-600">
+                        #{index + 1}
+                      </span>
+
+                      <span className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.07] px-2 py-1 text-xs font-black text-cyan-300">
+                        {entry.positions.length} postes
+                      </span>
+
+                    </div>
+
+                    <p className="mt-3 truncate text-base font-black text-white">
+                      {formatPlayerName(
+                        entry.player.name
+                      )}
+                    </p>
+
+                    <p className="mt-2 text-2xl font-black text-yellow-300">
+                      {entry.averageRating.toFixed(
+                        2
+                      )}
+                    </p>
+
+                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">
+                      moyenne multi-postes
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+
+                      {entry.positions.map(
+                        (stats) => (
+
+                          <span
+                            key={
+                              stats.position
+                            }
+                            className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 py-1 text-[9px] font-black text-gray-400"
+                          >
+                            {formatPosition(
+                              stats.position
+                            )} {stats.games} MJ • {stats.averageRating.toFixed(
+                              2
+                            )}
+                          </span>
+
+                        )
+                      )}
+
+                    </div>
+
+                  </button>
+
+                )
+              )}
+
+            </div>
+
+          ) : (
+
+            <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-gray-600">
+              Aucun joueur n&apos;atteint encore {minimumRankingGames} match{minimumRankingGames > 1 ? "s" : ""} sur au moins deux postes.
+            </div>
+
+          )}
+
+        </div>
+
+      </section>
 
       <section className="mb-5 overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-cyan-400/[0.045] via-[#091626] to-yellow-400/[0.025]">
 
@@ -5827,6 +6257,173 @@ function RosterManager({
       </div>
 
     </>
+  );
+}
+
+function RoleRankingCard({
+  title,
+  position,
+  entries,
+  minimumGames,
+  onOpenPlayer,
+}: {
+  title: string;
+  position: string;
+  entries: Array<{
+    player: Player;
+    stats: PlayerPositionStats;
+  }>;
+  minimumGames: number;
+  onOpenPlayer: (player: Player) => void;
+}) {
+  function extraStats(
+    stats: PlayerPositionStats
+  ) {
+    if (
+      position ===
+      "goalkeeper"
+    ) {
+      return `${stats.saves} arrêts • ${stats.saves && stats.games ? (stats.saves / stats.games).toFixed(1) : "0.0"}/match`;
+    }
+
+    if (
+      position ===
+      "defender"
+    ) {
+      return `${stats.tackleSuccess.toFixed(0)}% tacles • ${stats.passSuccess.toFixed(0)}% passes`;
+    }
+
+    if (
+      position ===
+      "midfielder"
+    ) {
+      return `${stats.assists} PD • ${stats.passSuccess.toFixed(0)}% passes`;
+    }
+
+    return `${stats.goals} buts • ${stats.assists} PD`;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#071321]">
+
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
+
+        <div>
+
+          <p className="text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+            TOP 5
+          </p>
+
+          <h4 className="mt-1 text-base font-black text-white">
+            {title}
+          </h4>
+
+        </div>
+
+        <Trophy
+          size={20}
+          className="text-yellow-300"
+        />
+
+      </div>
+
+      <div className="p-2">
+
+        {entries.length >
+        0 ? (
+
+          entries.map(
+            (
+              entry,
+              index
+            ) => (
+
+              <button
+                key={
+                  entry.player.id
+                }
+                type="button"
+                onClick={() =>
+                  onOpenPlayer(
+                    entry.player
+                  )
+                }
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.04] ${
+                  index === 0
+                    ? "border border-yellow-400/15 bg-yellow-400/[0.045]"
+                    : ""
+                }`}
+              >
+
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
+                    index === 0
+                      ? "bg-yellow-400 text-black"
+                      : index === 1
+                      ? "bg-slate-300/15 text-slate-300"
+                      : index === 2
+                      ? "bg-orange-400/10 text-orange-300"
+                      : "bg-white/[0.04] text-gray-600"
+                  }`}
+                >
+                  {index + 1}
+                </div>
+
+                <div className="min-w-0 flex-1">
+
+                  <p className="truncate text-sm font-black text-white">
+                    {formatPlayerName(
+                      entry.player.name
+                    )}
+                  </p>
+
+                  <p className="mt-1 truncate text-[9px] font-bold text-gray-600">
+                    {entry.stats.games} MJ • {extraStats(
+                      entry.stats
+                    )}
+                  </p>
+
+                </div>
+
+                <div className="text-right">
+
+                  <p className="text-lg font-black text-yellow-300">
+                    {entry.stats.averageRating.toFixed(
+                      2
+                    )}
+                  </p>
+
+                  <p className="text-[8px] font-black uppercase text-gray-700">
+                    note
+                  </p>
+
+                </div>
+
+              </button>
+
+            )
+          )
+
+        ) : (
+
+          <div className="p-6 text-center">
+
+            <Medal
+              size={24}
+              className="mx-auto text-gray-700"
+            />
+
+            <p className="mt-3 text-xs font-bold text-gray-600">
+              Aucun joueur avec {minimumGames} match{minimumGames > 1 ? "s" : ""} minimum.
+            </p>
+
+          </div>
+
+        )}
+
+      </div>
+
+    </div>
   );
 }
 
