@@ -12,14 +12,21 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
+  CircleCheck,
+  Clock3,
   Download,
+  ExternalLink,
   ImagePlus,
+  Link2,
   Plus,
+  RefreshCw,
   Save,
   Shield,
   Sparkles,
   Trash2,
   Trophy,
+  Unlink,
 } from "lucide-react";
 
 type StaffRole = "admin" | "staff" | "viewer";
@@ -40,6 +47,41 @@ type ProgrammeItem = {
   opponentName: string;
   opponentLogoUrl: string;
   notes: string;
+  status: "upcoming" | "played";
+  linkedMatchId: number | null;
+  linkedEaMatchId: string;
+  linkedAt: string;
+  linkConfidence: number | null;
+  linkMethod: "auto" | "manual" | null;
+  eaOpponentName: string;
+  eaPlayedAt: string;
+  goalsFor: number | null;
+  goalsAgainst: number | null;
+  result: "V" | "N" | "D" | null;
+};
+
+type OpponentAlias = {
+  id: number;
+  programme_name: string;
+  ea_name: string;
+  ea_club_id: string | null;
+  updated_at: string;
+};
+
+type LinkCandidate = {
+  matchId: number;
+  eaMatchId: string;
+  opponent: string;
+  eaClubId: string;
+  playedAt: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  result: "V" | "N" | "D";
+  confidence: number;
+  nameScore: number;
+  timeScore: number;
+  timeDiffMinutes: number;
+  aliasKnown: boolean;
 };
 
 type ProgrammeSchedule = Record<string, ProgrammeItem[]>;
@@ -49,6 +91,7 @@ type ProgrammeResponse = {
   schedule: ProgrammeSchedule;
   updatedAt: string | null;
   competitions: Competition[];
+  aliases: OpponentAlias[];
   currentUser: {
     userId: string;
     displayName: string;
@@ -119,6 +162,21 @@ function formatShortDate(date: Date) {
   }).format(date);
 }
 
+function formatEaTime(value: string) {
+  if (!value) return "--:--";
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function resultBadgeClass(result: ProgrammeItem["result"]) {
+  if (result === "V") return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
+  if (result === "D") return "border-red-400/30 bg-red-400/10 text-red-300";
+  return "border-slate-400/20 bg-slate-400/10 text-slate-300";
+}
+
 function newItem(type: ProgrammeItem["type"]): ProgrammeItem {
   return {
     id: crypto.randomUUID(),
@@ -129,6 +187,17 @@ function newItem(type: ProgrammeItem["type"]): ProgrammeItem {
     opponentName: "",
     opponentLogoUrl: "",
     notes: "",
+    status: "upcoming",
+    linkedMatchId: null,
+    linkedEaMatchId: "",
+    linkedAt: "",
+    linkConfidence: null,
+    linkMethod: null,
+    eaOpponentName: "",
+    eaPlayedAt: "",
+    goalsFor: null,
+    goalsAgainst: null,
+    result: null,
   };
 }
 
@@ -212,6 +281,11 @@ export default function ProgrammePage() {
   );
   const [schedule, setSchedule] = useState<ProgrammeSchedule>({});
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [aliases, setAliases] = useState<OpponentAlias[]>([]);
+  const [linkCandidates, setLinkCandidates] = useState<Record<string, LinkCandidate[]>>({});
+  const [matching, setMatching] = useState(false);
+  const [linkingKey, setLinkingKey] = useState<string | null>(null);
+  const [deletingAliasId, setDeletingAliasId] = useState<number | null>(null);
   const [role, setRole] = useState<StaffRole>("viewer");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -260,6 +334,8 @@ export default function ProgrammePage() {
 
       setSchedule(data.schedule ?? {});
       setCompetitions(data.competitions ?? []);
+      setAliases(data.aliases ?? []);
+      setLinkCandidates({});
       setRole(data.currentUser?.role ?? "viewer");
     } catch (err) {
       setError(
@@ -303,12 +379,39 @@ export default function ProgrammePage() {
     patch: Partial<ProgrammeItem>
   ) {
     if (!canEdit) return;
+    const linkSensitive =
+      Object.prototype.hasOwnProperty.call(patch, "opponentName") ||
+      Object.prototype.hasOwnProperty.call(patch, "time") ||
+      Object.prototype.hasOwnProperty.call(patch, "competitionId") ||
+      Object.prototype.hasOwnProperty.call(patch, "type");
+
     updateDay(
       dateKey,
-      (schedule[dateKey] ?? []).map((item) =>
-        item.id === id ? { ...item, ...patch } : item
-      )
+      (schedule[dateKey] ?? []).map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, ...patch };
+        if (!linkSensitive || !item.linkedMatchId) return updated;
+        return {
+          ...updated,
+          status: "upcoming",
+          linkedMatchId: null,
+          linkedEaMatchId: "",
+          linkedAt: "",
+          linkConfidence: null,
+          linkMethod: null,
+          eaOpponentName: "",
+          eaPlayedAt: "",
+          goalsFor: null,
+          goalsAgainst: null,
+          result: null,
+        };
+      })
     );
+    setLinkCandidates((current) => {
+      const next = { ...current };
+      delete next[`${dateKey}::${id}`];
+      return next;
+    });
   }
 
   function removeItem(dateKey: string, id: string) {
@@ -353,6 +456,133 @@ export default function ProgrammePage() {
       );
     } finally {
       setUploadingId(null);
+    }
+  }
+
+  async function refreshAliases() {
+    try {
+      const response = await fetch("/api/programme/aliases", { cache: "no-store" });
+      const data = await response.json();
+      if (response.ok) setAliases(data.aliases ?? []);
+    } catch {
+      // L'absence de rafraîchissement des alias ne bloque pas le programme.
+    }
+  }
+
+  async function scanEaMatches() {
+    if (!canEdit) return;
+    try {
+      setMatching(true);
+      setError("");
+      setMessage("");
+      const response = await fetch("/api/programme/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "scan",
+          weekStart,
+          schedule,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.details ?? data.error ?? "Impossible de rechercher les matchs EA.");
+      }
+      setSchedule(data.schedule ?? schedule);
+      setLinkCandidates(data.suggestions ?? {});
+      const autoLinked = Number(data.autoLinked ?? 0);
+      const probable = Number(data.probable ?? 0);
+      setMessage(
+        autoLinked > 0 || probable > 0
+          ? `${autoLinked} match(s) lié(s) automatiquement • ${probable} correspondance(s) à confirmer.`
+          : "Recherche EA terminée : aucune nouvelle correspondance fiable pour cette semaine."
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de recherche EA.");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  async function confirmEaMatch(dateKey: string, itemId: string, matchId: number) {
+    if (!canEdit) return;
+    const key = `${dateKey}::${itemId}`;
+    try {
+      setLinkingKey(key);
+      setError("");
+      const response = await fetch("/api/programme/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm",
+          weekStart,
+          dateKey,
+          itemId,
+          matchId,
+          rememberAlias: true,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.details ?? data.error ?? "Impossible de confirmer ce match EA.");
+      }
+      setSchedule(data.schedule ?? schedule);
+      setLinkCandidates((current) => {
+        const next: Record<string, LinkCandidate[]> = {};
+        for (const [candidateKey, values] of Object.entries(current) as Array<[string, LinkCandidate[]]>) {
+          if (candidateKey === key) continue;
+          const filtered = values.filter((candidate) => candidate.matchId !== matchId);
+          if (filtered.length) next[candidateKey] = filtered;
+        }
+        return next;
+      });
+      await refreshAliases();
+      setMessage("Match EA confirmé. La correspondance adversaire a été mémorisée.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de confirmation.");
+    } finally {
+      setLinkingKey(null);
+    }
+  }
+
+  async function unlinkEaMatch(dateKey: string, itemId: string) {
+    if (!canEdit) return;
+    const key = `${dateKey}::${itemId}`;
+    try {
+      setLinkingKey(key);
+      setError("");
+      const response = await fetch("/api/programme/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "unlink", weekStart, dateKey, itemId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.details ?? data.error ?? "Impossible de délier ce match.");
+      }
+      setSchedule(data.schedule ?? schedule);
+      setMessage("Liaison EA retirée du programme.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de suppression de liaison.");
+    } finally {
+      setLinkingKey(null);
+    }
+  }
+
+  async function deleteAlias(id: number) {
+    if (!canEdit) return;
+    try {
+      setDeletingAliasId(id);
+      setError("");
+      const response = await fetch(`/api/programme/aliases?id=${id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Impossible de supprimer cette correspondance.");
+      setAliases((current) => current.filter((alias) => alias.id !== id));
+      setMessage("Correspondance adversaire supprimée.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de suppression.");
+    } finally {
+      setDeletingAliasId(null);
     }
   }
 
@@ -1150,6 +1380,18 @@ export default function ProgrammePage() {
                 <ChevronRight size={19} />
               </button>
 
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => void scanEaMatches()}
+                  disabled={matching || loading}
+                  className="ml-0 flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50 xl:ml-3"
+                >
+                  <RefreshCw size={17} className={matching ? "animate-spin" : ""} />
+                  {matching ? "Recherche EA..." : "Rechercher matchs EA"}
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => void exportDiscordPoster()}
@@ -1215,6 +1457,8 @@ export default function ProgrammePage() {
                         competitions={competitions}
                         canEdit={canEdit}
                         uploading={uploadingId === item.id}
+                        linking={linkingKey === `${day.key}::${item.id}`}
+                        candidates={linkCandidates[`${day.key}::${item.id}`] ?? []}
                         onPatch={(patch) =>
                           patchItem(day.key, item.id, patch)
                         }
@@ -1222,6 +1466,10 @@ export default function ProgrammePage() {
                         onUpload={(file) =>
                           void uploadOpponentLogo(day.key, item.id, file)
                         }
+                        onConfirm={(matchId) =>
+                          void confirmEaMatch(day.key, item.id, matchId)
+                        }
+                        onUnlink={() => void unlinkEaMatch(day.key, item.id)}
                       />
                     ))}
 
@@ -1267,6 +1515,47 @@ export default function ProgrammePage() {
             })}
           </div>
         )}
+
+        {!!aliases.length && (
+          <section className="mt-6 rounded-3xl border border-cyan-400/15 bg-[#071321] p-5 lg:p-6">
+            <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+              <div>
+                <div className="flex items-center gap-2 text-cyan-300">
+                  <Link2 size={18} />
+                  <h2 className="font-black">Correspondances adversaires apprises</h2>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Quand tu confirmes manuellement un nom différent de celui d'EA, le site le retient pour les prochaines semaines.
+                </p>
+              </div>
+              <span className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-black text-gray-500">
+                {aliases.length} correspondance{aliases.length > 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {aliases.map((alias) => (
+                <div key={alias.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/15 p-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-white">{alias.programme_name}</p>
+                    <p className="mt-1 truncate text-xs font-bold text-cyan-300">EA → {alias.ea_name}</p>
+                  </div>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteAlias(alias.id)}
+                      disabled={deletingAliasId === alias.id}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-400/15 bg-red-400/[0.05] text-red-300 transition hover:bg-red-400/10 disabled:opacity-50"
+                      title="Supprimer la correspondance"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
@@ -1277,17 +1566,25 @@ function ProgrammeEditorCard({
   competitions,
   canEdit,
   uploading,
+  linking,
+  candidates,
   onPatch,
   onRemove,
   onUpload,
+  onConfirm,
+  onUnlink,
 }: {
   item: ProgrammeItem;
   competitions: Competition[];
   canEdit: boolean;
   uploading: boolean;
+  linking: boolean;
+  candidates: LinkCandidate[];
   onPatch: (patch: Partial<ProgrammeItem>) => void;
   onRemove: () => void;
   onUpload: (file: File) => void;
+  onConfirm: (matchId: number) => void;
+  onUnlink: () => void;
 }) {
   const isCompetition = item.type === "competition";
 
@@ -1446,6 +1743,96 @@ function ProgrammeEditorCard({
           className="w-full rounded-xl border border-white/10 bg-[#050d18] px-3 py-3 text-sm text-white outline-none transition focus:border-yellow-400/35 disabled:cursor-not-allowed disabled:opacity-60"
         />
       </Field>
+
+      {item.linkedMatchId ? (
+        <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] p-4">
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1.5 text-sm font-black text-emerald-300">
+                  <CircleCheck size={16} /> Joué
+                </span>
+                <span className={`rounded-lg border px-2 py-1 text-[10px] font-black ${resultBadgeClass(item.result)}`}>
+                  {item.result ?? "-"}
+                </span>
+                {item.linkConfidence !== null && (
+                  <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-black text-gray-400">
+                    {item.linkMethod === "auto" ? "Auto" : "Confirmé"} • {item.linkConfidence}%
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-lg font-black text-white">
+                GX NOVA <span className="text-yellow-400">{item.goalsFor ?? "-"}</span> - <span className="text-cyan-300">{item.goalsAgainst ?? "-"}</span> {item.eaOpponentName || item.opponentName}
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                <span>Prévu : {item.time || "--:--"}</span>
+                <span>•</span>
+                <span>EA : {formatEaTime(item.eaPlayedAt)}</span>
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`/match-center?matchId=${item.linkedMatchId}`}
+                className="flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/15"
+              >
+                <ExternalLink size={14} /> Match Center
+              </a>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={onUnlink}
+                  disabled={linking}
+                  className="flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-black text-red-300 transition hover:bg-red-400/10 disabled:opacity-50"
+                >
+                  <Unlink size={14} /> Délier
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : candidates.length > 0 ? (
+        <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4">
+          <div className="flex items-center gap-2 text-amber-300">
+            <AlertTriangle size={16} />
+            <p className="text-xs font-black uppercase tracking-[0.14em]">Correspondance EA à confirmer</p>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Le nom EA peut être différent de celui saisi. Confirme le bon match une fois : le site mémorisera ensuite cette correspondance.
+          </p>
+          <div className="mt-3 space-y-2">
+            {candidates.map((candidate) => (
+              <div key={candidate.matchId} className="flex flex-col justify-between gap-3 rounded-xl border border-white/8 bg-black/15 p-3 sm:flex-row sm:items-center">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-white">
+                    {candidate.opponent} • GX NOVA {candidate.goalsFor}-{candidate.goalsAgainst}
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-gray-500">
+                    <Clock3 size={12} /> EA {formatEaTime(candidate.playedAt)}
+                    <span>•</span>
+                    <span>Confiance {candidate.confidence}%</span>
+                    {candidate.aliasKnown && <span className="text-cyan-300">• Alias connu</span>}
+                  </p>
+                </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onConfirm(candidate.matchId)}
+                    disabled={linking}
+                    className="shrink-0 rounded-xl bg-yellow-400 px-3 py-2 text-xs font-black text-black transition hover:bg-yellow-300 disabled:opacity-50"
+                  >
+                    {linking ? "Confirmation..." : "Confirmer"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : item.opponentName && item.time ? (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-[11px] font-semibold text-gray-600">
+          <Link2 size={13} /> À venir • utilise « Rechercher matchs EA » après la soirée.
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -530,7 +530,9 @@ export default function MatchCenterPage() {
   }, []);
 
   useEffect(() => {
-    void load(null);
+    const params = new URLSearchParams(window.location.search);
+    const requestedMatchId = Number(params.get("matchId") ?? 0);
+    void load(Number.isInteger(requestedMatchId) && requestedMatchId > 0 ? requestedMatchId : null);
   }, [load]);
 
   const selected = data?.selected ?? null;

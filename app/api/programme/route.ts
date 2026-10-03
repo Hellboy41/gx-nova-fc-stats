@@ -6,6 +6,9 @@ const CLUB_ID = "1663";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+type LinkMethod = "auto" | "manual" | null;
+type ProgrammeStatus = "upcoming" | "played";
+
 type ProgrammeItem = {
   id: string;
   type: "competition" | "tournament";
@@ -15,14 +18,28 @@ type ProgrammeItem = {
   opponentName: string;
   opponentLogoUrl: string;
   notes: string;
+  status: ProgrammeStatus;
+  linkedMatchId: number | null;
+  linkedEaMatchId: string;
+  linkedAt: string;
+  linkConfidence: number | null;
+  linkMethod: LinkMethod;
+  eaOpponentName: string;
+  eaPlayedAt: string;
+  goalsFor: number | null;
+  goalsAgainst: number | null;
+  result: "V" | "N" | "D" | null;
 };
 
 type ProgrammeSchedule = Record<string, ProgrammeItem[]>;
 
 function cleanText(value: unknown, maxLength: number) {
-  return typeof value === "string"
-    ? value.trim().slice(0, maxLength)
-    : "";
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function cleanNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function sanitizeItem(value: unknown): ProgrammeItem | null {
@@ -45,6 +62,18 @@ function sanitizeItem(value: unknown): ProgrammeItem | null {
 
   const timeRaw = cleanText(candidate.time, 5);
   const time = TIME_RE.test(timeRaw) ? timeRaw : "";
+  const linkedMatchId = cleanNumber(candidate.linkedMatchId);
+  const goalsFor = cleanNumber(candidate.goalsFor);
+  const goalsAgainst = cleanNumber(candidate.goalsAgainst);
+  const confidence = cleanNumber(candidate.linkConfidence);
+  const result =
+    candidate.result === "V" || candidate.result === "N" || candidate.result === "D"
+      ? candidate.result
+      : null;
+  const linkMethod =
+    candidate.linkMethod === "auto" || candidate.linkMethod === "manual"
+      ? candidate.linkMethod
+      : null;
 
   return {
     id: cleanText(candidate.id, 80) || crypto.randomUUID(),
@@ -55,20 +84,29 @@ function sanitizeItem(value: unknown): ProgrammeItem | null {
     opponentName: cleanText(candidate.opponentName, 120),
     opponentLogoUrl: cleanText(candidate.opponentLogoUrl, 700),
     notes: cleanText(candidate.notes, 300),
+    status: candidate.status === "played" && linkedMatchId ? "played" : "upcoming",
+    linkedMatchId: linkedMatchId && linkedMatchId > 0 ? Math.trunc(linkedMatchId) : null,
+    linkedEaMatchId: cleanText(candidate.linkedEaMatchId, 80),
+    linkedAt: cleanText(candidate.linkedAt, 40),
+    linkConfidence:
+      confidence !== null ? Math.max(0, Math.min(100, Math.round(confidence))) : null,
+    linkMethod,
+    eaOpponentName: cleanText(candidate.eaOpponentName, 120),
+    eaPlayedAt: cleanText(candidate.eaPlayedAt, 50),
+    goalsFor,
+    goalsAgainst,
+    result,
   };
 }
 
 function sanitizeSchedule(value: unknown): ProgrammeSchedule {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 
   const source = value as Record<string, unknown>;
   const result: ProgrammeSchedule = {};
 
   for (const [date, items] of Object.entries(source)) {
     if (!DATE_RE.test(date) || !Array.isArray(items)) continue;
-
     result[date] = items
       .slice(0, 12)
       .map(sanitizeItem)
@@ -94,7 +132,7 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
 
-  const [programmeResult, competitionsResult] = await Promise.all([
+  const [programmeResult, competitionsResult, aliasesResult] = await Promise.all([
     admin
       .from("weekly_programs")
       .select("schedule, updated_at")
@@ -106,6 +144,11 @@ export async function GET(request: Request) {
       .select("id, name, short_name, competition_type")
       .eq("club_id", CLUB_ID)
       .order("id", { ascending: true }),
+    admin
+      .from("opponent_aliases")
+      .select("id, programme_name, ea_name, ea_club_id, updated_at")
+      .eq("club_id", CLUB_ID)
+      .order("programme_name", { ascending: true }),
   ]);
 
   if (programmeResult.error) {
@@ -128,11 +171,22 @@ export async function GET(request: Request) {
     );
   }
 
+  if (aliasesResult.error) {
+    return NextResponse.json(
+      {
+        error: "Impossible de récupérer les correspondances adversaires.",
+        details: aliasesResult.error.message,
+      },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({
     weekStart,
     schedule: sanitizeSchedule(programmeResult.data?.schedule ?? {}),
     updatedAt: programmeResult.data?.updated_at ?? null,
     competitions: competitionsResult.data ?? [],
+    aliases: aliasesResult.data ?? [],
     currentUser: authorization.profile,
   });
 }
@@ -165,9 +219,7 @@ export async function PUT(request: Request) {
         updated_by: authorization.profile?.userId ?? null,
         updated_at: now,
       },
-      {
-        onConflict: "club_id,week_start",
-      }
+      { onConflict: "club_id,week_start" }
     )
     .select("week_start, schedule, updated_at")
     .single();
