@@ -746,17 +746,26 @@ export default function ProgrammePage() {
 
         let mainLine = "";
         let metaLine = "";
-        let bottomLine = item.notes.trim() || "FC27";
+        let bottomLine = "";
 
         if (item.type === "competition") {
           const competitionName = competitionLabel(item, competitions);
-          mainLine = item.opponentName.trim() || competitionName;
-          metaLine = item.opponentName.trim() ? `VS ${item.opponentName.trim()}` : competitionName;
-          bottomLine = competitionName;
+          const opponentName = item.opponentName.trim();
+          mainLine = opponentName || competitionName;
+          metaLine = competitionName;
+          bottomLine = item.notes.trim();
         } else {
           mainLine = item.title.trim() || "Tournoi";
-          metaLine = item.opponentName.trim() ? `VS ${item.opponentName.trim()}` : (item.notes.trim() || "FC27");
-          bottomLine = item.notes.trim() || "FC27";
+          const opponentName = item.opponentName.trim();
+          const notes = item.notes.trim();
+
+          if (opponentName) {
+            metaLine = `VS ${opponentName}`;
+            bottomLine = notes || "FC27";
+          } else {
+            metaLine = notes || "FC27";
+            bottomLine = notes ? "FC27" : "";
+          }
         }
 
         const mainSize = fitText(ctx, mainLine, textW, height >= 120 ? 28 : 26, 16);
@@ -769,9 +778,11 @@ export default function ProgrammePage() {
         ctx.font = `900 ${metaSize}px Arial, sans-serif`;
         ctx.fillText(metaLine, textX, y + (height >= 120 ? 94 : 84));
 
-        ctx.fillStyle = "#a8bbcd";
-        ctx.font = `700 ${height >= 120 ? 14 : 13}px Arial, sans-serif`;
-        ctx.fillText(bottomLine, textX, y + height - 14);
+        if (bottomLine) {
+          ctx.fillStyle = "#a8bbcd";
+          ctx.font = `700 ${height >= 120 ? 14 : 13}px Arial, sans-serif`;
+          ctx.fillText(bottomLine, textX, y + height - 14);
+        }
 
         roundedRect(ctx, logoX, logoY, logoSize, logoSize, 18);
         const logoBg = ctx.createLinearGradient(logoX, logoY, logoX + logoSize, logoY + logoSize);
@@ -894,53 +905,119 @@ export default function ProgrammePage() {
             ? (posterWidth - pagePadding * 2 - cardGap * 2) / 3
             : (posterWidth - pagePadding * 2 - cardGap) / 2;
 
-        let rowHeights: number[] = [];
-        if (columns === 3) {
-          rowHeights = [Math.max(...daysSubset.map((day) => getDayCardHeight(day.key)))];
-        } else {
-          for (let i = 0; i < daysSubset.length; i += columns) {
-            rowHeights.push(
-              Math.max(
-                ...daysSubset
-                  .slice(i, i + columns)
-                  .map((day) => getDayCardHeight(day.key))
-              )
-            );
-          }
-        }
+        const independentColumns = columns === 2 && daysSubset.length === 4;
 
-        const contentHeight = rowHeights.reduce((sum, value) => sum + value, 0) + (rowHeights.length - 1) * sectionGap;
-        const posterHeight = headerHeight + contentHeight + footerHeight + 18;
-        const { canvas, ctx } = createPosterCanvas(posterHeight);
+        let posterHeight = 0;
+        const { canvas, ctx } = (() => {
+          if (independentColumns) {
+            const leftDays = [daysSubset[0], daysSubset[2]];
+            const rightDays = [daysSubset[1], daysSubset[3]];
+            const leftHeight = leftDays.reduce((sum, day, index) => sum + getDayCardHeight(day.key) + (index > 0 ? sectionGap : 0), 0);
+            const rightHeight = rightDays.reduce((sum, day, index) => sum + getDayCardHeight(day.key) + (index > 0 ? sectionGap : 0), 0);
+            const contentHeight = Math.max(leftHeight, rightHeight);
+            posterHeight = headerHeight + contentHeight + footerHeight + 18;
+            return createPosterCanvas(posterHeight);
+          }
+
+          let rowHeights: number[] = [];
+          if (columns === 3) {
+            rowHeights = [Math.max(...daysSubset.map((day) => getDayCardHeight(day.key)))];
+          } else {
+            for (let i = 0; i < daysSubset.length; i += columns) {
+              rowHeights.push(
+                Math.max(
+                  ...daysSubset
+                    .slice(i, i + columns)
+                    .map((day) => getDayCardHeight(day.key))
+                )
+              );
+            }
+          }
+
+          const contentHeight = rowHeights.reduce((sum, value) => sum + value, 0) + (rowHeights.length - 1) * sectionGap;
+          posterHeight = headerHeight + contentHeight + footerHeight + 18;
+          return createPosterCanvas(posterHeight);
+        })();
 
         drawPosterBackground(ctx, posterWidth, posterHeight);
         drawHeader(ctx, "PROGRAMME DE LA SEMAINE", partTitle, weekLabel, pageIndex, 2);
 
-        let rowIndex = 0;
-        let dayIndex = 0;
-        let currentY = headerHeight;
+        if (independentColumns) {
+          const leftDays = [daysSubset[0], daysSubset[2]];
+          const rightDays = [daysSubset[1], daysSubset[3]];
+          const leftX = pagePadding;
+          const rightX = pagePadding + cardWidth + cardGap;
+          let leftY = headerHeight;
+          let rightY = headerHeight;
 
-        while (dayIndex < daysSubset.length) {
-          const rowDays = daysSubset.slice(dayIndex, dayIndex + columns);
-          const rowHeight = rowHeights[rowIndex];
-
-
-          for (const [colIndex, day] of rowDays.entries()) {
-            const x = pagePadding + colIndex * (cardWidth + cardGap);
+          for (const day of leftDays) {
+            const dayHeight = getDayCardHeight(day.key);
             await drawDayCard(
               ctx,
               day,
               days.findIndex((entry) => entry.key === day.key),
-              x,
-              currentY,
+              leftX,
+              leftY,
               cardWidth,
-              rowHeight
+              dayHeight
             );
+            leftY += dayHeight + sectionGap;
           }
 
-          currentY += rowHeight + sectionGap;
-          dayIndex += columns;
-          rowIndex += 1;
+          for (const day of rightDays) {
+            const dayHeight = getDayCardHeight(day.key);
+            await drawDayCard(
+              ctx,
+              day,
+              days.findIndex((entry) => entry.key === day.key),
+              rightX,
+              rightY,
+              cardWidth,
+              dayHeight
+            );
+            rightY += dayHeight + sectionGap;
+          }
+        } else {
+          let rowHeights: number[] = [];
+          if (columns === 3) {
+            rowHeights = [Math.max(...daysSubset.map((day) => getDayCardHeight(day.key)))];
+          } else {
+            for (let i = 0; i < daysSubset.length; i += columns) {
+              rowHeights.push(
+                Math.max(
+                  ...daysSubset
+                    .slice(i, i + columns)
+                    .map((day) => getDayCardHeight(day.key))
+                )
+              );
+            }
+          }
+
+          let rowIndex = 0;
+          let dayIndex = 0;
+          let currentY = headerHeight;
+
+          while (dayIndex < daysSubset.length) {
+            const rowDays = daysSubset.slice(dayIndex, dayIndex + columns);
+            const rowHeight = rowHeights[rowIndex];
+
+            for (const [colIndex, day] of rowDays.entries()) {
+              const x = pagePadding + colIndex * (cardWidth + cardGap);
+              await drawDayCard(
+                ctx,
+                day,
+                days.findIndex((entry) => entry.key === day.key),
+                x,
+                currentY,
+                cardWidth,
+                rowHeight
+              );
+            }
+
+            currentY += rowHeight + sectionGap;
+            dayIndex += columns;
+            rowIndex += 1;
+          }
         }
 
         await downloadCanvas(canvas, `GX-NOVA-programme-${fileSuffix}-${weekStart}.png`);
