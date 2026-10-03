@@ -2185,8 +2185,23 @@ export default function Home() {
                 matches={
                   matches
                 }
+                allMatches={
+                  allMatches
+                }
                 players={
                   players
+                }
+                seasons={
+                  seasons
+                }
+                competitions={
+                  competitions
+                }
+                selectedSeason={
+                  selectedSeason
+                }
+                selectedCompetition={
+                  selectedCompetition
                 }
                 currentFilterLabel={
                   currentFilterLabel
@@ -3664,184 +3679,347 @@ function calculateCompetitionAssignmentStats(matches: MatchAssignment[]) {
 
 function StatsDashboard({
   matches,
+  allMatches,
   players,
+  seasons,
+  competitions,
+  selectedSeason,
+  selectedCompetition,
   currentFilterLabel,
   onOpenPlayer,
   onOpenMatch,
 }: {
   matches: Match[];
-
+  allMatches: Match[];
   players: Player[];
-
-  currentFilterLabel:
-    string;
-
+  seasons: Season[];
+  competitions: Competition[];
+  selectedSeason: string;
+  selectedCompetition: string;
+  currentFilterLabel: string;
   onOpenPlayer: (
     player: Player
   ) => void;
-
   onOpenMatch: (
     matchId: number
   ) => void;
 }) {
+  const [
+    period,
+    setPeriod,
+  ] = useState<
+    "all" | "5" | "10" | "20"
+  >("all");
+
+  const analysisMatches =
+    useMemo(
+      () =>
+        period === "all"
+          ? matches
+          : matches.slice(
+              0,
+              Number(period)
+            ),
+      [
+        matches,
+        period,
+      ]
+    );
+
   const statistics =
     useMemo(
+      () =>
+        computeTeamStatistics(
+          analysisMatches
+        ),
+      [
+        analysisMatches,
+      ]
+    );
+
+  const lastFiveStats =
+    useMemo(
+      () =>
+        computeTeamStatistics(
+          matches.slice(
+            0,
+            5
+          )
+        ),
+      [
+        matches,
+      ]
+    );
+
+  const lastTenStats =
+    useMemo(
+      () =>
+        computeTeamStatistics(
+          matches.slice(
+            0,
+            10
+          )
+        ),
+      [
+        matches,
+      ]
+    );
+
+  const previousFiveStats =
+    useMemo(
+      () =>
+        computeTeamStatistics(
+          matches.slice(
+            5,
+            10
+          )
+        ),
+      [
+        matches,
+      ]
+    );
+
+  const streaks =
+    useMemo(
+      () =>
+        computeTeamStreaks(
+          matches
+        ),
+      [
+        matches,
+      ]
+    );
+
+  const competitionBreakdown =
+    useMemo(
       () => {
-        const played =
-          matches.length;
+        const map =
+          new Map<
+            string,
+            {
+              id:
+                number | null;
+              name:
+                string;
+              matches:
+                Match[];
+            }
+          >();
 
-        const wins =
-          matches.filter(
-            (match) =>
-              match.result ===
-              "V"
-          ).length;
+        for (
+          const match
+          of analysisMatches
+        ) {
+          const key =
+            match.competitionId
+              ? String(
+                  match.competitionId
+                )
+              : "unassigned";
 
-        const draws =
-          matches.filter(
-            (match) =>
-              match.result ===
-              "N"
-          ).length;
+          const name =
+            match.competitionId
+              ? resolveCompetitionName(
+                  competitions,
+                  match.competitionId
+                )
+              : "Non attribué";
 
-        const losses =
-          matches.filter(
-            (match) =>
-              match.result ===
-              "D"
-          ).length;
+          if (
+            !map.has(
+              key
+            )
+          ) {
+            map.set(
+              key,
+              {
+                id:
+                  match.competitionId ??
+                  null,
+                name,
+                matches: [],
+              }
+            );
+          }
 
-        const goalsFor =
-          matches.reduce(
-            (
-              total,
-              match
-            ) =>
-              total +
-              match.goalsFor,
-            0
+          map.get(
+            key
+          )?.matches.push(
+            match
           );
+        }
 
-        const goalsAgainst =
-          matches.reduce(
-            (
-              total,
-              match
-            ) =>
-              total +
-              match.goalsAgainst,
-            0
+        return Array.from(
+          map.values()
+        )
+          .map(
+            (group) => ({
+              id:
+                group.id,
+              name:
+                group.name,
+              stats:
+                computeTeamStatistics(
+                  group.matches
+                ),
+            })
+          )
+          .sort(
+            (a, b) =>
+              b.stats.played -
+              a.stats.played
           );
+      },
+      [
+        analysisMatches,
+        competitions,
+      ]
+    );
 
-        const cleanSheets =
-          matches.filter(
-            (match) =>
-              match.goalsAgainst ===
-              0
-          ).length;
+  const seasonBreakdown =
+    useMemo(
+      () => {
+        let source =
+          allMatches;
 
-        const matchesScored =
-          matches.filter(
-            (match) =>
-              match.goalsFor >
-              0
-          ).length;
+        if (
+          selectedCompetition !==
+          "all"
+        ) {
+          source =
+            source.filter(
+              (match) =>
+                String(
+                  match.competitionId ??
+                    ""
+                ) ===
+                selectedCompetition
+            );
+        }
 
-        const winRate =
-          played > 0
-            ? (wins /
-                played) *
-              100
-            : 0;
+        if (
+          selectedSeason !==
+          "all"
+        ) {
+          source =
+            source.filter(
+              (match) =>
+                String(
+                  match.seasonId ??
+                    ""
+                ) ===
+                selectedSeason
+            );
+        }
 
-        const cleanSheetRate =
-          played > 0
-            ? (cleanSheets /
-                played) *
-              100
-            : 0;
+        const map =
+          new Map<
+            string,
+            {
+              id:
+                number | null;
+              name:
+                string;
+              matches:
+                Match[];
+            }
+          >();
 
-        const scoringRate =
-          played > 0
-            ? (matchesScored /
-                played) *
-              100
-            : 0;
+        for (
+          const match
+          of source
+        ) {
+          const key =
+            match.seasonId
+              ? String(
+                  match.seasonId
+                )
+              : "unassigned";
 
-        const averageGoalsFor =
-          played > 0
-            ? goalsFor /
-              played
-            : 0;
+          const name =
+            match.seasonId
+              ? resolveSeasonName(
+                  seasons,
+                  match.seasonId
+                )
+              : "Sans saison";
 
-        const averageGoalsAgainst =
-          played > 0
-            ? goalsAgainst /
-              played
-            : 0;
+          if (
+            !map.has(
+              key
+            )
+          ) {
+            map.set(
+              key,
+              {
+                id:
+                  match.seasonId ??
+                  null,
+                name,
+                matches: [],
+              }
+            );
+          }
 
-        const totalPlayerGames =
-          players.reduce(
-            (
-              total,
-              player
-            ) =>
-              total +
-              player.games,
-            0
+          map.get(
+            key
+          )?.matches.push(
+            match
           );
+        }
 
-        const weightedRating =
-          totalPlayerGames >
-          0
-            ? players.reduce(
-                (
-                  total,
-                  player
-                ) =>
-                  total +
-                  player.averageRating *
-                    player.games,
-                0
-              ) /
-              totalPlayerGames
-            : 0;
+        return Array.from(
+          map.values()
+        )
+          .map(
+            (group) => ({
+              id:
+                group.id,
+              name:
+                group.name,
+              stats:
+                computeTeamStatistics(
+                  group.matches
+                ),
+            })
+          )
+          .sort(
+            (a, b) =>
+              b.stats.played -
+              a.stats.played
+          );
+      },
+      [
+        allMatches,
+        selectedCompetition,
+        selectedSeason,
+        seasons,
+      ]
+    );
 
+  const playerLeaders =
+    useMemo(
+      () => {
         const minimumGames =
           Math.max(
             2,
             Math.ceil(
-              played *
+              matches.length *
                 0.25
             )
           );
 
-        const qualifiedForRating =
+        const qualified =
           players.filter(
             (player) =>
               player.games >=
               minimumGames
           );
 
-        const bestRating =
-          [...qualifiedForRating]
-            .sort(
-              (
-                a,
-                b
-              ) =>
-                b.averageRating -
-                a.averageRating
-            )[0] ??
-          null;
-
         const topScorer =
           [...players]
             .sort(
-              (
-                a,
-                b
-              ) =>
+              (a, b) =>
                 b.goals -
                   a.goals ||
                 b.assists -
@@ -3852,10 +4030,7 @@ function StatsDashboard({
         const topAssister =
           [...players]
             .sort(
-              (
-                a,
-                b
-              ) =>
+              (a, b) =>
                 b.assists -
                   a.assists ||
                 b.goals -
@@ -3863,130 +4038,160 @@ function StatsDashboard({
             )[0] ??
           null;
 
-        const bestPasser =
-          players
-            .filter(
-              (player) =>
-                player.passAttempts >=
-                20
-            )
+        const bestRating =
+          [...qualified]
             .sort(
-              (
-                a,
-                b
-              ) =>
-                b.passSuccess -
-                a.passSuccess
-            )[0] ??
-          null;
-
-        const bestTackler =
-          players
-            .filter(
-              (player) =>
-                player.tackleAttempts >=
-                5
-            )
-            .sort(
-              (
-                a,
-                b
-              ) =>
-                b.tacklesMade -
-                  a.tacklesMade ||
-                b.tackleSuccess -
-                  a.tackleSuccess
+              (a, b) =>
+                b.averageRating -
+                  a.averageRating ||
+                b.games -
+                  a.games
             )[0] ??
           null;
 
         const bestGoalkeeper =
-          [...players]
-            .sort(
+          players
+            .map(
+              (player) => ({
+                player,
+                stats:
+                  getPlayerPositionStats(
+                    player,
+                    "goalkeeper"
+                  ),
+              })
+            )
+            .filter(
               (
-                a,
-                b
-              ) =>
-                b.saves -
-                a.saves
+                entry
+              ): entry is {
+                player:
+                  Player;
+                stats:
+                  PlayerPositionStats;
+              } =>
+                Boolean(
+                  entry.stats &&
+                    entry.stats.games >
+                      0
+                )
+            )
+            .sort(
+              (a, b) =>
+                b.stats.saves -
+                  a.stats.saves ||
+                b.stats.averageRating -
+                  a.stats.averageRating
             )[0] ??
           null;
 
-        const lastFive =
-          matches.slice(
-            0,
-            5
-          );
-
         return {
-          played,
-          wins,
-          draws,
-          losses,
-          goalsFor,
-          goalsAgainst,
-          cleanSheets,
-          winRate,
-          cleanSheetRate,
-          scoringRate,
-          averageGoalsFor,
-          averageGoalsAgainst,
-          weightedRating,
           minimumGames,
-          bestRating,
           topScorer,
           topAssister,
-          bestPasser,
-          bestTackler,
+          bestRating,
           bestGoalkeeper,
-          lastFive,
         };
       },
       [
-        matches,
         players,
+        matches.length,
       ]
     );
 
-  const ranking =
-    useMemo(
-      () =>
-        [...players].sort(
-          (
-            a,
-            b
-          ) =>
-            b.averageRating -
-              a.averageRating ||
-            b.games -
-              a.games
-        ),
-      [players]
-    );
+  const periodLabel =
+    period === "all"
+      ? "Tous les matchs"
+      : `${period} derniers matchs`;
 
   return (
     <>
 
-      {/* HEADER */}
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
 
-      <div className="mb-6">
+        <div>
 
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
-          Performance Center
-        </p>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
+            GX NOVA • STATISTIQUES 2.0
+          </p>
 
-        <h2 className="mt-2 text-3xl font-black">
-          Statistiques
-        </h2>
+          <h2 className="mt-2 text-3xl font-black">
+            Performance équipe
+          </h2>
 
-        <p className="mt-2 text-sm text-gray-500">
-          {
-            currentFilterLabel
-          }
-        </p>
+          <p className="mt-2 max-w-3xl text-sm text-gray-500">
+            Bilan collectif, forme, séries, comparaisons et évolution à partir des données EA réellement disponibles.
+          </p>
+
+          <p className="mt-2 text-xs font-bold text-cyan-300">
+            {currentFilterLabel}
+          </p>
+
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#091626] p-3">
+
+          <p className="mb-2 text-[9px] font-black uppercase tracking-[0.15em] text-gray-600">
+            Période du bilan
+          </p>
+
+          <div className="grid grid-cols-4 gap-2">
+
+            {[
+              [
+                "all",
+                "Tout",
+              ],
+              [
+                "5",
+                "5",
+              ],
+              [
+                "10",
+                "10",
+              ],
+              [
+                "20",
+                "20",
+              ],
+            ].map(
+              ([
+                value,
+                label,
+              ]) => (
+
+                <button
+                  key={
+                    value
+                  }
+                  type="button"
+                  onClick={() =>
+                    setPeriod(
+                      value as
+                        | "all"
+                        | "5"
+                        | "10"
+                        | "20"
+                    )
+                  }
+                  className={`rounded-xl border px-4 py-2 text-xs font-black transition ${
+                    period ===
+                    value
+                      ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-300"
+                      : "border-white/[0.07] bg-white/[0.02] text-gray-500 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </button>
+
+              )
+            )}
+
+          </div>
+
+        </div>
 
       </div>
-
-      {/* KPI */}
 
       <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3 2xl:grid-cols-6">
 
@@ -3995,15 +4200,15 @@ function StatsDashboard({
           value={
             statistics.played
           }
-          subtitle={`${statistics.wins}V • ${statistics.draws}N • ${statistics.losses}D`}
+          subtitle={periodLabel}
         />
 
         <StatsKpiCard
-          label="Taux de victoire"
+          label="Taux victoire"
           value={`${statistics.winRate.toFixed(
             1
           )}%`}
-          subtitle="Victoires"
+          subtitle={`${statistics.wins}V • ${statistics.draws}N • ${statistics.losses}D`}
           highlight
         />
 
@@ -4028,6 +4233,22 @@ function StatsDashboard({
         />
 
         <StatsKpiCard
+          label="Diff. buts"
+          value={
+            statistics.goalDifference >
+            0
+              ? `+${statistics.goalDifference}`
+              : statistics.goalDifference
+          }
+          subtitle={`${statistics.goalDifferencePerMatch >=
+          0
+            ? "+"
+            : ""}${statistics.goalDifferencePerMatch.toFixed(
+            2
+          )} / match`}
+        />
+
+        <StatsKpiCard
           label="Clean sheets"
           value={
             statistics.cleanSheets
@@ -4037,213 +4258,243 @@ function StatsDashboard({
           )}% des matchs`}
         />
 
-        <StatsKpiCard
-          label="Note collective"
+      </div>
+
+      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+        <TeamStreakCard
+          label="Série sans défaite"
           value={
-            statistics.weightedRating.toFixed(
-              2
-            )
+            streaks.unbeaten
           }
-          subtitle="Moyenne pondérée"
+          helper="depuis le dernier revers"
+          tone="cyan"
+        />
+
+        <TeamStreakCard
+          label="Victoires de suite"
+          value={
+            streaks.wins
+          }
+          helper="série actuelle"
+          tone="green"
+        />
+
+        <TeamStreakCard
+          label="Matchs avec but"
+          value={
+            streaks.scoring
+          }
+          helper="de suite"
+          tone="yellow"
+        />
+
+        <TeamStreakCard
+          label="Clean sheets"
+          value={
+            streaks.cleanSheets
+          }
+          helper="de suite"
+          tone="blue"
         />
 
       </div>
 
-      <div className="grid gap-5 2xl:grid-cols-12">
+      <div className="mb-5 grid gap-5 2xl:grid-cols-12">
 
-        {/* RÉPARTITION RÉSULTATS */}
+        <section className="rounded-3xl border border-cyan-400/15 bg-[#091626] 2xl:col-span-7">
 
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
 
-          <PanelHeader
-            title="RÉPARTITION DES RÉSULTATS"
-            right={`${statistics.played} matchs`}
-          />
+            <div>
 
-          <div className="space-y-6 p-6">
+              <p className="text-[10px] font-black uppercase tracking-[0.17em] text-cyan-300">
+                Évolution
+              </p>
 
-            <ResultProgress
-              label="Victoires"
-              value={
-                statistics.wins
-              }
-              total={
-                statistics.played
-              }
-              type="win"
-            />
-
-            <ResultProgress
-              label="Matchs nuls"
-              value={
-                statistics.draws
-              }
-              total={
-                statistics.played
-              }
-              type="draw"
-            />
-
-            <ResultProgress
-              label="Défaites"
-              value={
-                statistics.losses
-              }
-              total={
-                statistics.played
-              }
-              type="loss"
-            />
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-
-              <Kpi
-                value={`${statistics.scoringRate.toFixed(
-                  1
-                )}%`}
-                label="Matchs avec but"
-              />
-
-              <Kpi
-                value={
-                  statistics.goalsFor -
-                  statistics.goalsAgainst
-                }
-                label="Diff. buts"
-              />
+              <h3 className="mt-1 text-lg font-black">
+                Buts marqués / encaissés
+              </h3>
 
             </div>
 
-          </div>
-
-        </section>
-
-        {/* FORME */}
-
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-4">
-
-          <PanelHeader
-            title="FORME RÉCENTE"
-            right="5 derniers matchs"
-          />
-
-          <div className="p-6">
-
-            {statistics.lastFive.length >
-            0 ? (
-
-              <div className="space-y-3">
-
-                {statistics.lastFive.map(
-                  (
-                    match,
-                    index
-                  ) => (
-
-                    <button
-                      key={
-                        match.id ??
-                        match.matchId
-                      }
-                      onClick={() => {
-                        if (
-                          match.id
-                        ) {
-                          onOpenMatch(
-                            match.id
-                          );
-                        }
-                      }}
-                      className={`flex w-full items-center justify-between rounded-xl border p-4 text-left transition ${getMatchCardStyle(
-                        match.result
-                      )}`}
-                    >
-
-                      <div className="flex items-center gap-3">
-
-                        <span className="w-5 text-xs font-black text-gray-600">
-                          {
-                            index +
-                            1
-                          }
-                        </span>
-
-                        <ResultBadge
-                          result={
-                            match.result
-                          }
-                        />
-
-                        <div>
-
-                          <p className="text-sm font-black">
-                            {
-                              match.opponent
-                            }
-                          </p>
-
-                          <p className="mt-1 text-[10px] text-gray-600">
-                            {
-                              formatDate(
-                                match.date
-                              )
-                            }
-                          </p>
-
-                        </div>
-
-                      </div>
-
-                      <p className="text-lg font-black">
-                        {
-                          match.goalsFor
-                        }
-                        {" - "}
-                        {
-                          match.goalsAgainst
-                        }
-                      </p>
-
-                    </button>
-
-                  )
-                )}
-
-              </div>
-
-            ) : (
-
-              <p className="py-10 text-center text-gray-600">
-                Aucun match.
-              </p>
-
-            )}
+            <span className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-xs font-black text-gray-500">
+              {Math.min(
+                analysisMatches.length,
+                20
+              )} derniers affichés
+            </span>
 
           </div>
 
-        </section>
-
-        {/* LEADERS */}
-
-        <section className="rounded-2xl border border-yellow-400/25 bg-[#091626] 2xl:col-span-4">
-
-          <PanelHeader
-            title="LEADERS"
-            right={
-              currentFilterLabel
+          <TeamEvolutionChart
+            matches={
+              analysisMatches
             }
           />
 
-          <div className="divide-y divide-white/5">
+        </section>
+
+        <section className="rounded-3xl border border-yellow-400/20 bg-[#091626] 2xl:col-span-5">
+
+          <div className="border-b border-white/[0.07] px-5 py-4">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.17em] text-yellow-300">
+              Forme récente
+            </p>
+
+            <h3 className="mt-1 text-lg font-black">
+              5 derniers vs 5 précédents
+            </h3>
+
+          </div>
+
+          <div className="grid gap-3 p-5 sm:grid-cols-2">
+
+            <TeamFormWindow
+              label="5 derniers"
+              stats={
+                lastFiveStats
+              }
+              highlighted
+            />
+
+            <TeamFormWindow
+              label="5 précédents"
+              stats={
+                previousFiveStats
+              }
+            />
+
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 border-t border-white/[0.07] p-5">
+
+            <TeamStatMini
+              label="Forme 5"
+              value={`${lastFiveStats.winRate.toFixed(
+                0
+              )}%`}
+            />
+
+            <TeamStatMini
+              label="Forme 10"
+              value={`${lastTenStats.winRate.toFixed(
+                0
+              )}%`}
+            />
+
+            <TeamStatMini
+              label="Écart"
+              value={`${lastFiveStats.winRate -
+              previousFiveStats.winRate >=
+              0
+                ? "+"
+                : ""}${(
+                lastFiveStats.winRate -
+                previousFiveStats.winRate
+              ).toFixed(
+                0
+              )} pts`}
+            />
+
+          </div>
+
+        </section>
+
+      </div>
+
+      <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+        <section className="overflow-hidden rounded-3xl border border-blue-400/15 bg-[#091626] 2xl:col-span-7">
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+
+            <div>
+
+              <p className="text-[10px] font-black uppercase tracking-[0.17em] text-cyan-300">
+                Comparatif
+              </p>
+
+              <h3 className="mt-1 text-lg font-black">
+                Performances par compétition
+              </h3>
+
+            </div>
+
+            <span className="text-xs font-black text-gray-600">
+              {periodLabel}
+            </span>
+
+          </div>
+
+          <TeamComparisonTable
+            rows={
+              competitionBreakdown
+            }
+            emptyLabel="Aucune compétition dans cette sélection."
+          />
+
+        </section>
+
+        <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#091626] 2xl:col-span-5">
+
+          <div className="border-b border-white/[0.07] px-5 py-4">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.17em] text-yellow-300">
+              Historique
+            </p>
+
+            <h3 className="mt-1 text-lg font-black">
+              Performances par saison
+            </h3>
+
+            <p className="mt-1 text-[10px] font-semibold text-gray-600">
+              Respecte le filtre compétition actif
+            </p>
+
+          </div>
+
+          <TeamSeasonTable
+            rows={
+              seasonBreakdown
+            }
+          />
+
+        </section>
+
+      </div>
+
+      <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+        <section className="rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.05] via-[#091626] to-[#091626] 2xl:col-span-5">
+
+          <div className="border-b border-white/[0.07] px-5 py-4">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.17em] text-yellow-300">
+              Contributeurs
+            </p>
+
+            <h3 className="mt-1 text-lg font-black">
+              Leaders joueurs
+            </h3>
+
+            <p className="mt-1 text-[10px] font-semibold text-gray-600">
+              Saison / compétition actives • indépendamment du bouton de période
+            </p>
+
+          </div>
+
+          <div className="divide-y divide-white/[0.05]">
 
             <StatLeader
               title="Meilleur buteur"
               player={
-                statistics.topScorer
+                playerLeaders.topScorer
               }
               value={
-                statistics.topScorer
-                  ? `${statistics.topScorer.goals} buts`
+                playerLeaders.topScorer
+                  ? `${playerLeaders.topScorer.goals} buts`
                   : "-"
               }
               onOpenPlayer={
@@ -4254,11 +4505,11 @@ function StatsDashboard({
             <StatLeader
               title="Meilleur passeur"
               player={
-                statistics.topAssister
+                playerLeaders.topAssister
               }
               value={
-                statistics.topAssister
-                  ? `${statistics.topAssister.assists} PD`
+                playerLeaders.topAssister
+                  ? `${playerLeaders.topAssister.assists} PD`
                   : "-"
               }
               onOpenPlayer={
@@ -4269,89 +4520,39 @@ function StatsDashboard({
             <StatLeader
               title="Meilleure note"
               player={
-                statistics.bestRating
+                playerLeaders.bestRating
               }
               value={
-                statistics.bestRating
-                  ? statistics.bestRating.averageRating.toFixed(
+                playerLeaders.bestRating
+                  ? playerLeaders.bestRating.averageRating.toFixed(
                       2
                     )
                   : "-"
               }
-              subtitle={`Minimum ${statistics.minimumGames} matchs`}
+              subtitle={`Minimum ${playerLeaders.minimumGames} matchs`}
               onOpenPlayer={
                 onOpenPlayer
               }
             />
 
-          </div>
-
-        </section>
-
-        {/* SPÉCIALISTES */}
-
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-5">
-
-          <PanelHeader
-            title="SPÉCIALISTES"
-            right="Statistiques avancées"
-          />
-
-          <div className="grid gap-4 p-5 md:grid-cols-3">
-
-            <SpecialistCard
-              label="Précision passes"
+            <StatLeader
+              title="Gardien • arrêts"
               player={
-                statistics.bestPasser
+                playerLeaders.bestGoalkeeper?.player ??
+                null
               }
               value={
-                statistics.bestPasser
-                  ? `${statistics.bestPasser.passSuccess.toFixed(
-                      1
-                    )}%`
-                  : "-"
-              }
-              subtitle="Min. 20 tentées"
-              onOpenPlayer={
-                onOpenPlayer
-              }
-            />
-
-            <SpecialistCard
-              label="Tacles réussis"
-              player={
-                statistics.bestTackler
-              }
-              value={
-                statistics.bestTackler
-                  ? statistics.bestTackler.tacklesMade
+                playerLeaders.bestGoalkeeper
+                  ? `${playerLeaders.bestGoalkeeper.stats.saves} arrêts`
                   : "-"
               }
               subtitle={
-                statistics.bestTackler
-                  ? `${statistics.bestTackler.tackleSuccess.toFixed(
-                      1
-                    )}% réussite`
-                  : "Min. 5 tentés"
+                playerLeaders.bestGoalkeeper
+                  ? `${playerLeaders.bestGoalkeeper.stats.games} MJ • note ${playerLeaders.bestGoalkeeper.stats.averageRating.toFixed(
+                      2
+                    )}`
+                  : undefined
               }
-              onOpenPlayer={
-                onOpenPlayer
-              }
-            />
-
-            <SpecialistCard
-              label="Arrêts"
-              player={
-                statistics.bestGoalkeeper
-              }
-              value={
-                statistics.bestGoalkeeper &&
-                statistics.bestGoalkeeper.saves >
-                  0
-                  ? statistics.bestGoalkeeper.saves
-                  : "-"
-              }
-              subtitle="Total"
               onOpenPlayer={
                 onOpenPlayer
               }
@@ -4361,251 +4562,85 @@ function StatsDashboard({
 
         </section>
 
-        {/* EFFICACITÉ COLLECTIVE */}
+        <section className="rounded-3xl border border-cyan-400/15 bg-[#091626] 2xl:col-span-7">
 
-        <section className="rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-7">
+          <div className="border-b border-white/[0.07] px-5 py-4">
 
-          <PanelHeader
-            title="EFFICACITÉ COLLECTIVE"
-            right={
-              currentFilterLabel
-            }
-          />
+            <p className="text-[10px] font-black uppercase tracking-[0.17em] text-cyan-300">
+              Derniers matchs
+            </p>
 
-          <div className="grid gap-4 p-5 md:grid-cols-2">
-
-            <MetricBox
-              label="Buts marqués / match"
-              value={
-                statistics.averageGoalsFor
-              }
-              max={
-                Math.max(
-                  3,
-                  statistics.averageGoalsFor,
-                  statistics.averageGoalsAgainst
-                )
-              }
-            />
-
-            <MetricBox
-              label="Buts encaissés / match"
-              value={
-                statistics.averageGoalsAgainst
-              }
-              max={
-                Math.max(
-                  3,
-                  statistics.averageGoalsFor,
-                  statistics.averageGoalsAgainst
-                )
-              }
-            />
-
-            <MetricBox
-              label="Taux de victoire"
-              value={
-                statistics.winRate
-              }
-              max={100}
-              suffix="%"
-            />
-
-            <MetricBox
-              label="Clean sheets"
-              value={
-                statistics.cleanSheetRate
-              }
-              max={100}
-              suffix="%"
-            />
+            <h3 className="mt-1 text-lg font-black">
+              Forme détaillée
+            </h3>
 
           </div>
 
-        </section>
+          <div className="grid gap-2 p-4 md:grid-cols-2">
 
-        {/* TABLE CLASSEMENT */}
+            {matches.slice(
+              0,
+              10
+            ).map(
+              (
+                match,
+                index
+              ) => (
 
-        <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#091626] 2xl:col-span-12">
-
-          <PanelHeader
-            title="CLASSEMENT COMPLET DES JOUEURS"
-            right={`${ranking.length} joueurs`}
-          />
-
-          <div className="overflow-x-auto">
-
-            <div className="min-w-[1150px]">
-
-              <div className="grid grid-cols-[55px_220px_70px_80px_70px_70px_80px_110px_95px_110px_95px] border-b border-white/10 bg-[#071321] px-5 py-4 text-[9px] font-black uppercase tracking-wider text-gray-600">
-
-                <span>#</span>
-
-                <span>
-                  Joueur
-                </span>
-
-                <span className="text-center">
-                  MJ
-                </span>
-
-                <span className="text-center">
-                  Note
-                </span>
-
-                <span className="text-center">
-                  B
-                </span>
-
-                <span className="text-center">
-                  PD
-                </span>
-
-                <span className="text-center">
-                  Tirs
-                </span>
-
-                <span className="text-center">
-                  Passes
-                </span>
-
-                <span className="text-center">
-                  %
-                </span>
-
-                <span className="text-center">
-                  Tacles
-                </span>
-
-                <span className="text-center">
-                  %
-                </span>
-
-              </div>
-
-              {ranking.map(
-                (
-                  player,
-                  index
-                ) => (
-
-                  <button
-                    key={
-                      player.id
+                <button
+                  key={
+                    match.id ??
+                    match.matchId
+                  }
+                  type="button"
+                  onClick={() => {
+                    if (
+                      match.id
+                    ) {
+                      onOpenMatch(
+                        match.id
+                      );
                     }
-                    onClick={() =>
-                      onOpenPlayer(
-                        player
-                      )
-                    }
-                    className="grid w-full grid-cols-[55px_220px_70px_80px_70px_70px_80px_110px_95px_110px_95px] items-center border-b border-white/5 px-5 py-4 text-left hover:bg-white/[0.03]"
-                  >
+                  }}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.018] p-3 text-left transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.035]"
+                >
 
-                    <span className="font-black text-gray-600">
-                      {
-                        index +
-                        1
-                      }
+                  <div className="flex min-w-0 items-center gap-3">
+
+                    <span className="text-[10px] font-black text-gray-700">
+                      {index + 1}
                     </span>
 
-                    <div className="flex items-center gap-3">
+                    <ResultBadge
+                      result={
+                        match.result
+                      }
+                    />
 
-                      <PlayerAvatar
-                        player={
-                          player
-                        }
-                      />
+                    <div className="min-w-0">
 
-                      <div>
+                      <p className="truncate text-sm font-black">
+                        {match.opponent}
+                      </p>
 
-                        <p className="font-black">
-                          {
-                            formatPlayerName(
-                              player.name
-                            )
-                          }
-                        </p>
-
-                        <p className="mt-1 text-[9px] uppercase text-gray-600">
-                          {
-                            formatPosition(
-                              player.position
-                            )
-                          }
-                        </p>
-
-                      </div>
+                      <p className="mt-1 text-[10px] font-bold text-gray-600">
+                        {formatDate(
+                          match.date
+                        )}
+                      </p>
 
                     </div>
 
-                    <StatCell
-                      value={
-                        player.games
-                      }
-                    />
+                  </div>
 
-                    <div className="text-center">
+                  <p className="text-lg font-black text-white">
+                    {match.goalsFor}-{match.goalsAgainst}
+                  </p>
 
-                      <span
-                        className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-black ${getRatingStyle(
-                          player.averageRating
-                        )}`}
-                      >
-                        {
-                          player.averageRating.toFixed(
-                            2
-                          )
-                        }
-                      </span>
+                </button>
 
-                    </div>
-
-                    <StatCell
-                      value={
-                        player.goals
-                      }
-                      strong
-                    />
-
-                    <StatCell
-                      value={
-                        player.assists
-                      }
-                      strong
-                    />
-
-                    <StatCell
-                      value={
-                        player.shots
-                      }
-                    />
-
-                    <StatCell
-                      value={`${player.passesMade}/${player.passAttempts}`}
-                    />
-
-                    <PercentageCell
-                      value={
-                        player.passSuccess
-                      }
-                    />
-
-                    <StatCell
-                      value={`${player.tacklesMade}/${player.tackleAttempts}`}
-                    />
-
-                    <PercentageCell
-                      value={
-                        player.tackleSuccess
-                      }
-                    />
-
-                  </button>
-
-                )
-              )}
-
-            </div>
+              )
+            )}
 
           </div>
 
@@ -4613,8 +4648,1066 @@ function StatsDashboard({
 
       </div>
 
+      <section className="rounded-3xl border border-white/10 bg-[#091626]">
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+
+          <div>
+
+            <p className="text-[10px] font-black uppercase tracking-[0.17em] text-gray-600">
+              Synthèse
+            </p>
+
+            <h3 className="mt-1 text-lg font-black">
+              Lecture du bilan collectif
+            </h3>
+
+          </div>
+
+          <span className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.05] px-3 py-2 text-xs font-black text-cyan-300">
+            {periodLabel}
+          </span>
+
+        </div>
+
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
+
+          <TeamSummaryCard
+            label="Efficacité"
+            value={`${statistics.scoringRate.toFixed(
+              0
+            )}%`}
+            helper="des matchs avec au moins un but marqué"
+          />
+
+          <TeamSummaryCard
+            label="Solidité"
+            value={`${statistics.cleanSheetRate.toFixed(
+              0
+            )}%`}
+            helper="des matchs sans but encaissé"
+          />
+
+          <TeamSummaryCard
+            label="Production"
+            value={`${statistics.averageGoalsFor.toFixed(
+              2
+            )}`}
+            helper="buts marqués par match"
+          />
+
+          <TeamSummaryCard
+            label="Résistance"
+            value={`${statistics.averageGoalsAgainst.toFixed(
+              2
+            )}`}
+            helper="buts encaissés par match"
+          />
+
+        </div>
+
+      </section>
+
     </>
   );
+}
+
+function computeTeamStatistics(
+  matches: Match[]
+) {
+  const played =
+    matches.length;
+
+  const wins =
+    matches.filter(
+      (match) =>
+        match.result ===
+        "V"
+    ).length;
+
+  const draws =
+    matches.filter(
+      (match) =>
+        match.result ===
+        "N"
+    ).length;
+
+  const losses =
+    matches.filter(
+      (match) =>
+        match.result ===
+        "D"
+    ).length;
+
+  const goalsFor =
+    matches.reduce(
+      (
+        total,
+        match
+      ) =>
+        total +
+        match.goalsFor,
+      0
+    );
+
+  const goalsAgainst =
+    matches.reduce(
+      (
+        total,
+        match
+      ) =>
+        total +
+        match.goalsAgainst,
+      0
+    );
+
+  const cleanSheets =
+    matches.filter(
+      (match) =>
+        match.goalsAgainst ===
+        0
+    ).length;
+
+  const matchesScored =
+    matches.filter(
+      (match) =>
+        match.goalsFor >
+        0
+    ).length;
+
+  const goalDifference =
+    goalsFor -
+    goalsAgainst;
+
+  return {
+    played,
+    wins,
+    draws,
+    losses,
+    goalsFor,
+    goalsAgainst,
+    goalDifference,
+    cleanSheets,
+
+    winRate:
+      played > 0
+        ? (
+            wins /
+            played
+          ) *
+          100
+        : 0,
+
+    drawRate:
+      played > 0
+        ? (
+            draws /
+            played
+          ) *
+          100
+        : 0,
+
+    lossRate:
+      played > 0
+        ? (
+            losses /
+            played
+          ) *
+          100
+        : 0,
+
+    cleanSheetRate:
+      played > 0
+        ? (
+            cleanSheets /
+            played
+          ) *
+          100
+        : 0,
+
+    scoringRate:
+      played > 0
+        ? (
+            matchesScored /
+            played
+          ) *
+          100
+        : 0,
+
+    averageGoalsFor:
+      played > 0
+        ? goalsFor /
+          played
+        : 0,
+
+    averageGoalsAgainst:
+      played > 0
+        ? goalsAgainst /
+          played
+        : 0,
+
+    goalDifferencePerMatch:
+      played > 0
+        ? goalDifference /
+          played
+        : 0,
+  };
+}
+
+function computeTeamStreaks(
+  matches: Match[]
+) {
+  let unbeaten = 0;
+  let wins = 0;
+  let scoring = 0;
+  let cleanSheets = 0;
+
+  for (
+    const match
+    of matches
+  ) {
+    if (
+      match.result !==
+      "D"
+    ) {
+      unbeaten++;
+    } else {
+      break;
+    }
+  }
+
+  for (
+    const match
+    of matches
+  ) {
+    if (
+      match.result ===
+      "V"
+    ) {
+      wins++;
+    } else {
+      break;
+    }
+  }
+
+  for (
+    const match
+    of matches
+  ) {
+    if (
+      match.goalsFor >
+      0
+    ) {
+      scoring++;
+    } else {
+      break;
+    }
+  }
+
+  for (
+    const match
+    of matches
+  ) {
+    if (
+      match.goalsAgainst ===
+      0
+    ) {
+      cleanSheets++;
+    } else {
+      break;
+    }
+  }
+
+  return {
+    unbeaten,
+    wins,
+    scoring,
+    cleanSheets,
+  };
+}
+
+function resolveCompetitionName(
+  competitions: Competition[],
+  competitionId: number
+) {
+  const competition =
+    competitions.find(
+      (item) =>
+        item.id ===
+        competitionId
+    );
+
+  return (
+    competition?.short_name ??
+    competition?.name ??
+    `Compétition ${competitionId}`
+  );
+}
+
+function resolveSeasonName(
+  seasons: Season[],
+  seasonId: number
+) {
+  return (
+    seasons.find(
+      (season) =>
+        season.id ===
+        seasonId
+    )?.name ??
+    `Saison ${seasonId}`
+  );
+}
+
+function TeamStreakCard({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  tone:
+    | "cyan"
+    | "green"
+    | "yellow"
+    | "blue";
+}) {
+  const toneClass =
+    tone === "green"
+      ? "text-emerald-300 border-emerald-400/15 bg-emerald-400/[0.04]"
+      : tone === "yellow"
+      ? "text-yellow-300 border-yellow-400/15 bg-yellow-400/[0.04]"
+      : tone === "blue"
+      ? "text-blue-300 border-blue-400/15 bg-blue-400/[0.04]"
+      : "text-cyan-300 border-cyan-400/15 bg-cyan-400/[0.04]";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+
+      <p className="text-[10px] font-black uppercase tracking-[0.15em] opacity-60">
+        {label}
+      </p>
+
+      <div className="mt-2 flex items-end gap-2">
+
+        <p className="text-3xl font-black">
+          {value}
+        </p>
+
+        <p className="pb-1 text-xs font-black opacity-65">
+          match{value > 1 ? "s" : ""}
+        </p>
+
+      </div>
+
+      <p className="mt-1 text-[10px] font-bold text-gray-600">
+        {helper}
+      </p>
+
+    </div>
+  );
+}
+
+function TeamFormWindow({
+  label,
+  stats,
+  highlighted = false,
+}: {
+  label: string;
+  stats: ReturnType<
+    typeof computeTeamStatistics
+  >;
+  highlighted?: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl border p-4 ${
+      highlighted
+        ? "border-yellow-400/20 bg-yellow-400/[0.045]"
+        : "border-white/[0.07] bg-white/[0.018]"
+    }`}>
+
+      <div className="flex items-center justify-between gap-3">
+
+        <p className="text-xs font-black text-white">
+          {label}
+        </p>
+
+        <span className={`text-lg font-black ${
+          highlighted
+            ? "text-yellow-300"
+            : "text-cyan-300"
+        }`}>
+          {stats.winRate.toFixed(
+            0
+          )}%
+        </span>
+
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+
+        <TeamFormBadge
+          label="V"
+          value={
+            stats.wins
+          }
+          tone="green"
+        />
+
+        <TeamFormBadge
+          label="N"
+          value={
+            stats.draws
+          }
+          tone="neutral"
+        />
+
+        <TeamFormBadge
+          label="D"
+          value={
+            stats.losses
+          }
+          tone="red"
+        />
+
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+
+        <TeamStatMini
+          label="BP / match"
+          value={stats.averageGoalsFor.toFixed(
+            2
+          )}
+        />
+
+        <TeamStatMini
+          label="BC / match"
+          value={stats.averageGoalsAgainst.toFixed(
+            2
+          )}
+        />
+
+      </div>
+
+    </div>
+  );
+}
+
+function TeamFormBadge({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone:
+    | "green"
+    | "red"
+    | "neutral";
+}) {
+  const style =
+    tone === "green"
+      ? "border-emerald-400/15 bg-emerald-400/[0.07] text-emerald-300"
+      : tone === "red"
+      ? "border-rose-400/15 bg-rose-400/[0.07] text-rose-300"
+      : "border-white/[0.08] bg-white/[0.03] text-gray-400";
+
+  return (
+    <span className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${style}`}>
+      {label} {value}
+    </span>
+  );
+}
+
+function TeamStatMini({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3 text-center">
+
+      <p className="text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+        {label}
+      </p>
+
+      <p className="mt-1 text-base font-black text-white">
+        {value}
+      </p>
+
+    </div>
+  );
+}
+
+function TeamEvolutionChart({
+  matches,
+}: {
+  matches: Match[];
+}) {
+  const points =
+    matches
+      .slice(
+        0,
+        20
+      )
+      .reverse();
+
+  if (
+    points.length ===
+    0
+  ) {
+    return (
+      <div className="p-8 text-center text-sm font-bold text-gray-600">
+        Aucun match à afficher.
+      </div>
+    );
+  }
+
+  const width = 900;
+  const height = 280;
+  const left = 42;
+  const right = 28;
+  const top = 28;
+  const bottom = 48;
+  const usableWidth =
+    width -
+    left -
+    right;
+  const usableHeight =
+    height -
+    top -
+    bottom;
+
+  const maxGoals =
+    Math.max(
+      3,
+      ...points.map(
+        (match) =>
+          Math.max(
+            match.goalsFor,
+            match.goalsAgainst
+          )
+      )
+    );
+
+  const point =
+    (
+      value: number,
+      index: number
+    ) => {
+      const x =
+        points.length ===
+        1
+          ? left +
+            usableWidth /
+              2
+          : left +
+            (
+              index /
+              (
+                points.length -
+                1
+              )
+            ) *
+              usableWidth;
+
+      const y =
+        top +
+        (
+          1 -
+          value /
+            maxGoals
+        ) *
+          usableHeight;
+
+      return {
+        x,
+        y,
+      };
+    };
+
+  const forLine =
+    points
+      .map(
+        (
+          match,
+          index
+        ) => {
+          const item =
+            point(
+              match.goalsFor,
+              index
+            );
+
+          return `${item.x},${item.y}`;
+        }
+      )
+      .join(" ");
+
+  const againstLine =
+    points
+      .map(
+        (
+          match,
+          index
+        ) => {
+          const item =
+            point(
+              match.goalsAgainst,
+              index
+            );
+
+          return `${item.x},${item.y}`;
+        }
+      )
+      .join(" ");
+
+  return (
+    <div className="overflow-x-auto p-4">
+
+      <div className="mb-2 flex flex-wrap gap-4 px-2 text-[10px] font-black uppercase tracking-[0.12em]">
+
+        <span className="text-yellow-300">
+          ● Buts marqués
+        </span>
+
+        <span className="text-cyan-300">
+          ● Buts encaissés
+        </span>
+
+      </div>
+
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-[285px] min-w-[760px] w-full"
+        role="img"
+        aria-label="Évolution des buts marqués et encaissés"
+      >
+
+        {Array.from(
+          {
+            length:
+              maxGoals +
+              1,
+          },
+          (
+            _,
+            value
+          ) =>
+            value
+        ).map(
+          (value) => {
+            const y =
+              point(
+                value,
+                0
+              ).y;
+
+            return (
+              <g
+                key={
+                  value
+                }
+              >
+
+                <line
+                  x1={left}
+                  x2={
+                    width -
+                    right
+                  }
+                  y1={y}
+                  y2={y}
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth="1"
+                />
+
+                <text
+                  x={
+                    left -
+                    10
+                  }
+                  y={
+                    y +
+                    4
+                  }
+                  fill="rgba(148,163,184,0.5)"
+                  fontSize="10"
+                  textAnchor="end"
+                >
+                  {value}
+                </text>
+
+              </g>
+            );
+          }
+        )}
+
+        {points.length >
+          1 && (
+
+          <>
+            <polyline
+              points={
+                forLine
+              }
+              fill="none"
+              stroke="rgb(250,204,21)"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            <polyline
+              points={
+                againstLine
+              }
+              fill="none"
+              stroke="rgb(34,211,238)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.75"
+            />
+          </>
+
+        )}
+
+        {points.map(
+          (
+            match,
+            index
+          ) => {
+            const forPoint =
+              point(
+                match.goalsFor,
+                index
+              );
+
+            const againstPoint =
+              point(
+                match.goalsAgainst,
+                index
+              );
+
+            return (
+              <g
+                key={
+                  match.id ??
+                  match.matchId
+                }
+              >
+
+                <circle
+                  cx={
+                    forPoint.x
+                  }
+                  cy={
+                    forPoint.y
+                  }
+                  r="5"
+                  fill="rgb(250,204,21)"
+                  stroke="#07111f"
+                  strokeWidth="3"
+                />
+
+                <circle
+                  cx={
+                    againstPoint.x
+                  }
+                  cy={
+                    againstPoint.y
+                  }
+                  r="4"
+                  fill="rgb(34,211,238)"
+                  stroke="#07111f"
+                  strokeWidth="2"
+                />
+
+                <text
+                  x={
+                    forPoint.x
+                  }
+                  y={
+                    height -
+                    17
+                  }
+                  fill="rgba(148,163,184,0.6)"
+                  fontSize="9"
+                  fontWeight="700"
+                  textAnchor="middle"
+                >
+                  {shortTeamOpponent(
+                    match.opponent
+                  )}
+                </text>
+
+              </g>
+            );
+          }
+        )}
+
+      </svg>
+
+    </div>
+  );
+}
+
+function TeamComparisonTable({
+  rows,
+  emptyLabel,
+}: {
+  rows: Array<{
+    id:
+      number | null;
+    name:
+      string;
+    stats: ReturnType<
+      typeof computeTeamStatistics
+    >;
+  }>;
+  emptyLabel: string;
+}) {
+  if (
+    rows.length ===
+    0
+  ) {
+    return (
+      <div className="p-8 text-center text-sm font-bold text-gray-600">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+
+      <div className="min-w-[700px]">
+
+        <div className="grid grid-cols-[1fr_70px_95px_85px_85px_85px_85px] border-b border-white/[0.07] bg-[#071321] px-4 py-3 text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">
+
+          <span>Compétition</span>
+          <span className="text-center">MJ</span>
+          <span className="text-center">V/N/D</span>
+          <span className="text-center">% V</span>
+          <span className="text-center">BP/M</span>
+          <span className="text-center">BC/M</span>
+          <span className="text-center">Diff</span>
+
+        </div>
+
+        {rows.map(
+          (row) => (
+
+            <div
+              key={
+                row.id ??
+                row.name
+              }
+              className="grid grid-cols-[1fr_70px_95px_85px_85px_85px_85px] items-center border-b border-white/[0.045] px-4 py-3 text-xs"
+            >
+
+              <span className="truncate font-black text-white">
+                {row.name}
+              </span>
+
+              <span className="text-center font-bold text-gray-400">
+                {row.stats.played}
+              </span>
+
+              <span className="text-center font-black text-gray-300">
+                {row.stats.wins}/{row.stats.draws}/{row.stats.losses}
+              </span>
+
+              <span className="text-center font-black text-yellow-300">
+                {row.stats.winRate.toFixed(
+                  0
+                )}%
+              </span>
+
+              <span className="text-center font-bold text-gray-400">
+                {row.stats.averageGoalsFor.toFixed(
+                  2
+                )}
+              </span>
+
+              <span className="text-center font-bold text-gray-400">
+                {row.stats.averageGoalsAgainst.toFixed(
+                  2
+                )}
+              </span>
+
+              <span className={`text-center font-black ${
+                row.stats.goalDifference >
+                0
+                  ? "text-emerald-300"
+                  : row.stats.goalDifference <
+                    0
+                  ? "text-rose-300"
+                  : "text-gray-400"
+              }`}>
+                {row.stats.goalDifference >
+                0
+                  ? "+"
+                  : ""}
+                {row.stats.goalDifference}
+              </span>
+
+            </div>
+
+          )
+        )}
+
+      </div>
+
+    </div>
+  );
+}
+
+function TeamSeasonTable({
+  rows,
+}: {
+  rows: Array<{
+    id:
+      number | null;
+    name:
+      string;
+    stats: ReturnType<
+      typeof computeTeamStatistics
+    >;
+  }>;
+}) {
+  if (
+    rows.length ===
+    0
+  ) {
+    return (
+      <div className="p-8 text-center text-sm font-bold text-gray-600">
+        Aucun historique de saison.
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-white/[0.05]">
+
+      {rows.map(
+        (row) => (
+
+          <div
+            key={
+              row.id ??
+              row.name
+            }
+            className="p-4"
+          >
+
+            <div className="flex items-center justify-between gap-3">
+
+              <div className="min-w-0">
+
+                <p className="truncate text-sm font-black text-white">
+                  {row.name}
+                </p>
+
+                <p className="mt-1 text-[10px] font-bold text-gray-600">
+                  {row.stats.played} matchs • {row.stats.wins}V {row.stats.draws}N {row.stats.losses}D
+                </p>
+
+              </div>
+
+              <p className="text-xl font-black text-yellow-300">
+                {row.stats.winRate.toFixed(
+                  0
+                )}%
+              </p>
+
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-2">
+
+              <TeamStatMini
+                label="BP/M"
+                value={row.stats.averageGoalsFor.toFixed(
+                  2
+                )}
+              />
+
+              <TeamStatMini
+                label="BC/M"
+                value={row.stats.averageGoalsAgainst.toFixed(
+                  2
+                )}
+              />
+
+              <TeamStatMini
+                label="Diff"
+                value={`${row.stats.goalDifference >
+                0
+                  ? "+"
+                  : ""}${row.stats.goalDifference}`}
+              />
+
+            </div>
+
+          </div>
+
+        )
+      )}
+
+    </div>
+  );
+}
+
+function TeamSummaryCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-4">
+
+      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+        {label}
+      </p>
+
+      <p className="mt-2 text-3xl font-black text-white">
+        {value}
+      </p>
+
+      <p className="mt-2 text-xs font-semibold text-gray-600">
+        {helper}
+      </p>
+
+    </div>
+  );
+}
+
+function shortTeamOpponent(
+  value: string
+) {
+  const cleaned =
+    value.trim();
+
+  if (
+    cleaned.length <=
+    9
+  ) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(
+    0,
+    7
+  )}…`;
 }
 
 /* =========================================================
