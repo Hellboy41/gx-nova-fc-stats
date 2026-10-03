@@ -748,23 +748,26 @@ export default function ProgrammePage() {
         let metaLine = "";
         let bottomLine = "";
 
+        const rawNotes = item.notes.trim();
+        const usefulNotes =
+          rawNotes.toUpperCase() === "FC27" ? "" : rawNotes;
+
         if (item.type === "competition") {
           const competitionName = competitionLabel(item, competitions);
           const opponentName = item.opponentName.trim();
           mainLine = opponentName || competitionName;
           metaLine = competitionName;
-          bottomLine = item.notes.trim();
+          bottomLine = usefulNotes;
         } else {
           mainLine = item.title.trim() || "Tournoi";
           const opponentName = item.opponentName.trim();
-          const notes = item.notes.trim();
 
           if (opponentName) {
             metaLine = `VS ${opponentName}`;
-            bottomLine = notes || "FC27";
+            bottomLine = usefulNotes || "FC27";
           } else {
-            metaLine = notes || "FC27";
-            bottomLine = notes ? "FC27" : "";
+            metaLine = usefulNotes || "FC27";
+            bottomLine = "";
           }
         }
 
@@ -773,7 +776,19 @@ export default function ProgrammePage() {
         ctx.font = `900 ${mainSize}px Arial, sans-serif`;
         ctx.fillText(mainLine, textX, y + (height >= 120 ? 64 : 58));
 
-        const metaSize = fitText(ctx, metaLine, textW, height >= 120 ? 18 : 17, 12);
+        const metaSize = fitText(
+          ctx,
+          metaLine,
+          textW,
+          item.type === "competition"
+            ? height >= 120
+              ? 20
+              : 18
+            : height >= 120
+            ? 18
+            : 17,
+          12
+        );
         ctx.fillStyle = item.type === "competition" ? "#d9f7ff" : "#ffe4af";
         ctx.font = `900 ${metaSize}px Arial, sans-serif`;
         ctx.fillText(metaLine, textX, y + (height >= 120 ? 94 : 84));
