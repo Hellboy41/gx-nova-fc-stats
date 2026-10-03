@@ -14,6 +14,7 @@ import type {
 import {
   Activity,
   BarChart3,
+  CalendarDays,
   CheckCircle2,
   Database,
   Eye,
@@ -1503,6 +1504,14 @@ export default function Home() {
               }
             />
 
+            <a
+              href="/programme"
+              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-white/5 hover:text-yellow-400"
+            >
+              <CalendarDays size={19} />
+              Programme semaine
+            </a>
+
             <SidebarItem
               icon={
                 <BarChart3
@@ -1731,6 +1740,13 @@ export default function Home() {
                   )
                 }
               />
+
+              <a
+                href="/programme"
+                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-yellow-400/40 hover:text-yellow-400"
+              >
+                PROGRAMME
+              </a>
 
               <TopTab
                 label="STATS"
