@@ -398,244 +398,714 @@ export default function ProgrammePage() {
       setExporting(true);
       setError("");
 
-      const width = 1080;
-      const height = 1350;
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
+      const posterWidth = 1920;
+      const headerHeight = 250;
+      const footerHeight = 78;
+      const pagePadding = 54;
+      const columnGap = 22;
+      const cardHeaderHeight = 104;
+      const cardPadding = 16;
+      const eventGap = 12;
+      const eventHeight = 126;
+      const emptyHeight = 150;
 
-      if (!ctx) {
-        throw new Error("Impossible de créer l'affiche.");
-      }
+      const imageCache = new Map<string, HTMLImageElement | null>();
 
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, "#020914");
-      gradient.addColorStop(0.55, "#071525");
-      gradient.addColorStop(1, "#020711");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
+      const getCachedImage = async (src: string) => {
+        if (!src) return null;
+        if (imageCache.has(src)) return imageCache.get(src) ?? null;
 
-      ctx.fillStyle = "rgba(250, 204, 21, 0.055)";
-      for (let x = -300; x < width + 300; x += 160) {
+        try {
+          const image = await loadImage(src);
+          imageCache.set(src, image);
+          return image;
+        } catch {
+          imageCache.set(src, null);
+          return null;
+        }
+      };
+
+      const clubLogo = await getCachedImage(CLUB_LOGO);
+
+      const palette = {
+        backgroundTop: "#020713",
+        backgroundMiddle: "#06182a",
+        backgroundBottom: "#01040b",
+        yellow: "#facc15",
+        cyan: "#30d9ff",
+        blue: "#0c7cff",
+        white: "#ffffff",
+        muted: "#91a4ba",
+        card: "rgba(5, 18, 32, 0.97)",
+      };
+
+      function drawNeonLine(
+        ctx: CanvasRenderingContext2D,
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+        color: string,
+        width: number,
+        blur = 18
+      ) {
         ctx.save();
-        ctx.translate(x, 0);
-        ctx.rotate(-0.18);
-        ctx.fillRect(0, -100, 52, height + 300);
-        ctx.restore();
-      }
-
-      ctx.fillStyle = "#facc15";
-      ctx.fillRect(0, 0, width, 10);
-
-      let logo: HTMLImageElement | null = null;
-      try {
-        logo = await loadImage(CLUB_LOGO);
-      } catch {
-        logo = null;
-      }
-
-      if (logo) {
-        ctx.save();
-        ctx.globalAlpha = 0.08;
-        ctx.drawImage(logo, width - 390, -55, 470, 470);
-        ctx.restore();
-        ctx.drawImage(logo, 72, 52, 118, 118);
-      }
-
-      ctx.fillStyle = "#facc15";
-      ctx.font = "900 24px Arial, sans-serif";
-      ctx.fillText("GX NOVA • FC27", 222, 84);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "900 58px Arial, sans-serif";
-      ctx.fillText("PROGRAMME DE LA SEMAINE", 222, 145);
-
-      ctx.fillStyle = "#93a4b7";
-      ctx.font = "700 24px Arial, sans-serif";
-      ctx.fillText(weekLabel.toUpperCase(), 222, 184);
-
-      const allEntries = days.flatMap((day) =>
-        (schedule[day.key] ?? []).map((item) => ({ day, item }))
-      );
-
-      const activeDays = days.filter((day) => (schedule[day.key] ?? []).length);
-      const rows = activeDays.length || 1;
-      const startY = 230;
-      const bottomPadding = 90;
-      const availableHeight = height - startY - bottomPadding;
-      const gap = 16;
-      const cardHeight = Math.min(
-        154,
-        Math.max(112, (availableHeight - gap * (rows - 1)) / rows)
-      );
-
-      if (!allEntries.length) {
-        roundedRect(ctx, 70, 350, 940, 360, 28);
-        ctx.fillStyle = "rgba(255,255,255,0.045)";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(250,204,21,0.24)";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = blur;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
         ctx.stroke();
+        ctx.restore();
+      }
 
-        ctx.fillStyle = "#facc15";
-        ctx.font = "900 34px Arial, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("SEMAINE À PLANIFIER", width / 2, 495);
-        ctx.fillStyle = "#8fa0b4";
-        ctx.font = "600 25px Arial, sans-serif";
-        ctx.fillText(
-          "Ajoute les compétitions et tournois depuis le dashboard GX NOVA.",
-          width / 2,
-          550
+      function drawGlowBox(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number,
+        color: string,
+        alpha = 0.18,
+        blur = 26
+      ) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = blur;
+        roundedRect(ctx, x, y, width, height, radius);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawSizedText(
+        ctx: CanvasRenderingContext2D,
+        text: string,
+        x: number,
+        y: number,
+        maxWidth: number,
+        startSize: number,
+        minSize: number,
+        weight: number,
+        color: string
+      ) {
+        const clean = text.trim();
+        const size = fitText(ctx, clean, maxWidth, startSize, minSize);
+        ctx.fillStyle = color;
+        ctx.font = `${weight} ${size}px Arial, sans-serif`;
+
+        let rendered = clean;
+        if (ctx.measureText(rendered).width > maxWidth) {
+          const ellipsis = "…";
+          while (
+            rendered.length > 1 &&
+            ctx.measureText(`${rendered}${ellipsis}`).width > maxWidth
+          ) {
+            rendered = rendered.slice(0, -1);
+          }
+          rendered = `${rendered.trimEnd()}${ellipsis}`;
+        }
+
+        ctx.fillText(rendered, x, y);
+      }
+
+      function drawBackground(
+        ctx: CanvasRenderingContext2D,
+        height: number,
+        pageIndex: number
+      ) {
+        const background = ctx.createLinearGradient(0, 0, posterWidth, height);
+        background.addColorStop(0, palette.backgroundTop);
+        background.addColorStop(0.48, palette.backgroundMiddle);
+        background.addColorStop(1, palette.backgroundBottom);
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, posterWidth, height);
+
+        ctx.save();
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = palette.cyan;
+        for (let x = -360; x < posterWidth + 420; x += 260) {
+          ctx.save();
+          ctx.translate(x, -150);
+          ctx.rotate(-0.21);
+          ctx.fillRect(0, 0, 22, height + 420);
+          ctx.restore();
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.07;
+        ctx.fillStyle = palette.yellow;
+        for (let x = -220; x < posterWidth + 500; x += 390) {
+          ctx.save();
+          ctx.translate(x, -100);
+          ctx.rotate(-0.21);
+          ctx.fillRect(0, 0, 92, height + 360);
+          ctx.restore();
+        }
+        ctx.restore();
+
+        for (let index = 0; index < 7; index += 1) {
+          const centerX = 1260 + index * 84;
+          const centerY = 42 + index * 45;
+          ctx.save();
+          ctx.globalAlpha = 0.05;
+          ctx.strokeStyle = index % 2 === 0 ? palette.cyan : palette.yellow;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, 150 + index * 30, 0.2, 2.65);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        drawNeonLine(ctx, 0, 7, posterWidth, 7, palette.yellow, 8, 24);
+        drawNeonLine(
+          ctx,
+          pageIndex === 0 ? 0 : 1120,
+          198,
+          pageIndex === 0 ? 830 : posterWidth,
+          198,
+          palette.cyan,
+          3,
+          20
         );
-        ctx.textAlign = "left";
-      } else {
-        let y = startY;
+      }
 
-        for (const day of activeDays) {
-          const items = schedule[day.key] ?? [];
-          roundedRect(ctx, 54, y, 972, cardHeight, 26);
-          ctx.fillStyle = "rgba(7, 22, 38, 0.94)";
+      function drawHeader(
+        ctx: CanvasRenderingContext2D,
+        height: number,
+        pageTitle: string,
+        pageIndex: number
+      ) {
+        if (clubLogo) {
+          ctx.save();
+          ctx.globalAlpha = 0.055;
+          ctx.drawImage(clubLogo, posterWidth - 430, -50, 420, 420);
+          ctx.restore();
+
+          drawGlowBox(ctx, 55, 42, 142, 142, 28, palette.cyan, 0.14, 34);
+          roundedRect(ctx, 55, 42, 142, 142, 28);
+          ctx.fillStyle = "rgba(4,17,31,0.94)";
           ctx.fill();
-          ctx.strokeStyle = "rgba(250,204,21,0.20)";
+          ctx.strokeStyle = "rgba(48,217,255,0.38)";
           ctx.lineWidth = 2;
           ctx.stroke();
+          ctx.drawImage(clubLogo, 70, 57, 112, 112);
+        }
 
-          roundedRect(ctx, 72, y + 18, 160, cardHeight - 36, 20);
-          ctx.fillStyle = "rgba(250,204,21,0.10)";
-          ctx.fill();
+        ctx.fillStyle = palette.yellow;
+        ctx.font = "900 27px Arial, sans-serif";
+        ctx.fillText("GX NOVA • FC27", 230, 82);
 
-          ctx.fillStyle = "#facc15";
+        drawSizedText(
+          ctx,
+          "PROGRAMME DE LA SEMAINE",
+          230,
+          145,
+          1050,
+          70,
+          46,
+          900,
+          palette.white
+        );
+
+        ctx.fillStyle = palette.muted;
+        ctx.font = "800 28px Arial, sans-serif";
+        ctx.fillText(weekLabel.toUpperCase(), 230, 187);
+
+        roundedRect(ctx, 1330, 48, 520, 126, 28);
+        const infoGradient = ctx.createLinearGradient(1330, 48, 1850, 174);
+        infoGradient.addColorStop(0, "rgba(10,110,145,0.22)");
+        infoGradient.addColorStop(1, "rgba(250,204,21,0.08)");
+        ctx.fillStyle = infoGradient;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(48,217,255,0.20)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = palette.cyan;
+        ctx.font = "900 14px Arial, sans-serif";
+        ctx.fillText("WEEKLY MATCH PLAN / 週間プログラム", 1360, 80);
+
+        ctx.fillStyle = palette.white;
+        ctx.font = "900 32px Arial, sans-serif";
+        ctx.fillText(pageTitle, 1360, 120);
+
+        ctx.fillStyle = palette.muted;
+        ctx.font = "700 17px Arial, sans-serif";
+        ctx.fillText(
+          pageIndex === 0
+            ? "Partie 1 • Dimanche → Mercredi"
+            : "Partie 2 • Jeudi → Samedi",
+          1360,
+          151
+        );
+
+        ctx.save();
+        ctx.translate(posterWidth - 24, 252);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.font = "900 16px Arial, sans-serif";
+        ctx.fillText("GX NOVA // BLUELOCK MODE // OFFICIAL STAFF", 0, 0);
+        ctx.restore();
+      }
+
+      function getDayCardHeight(day: (typeof days)[number]) {
+        const items = schedule[day.key] ?? [];
+        if (!items.length) {
+          return cardHeaderHeight + cardPadding * 2 + emptyHeight;
+        }
+
+        return (
+          cardHeaderHeight +
+          cardPadding * 2 +
+          items.length * eventHeight +
+          Math.max(0, items.length - 1) * eventGap
+        );
+      }
+
+      async function drawOpponentLogo(
+        ctx: CanvasRenderingContext2D,
+        item: ProgrammeItem,
+        x: number,
+        y: number,
+        size: number
+      ) {
+        drawGlowBox(ctx, x, y, size, size, 18, palette.cyan, 0.10, 20);
+        roundedRect(ctx, x, y, size, size, 18);
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.11)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        const opponentLogo = item.opponentLogoUrl
+          ? await getCachedImage(item.opponentLogoUrl)
+          : null;
+
+        if (opponentLogo) {
+          const inner = 8;
+          ctx.save();
+          roundedRect(
+            ctx,
+            x + inner,
+            y + inner,
+            size - inner * 2,
+            size - inner * 2,
+            14
+          );
+          ctx.clip();
+          ctx.drawImage(
+            opponentLogo,
+            x + inner,
+            y + inner,
+            size - inner * 2,
+            size - inner * 2
+          );
+          ctx.restore();
+        } else if (item.opponentName.trim()) {
+          ctx.fillStyle = palette.white;
           ctx.font = "900 24px Arial, sans-serif";
-          ctx.fillText(day.name.toUpperCase(), 92, y + 54);
-          ctx.fillStyle = "#ffffff";
-          ctx.font = "900 30px Arial, sans-serif";
-          ctx.fillText(formatDayDate(day.date), 92, y + 92);
-
-          const itemAreaX = 258;
-          const itemAreaWidth = 742;
-          const itemGap = 10;
-          const itemHeight =
-            (cardHeight - 36 - itemGap * (items.length - 1)) /
-            Math.max(1, items.length);
-
-          for (let index = 0; index < items.length; index += 1) {
-            const item = items[index];
-            const itemY = y + 18 + index * (itemHeight + itemGap);
-
-            roundedRect(ctx, itemAreaX, itemY, itemAreaWidth, itemHeight, 18);
-            ctx.fillStyle =
-              item.type === "competition"
-                ? "rgba(19, 78, 74, 0.42)"
-                : "rgba(71, 42, 12, 0.48)";
-            ctx.fill();
-
-            const badgeText = item.time || "--:--";
-            roundedRect(ctx, itemAreaX + 14, itemY + 14, 100, itemHeight - 28, 14);
-            ctx.fillStyle = "rgba(0,0,0,0.30)";
-            ctx.fill();
-            ctx.fillStyle = "#facc15";
-            ctx.font = "900 24px Arial, sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText(
-              badgeText,
-              itemAreaX + 64,
-              itemY + itemHeight / 2 + 8
-            );
-            ctx.textAlign = "left";
-
-            const label = competitionLabel(item, competitions);
-            ctx.fillStyle = "#ffffff";
-            const labelSize = fitText(ctx, label, 330, 26, 18);
-            ctx.font = `900 ${labelSize}px Arial, sans-serif`;
-            ctx.fillText(label, itemAreaX + 132, itemY + 34);
-
-            if (item.opponentName) {
-              ctx.fillStyle = "#a7b6c8";
-              const opponentSize = fitText(
-                ctx,
-                `vs ${item.opponentName}`,
-                330,
-                23,
-                16
-              );
-              ctx.font = `700 ${opponentSize}px Arial, sans-serif`;
-              ctx.fillText(
-                `vs ${item.opponentName}`,
-                itemAreaX + 132,
-                itemY + Math.min(itemHeight - 16, 66)
-              );
-            } else if (item.notes) {
-              ctx.fillStyle = "#8fa0b4";
-              ctx.font = "600 17px Arial, sans-serif";
-              ctx.fillText(
-                item.notes.slice(0, 50),
-                itemAreaX + 132,
-                itemY + Math.min(itemHeight - 16, 66)
-              );
-            }
-
-            const logoX = itemAreaX + itemAreaWidth - 72;
-            const logoY = itemY + itemHeight / 2;
-            let opponentLogo: HTMLImageElement | null = null;
-
-            if (item.opponentLogoUrl) {
-              try {
-                opponentLogo = await loadImage(item.opponentLogoUrl);
-              } catch {
-                opponentLogo = null;
-              }
-            }
-
-            if (opponentLogo) {
-              const size = Math.min(54, itemHeight - 20);
-              ctx.drawImage(
-                opponentLogo,
-                logoX - size / 2,
-                logoY - size / 2,
-                size,
-                size
-              );
-            } else if (item.opponentName) {
-              ctx.fillStyle = "rgba(255,255,255,0.08)";
-              ctx.beginPath();
-              ctx.arc(logoX, logoY, 26, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.fillStyle = "#d3dbe5";
-              ctx.font = "900 17px Arial, sans-serif";
-              ctx.textAlign = "center";
-              ctx.fillText(
-                fallbackInitials(item.opponentName),
-                logoX,
-                logoY + 6
-              );
-              ctx.textAlign = "left";
-            }
-          }
-
-          y += cardHeight + gap;
+          ctx.textAlign = "center";
+          ctx.fillText(
+            fallbackInitials(item.opponentName),
+            x + size / 2,
+            y + size / 2 + 8
+          );
+          ctx.textAlign = "left";
+        } else {
+          ctx.fillStyle = "rgba(255,255,255,0.26)";
+          ctx.font = "900 23px Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("GX", x + size / 2, y + size / 2 + 8);
+          ctx.textAlign = "left";
         }
       }
 
-      ctx.fillStyle = "rgba(255,255,255,0.28)";
-      ctx.font = "600 18px Arial, sans-serif";
-      ctx.fillText("GX NOVA • PROGRAMME OFFICIEL STAFF", 70, height - 42);
+      async function drawEvent(
+        ctx: CanvasRenderingContext2D,
+        item: ProgrammeItem,
+        x: number,
+        y: number,
+        width: number
+      ) {
+        const isCompetition = item.type === "competition";
+        const accent = isCompetition ? palette.cyan : palette.yellow;
+        const secondary = isCompetition ? palette.blue : "#ff8a17";
 
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/png", 1)
-      );
+        const rowGradient = ctx.createLinearGradient(x, y, x + width, y);
+        if (isCompetition) {
+          rowGradient.addColorStop(0, "rgba(7,77,104,0.96)");
+          rowGradient.addColorStop(0.45, "rgba(7,43,63,0.97)");
+          rowGradient.addColorStop(1, "rgba(4,23,37,0.98)");
+        } else {
+          rowGradient.addColorStop(0, "rgba(112,67,9,0.96)");
+          rowGradient.addColorStop(0.48, "rgba(67,38,7,0.97)");
+          rowGradient.addColorStop(1, "rgba(28,19,8,0.98)");
+        }
 
-      if (!blob) {
-        throw new Error("Impossible de générer le fichier PNG.");
+        drawGlowBox(ctx, x, y, width, eventHeight, 20, accent, 0.075, 26);
+        roundedRect(ctx, x, y, width, eventHeight, 20);
+        ctx.fillStyle = rowGradient;
+        ctx.fill();
+        ctx.strokeStyle = isCompetition
+          ? "rgba(48,217,255,0.30)"
+          : "rgba(250,204,21,0.30)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = accent;
+        ctx.fillRect(x, y, 7, eventHeight);
+
+        const timeX = x + 20;
+        const timeWidth = 114;
+        roundedRect(ctx, timeX, y + 19, timeWidth, eventHeight - 38, 16);
+        ctx.fillStyle = "rgba(0,0,0,0.32)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = palette.yellow;
+        ctx.font = "900 28px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(item.time || "--:--", timeX + timeWidth / 2, y + 72);
+        ctx.textAlign = "left";
+
+        const logoSize = 82;
+        const logoX = x + width - logoSize - 20;
+        const logoY = y + (eventHeight - logoSize) / 2;
+        await drawOpponentLogo(ctx, item, logoX, logoY, logoSize);
+
+        const textX = timeX + timeWidth + 26;
+        const maxTextWidth = logoX - textX - 22;
+
+        const typeLabel = isCompetition ? "COMPÉTITION" : "TOURNOI";
+        const chipWidth = isCompetition ? 122 : 84;
+        roundedRect(ctx, textX, y + 15, chipWidth, 24, 10);
+        ctx.fillStyle = isCompetition
+          ? "rgba(48,217,255,0.16)"
+          : "rgba(250,204,21,0.16)";
+        ctx.fill();
+        ctx.fillStyle = accent;
+        ctx.font = "900 12px Arial, sans-serif";
+        ctx.fillText(typeLabel, textX + 10, y + 32);
+
+        const title = isCompetition
+          ? competitionLabel(item, competitions)
+          : item.title.trim() || "Tournoi";
+
+        drawSizedText(
+          ctx,
+          title,
+          textX,
+          y + 68,
+          maxTextWidth,
+          29,
+          18,
+          900,
+          palette.white
+        );
+
+        const opponent = item.opponentName.trim()
+          ? `VS ${item.opponentName.trim()}`
+          : "";
+
+        if (opponent) {
+          drawSizedText(
+            ctx,
+            opponent,
+            textX,
+            y + 96,
+            maxTextWidth,
+            20,
+            14,
+            800,
+            "#d8e5f2"
+          );
+        }
+
+        if (item.notes.trim()) {
+          const notesY = opponent ? y + 117 : y + 102;
+          drawSizedText(
+            ctx,
+            item.notes.trim(),
+            textX,
+            notesY,
+            maxTextWidth,
+            15,
+            11,
+            700,
+            "#8fa8bf"
+          );
+        }
+
+        drawNeonLine(
+          ctx,
+          textX + Math.min(chipWidth + 14, maxTextWidth - 30),
+          y + 27,
+          Math.min(textX + maxTextWidth - 10, x + width - 130),
+          y + 27,
+          secondary,
+          1.5,
+          8
+        );
       }
 
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `GX-NOVA-programme-${weekStart}.png`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      async function drawDayCard(
+        ctx: CanvasRenderingContext2D,
+        day: (typeof days)[number],
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        dayIndex: number
+      ) {
+        const items = schedule[day.key] ?? [];
+
+        drawGlowBox(ctx, x, y, width, height, 30, palette.cyan, 0.045, 30);
+        roundedRect(ctx, x, y, width, height, 30);
+        ctx.fillStyle = palette.card;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(48,217,255,0.14)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        const headGradient = ctx.createLinearGradient(x, y, x + width, y);
+        headGradient.addColorStop(0, "rgba(48,217,255,0.16)");
+        headGradient.addColorStop(0.52, "rgba(10,44,66,0.10)");
+        headGradient.addColorStop(1, "rgba(250,204,21,0.08)");
+
+        roundedRect(
+          ctx,
+          x + 12,
+          y + 12,
+          width - 24,
+          cardHeaderHeight - 18,
+          22
+        );
+        ctx.fillStyle = headGradient;
+        ctx.fill();
+
+        const numberBadge = String(dayIndex + 1).padStart(2, "0");
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.font = "900 60px Arial, sans-serif";
+        ctx.fillText(numberBadge, x + width - 94, y + 73);
+
+        ctx.fillStyle = palette.yellow;
+        ctx.font = "900 25px Arial, sans-serif";
+        ctx.fillText(day.name.toUpperCase(), x + 28, y + 48);
+
+        ctx.fillStyle = palette.white;
+        ctx.font = "900 34px Arial, sans-serif";
+        ctx.fillText(formatDayDate(day.date), x + 28, y + 84);
+
+        const contentX = x + cardPadding;
+        const contentY = y + cardHeaderHeight + cardPadding;
+        const contentWidth = width - cardPadding * 2;
+
+        if (!items.length) {
+          roundedRect(ctx, contentX, contentY, contentWidth, emptyHeight, 20);
+          ctx.fillStyle = "rgba(255,255,255,0.025)";
+          ctx.fill();
+          ctx.setLineDash([10, 9]);
+          ctx.strokeStyle = "rgba(255,255,255,0.09)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = "#687c91";
+          ctx.font = "900 24px Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "AUCUNE PROGRAMMATION",
+            contentX + contentWidth / 2,
+            contentY + 68
+          );
+          ctx.fillStyle = "#53677c";
+          ctx.font = "700 16px Arial, sans-serif";
+          ctx.fillText(
+            "Repos / entraînement libre",
+            contentX + contentWidth / 2,
+            contentY + 100
+          );
+          ctx.textAlign = "left";
+          return;
+        }
+
+        for (let index = 0; index < items.length; index += 1) {
+          await drawEvent(
+            ctx,
+            items[index],
+            contentX,
+            contentY + index * (eventHeight + eventGap),
+            contentWidth
+          );
+        }
+      }
+
+      async function buildPoster(
+        pageDays: Array<(typeof days)[number]>,
+        pageIndex: number
+      ) {
+        const rowGap = 24;
+        let posterHeight = 0;
+        let columnWidth = 0;
+        let rowHeights: number[] = [];
+
+        if (pageIndex === 0) {
+          columnWidth =
+            (posterWidth - pagePadding * 2 - columnGap) / 2;
+
+          rowHeights = [
+            Math.max(
+              getDayCardHeight(pageDays[0]),
+              getDayCardHeight(pageDays[1])
+            ),
+            Math.max(
+              getDayCardHeight(pageDays[2]),
+              getDayCardHeight(pageDays[3])
+            ),
+          ];
+
+          const bodyHeight = rowHeights[0] + rowGap + rowHeights[1];
+          posterHeight = headerHeight + bodyHeight + footerHeight;
+        } else {
+          columnWidth =
+            (posterWidth - pagePadding * 2 - columnGap * 2) / 3;
+          const tallestCard = Math.max(...pageDays.map(getDayCardHeight));
+          rowHeights = [tallestCard];
+          posterHeight = headerHeight + tallestCard + footerHeight;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = posterWidth;
+        canvas.height = posterHeight;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          throw new Error("Impossible de créer l'affiche.");
+        }
+
+        drawBackground(ctx, posterHeight, pageIndex);
+        drawHeader(
+          ctx,
+          posterHeight,
+          pageIndex === 0 ? "MATCH DAYS 01" : "MATCH DAYS 02",
+          pageIndex
+        );
+
+        if (pageIndex === 0) {
+          for (let index = 0; index < pageDays.length; index += 1) {
+            const row = Math.floor(index / 2);
+            const column = index % 2;
+            const x = pagePadding + column * (columnWidth + columnGap);
+            const y =
+              headerHeight +
+              (row === 0 ? 0 : rowHeights[0] + rowGap);
+
+            await drawDayCard(
+              ctx,
+              pageDays[index],
+              x,
+              y,
+              columnWidth,
+              rowHeights[row],
+              days.findIndex((entry) => entry.key === pageDays[index].key)
+            );
+          }
+        } else {
+          for (let index = 0; index < pageDays.length; index += 1) {
+            const x = pagePadding + index * (columnWidth + columnGap);
+            await drawDayCard(
+              ctx,
+              pageDays[index],
+              x,
+              headerHeight,
+              columnWidth,
+              rowHeights[0],
+              days.findIndex((entry) => entry.key === pageDays[index].key)
+            );
+          }
+        }
+
+        const footerY = posterHeight - footerHeight;
+        drawNeonLine(
+          ctx,
+          pagePadding,
+          footerY + 7,
+          posterWidth - pagePadding,
+          footerY + 7,
+          palette.cyan,
+          1.5,
+          10
+        );
+
+        ctx.fillStyle = "rgba(255,255,255,0.30)";
+        ctx.font = "800 17px Arial, sans-serif";
+        ctx.fillText(
+          "GX NOVA • PROGRAMME OFFICIEL STAFF & JOUEURS",
+          pagePadding,
+          posterHeight - 28
+        );
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = "rgba(250,204,21,0.56)";
+        ctx.font = "900 16px Arial, sans-serif";
+        ctx.fillText(
+          pageIndex === 0 ? "01 / 02" : "02 / 02",
+          posterWidth - pagePadding,
+          posterHeight - 28
+        );
+        ctx.textAlign = "left";
+
+        return canvas;
+      }
+
+      async function canvasToBlob(canvas: HTMLCanvasElement) {
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, "image/png", 1)
+        );
+
+        if (!blob) {
+          throw new Error("Impossible de générer le fichier PNG.");
+        }
+
+        return blob;
+      }
+
+      function downloadBlob(blob: Blob, filename: string) {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+      }
+
+      const firstPoster = await buildPoster(days.slice(0, 4), 0);
+      const secondPoster = await buildPoster(days.slice(4, 7), 1);
+
+      const firstBlob = await canvasToBlob(firstPoster);
+      const secondBlob = await canvasToBlob(secondPoster);
+
+      downloadBlob(
+        firstBlob,
+        `GX-NOVA-programme-${weekStart}-01-dimanche-mercredi.png`
+      );
+
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
+
+      downloadBlob(
+        secondBlob,
+        `GX-NOVA-programme-${weekStart}-02-jeudi-samedi.png`
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Erreur pendant l'export PNG."
@@ -705,7 +1175,7 @@ export default function ProgrammePage() {
               </div>
               <p className="mt-2 text-2xl font-black">{weekLabel}</p>
               <p className="mt-2 text-sm text-gray-500">
-                Planifie les compétitions et tournois, puis exporte une affiche PNG prête pour Discord.
+                Planifie les compétitions et tournois, puis exporte une affiche PNG premium en 2 affiches, prêtes pour Discord.
               </p>
             </div>
 
@@ -739,7 +1209,7 @@ export default function ProgrammePage() {
                 className="ml-0 flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-sm font-black text-blue-300 transition hover:bg-blue-400/15 disabled:opacity-50 xl:ml-3"
               >
                 <Download size={17} />
-                {exporting ? "Création PNG..." : "Exporter pour Discord"}
+                {exporting ? "Création des 2 affiches..." : "Exporter Discord (2 affiches)"}
               </button>
 
               {canEdit && (
