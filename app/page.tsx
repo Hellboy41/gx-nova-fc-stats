@@ -108,6 +108,40 @@ type Player = {
   positionStats: PlayerPositionStats[];
 };
 
+type PlayerMatchHistoryItem = {
+  matchId: number;
+  eaMatchId: string;
+  playedAt: string | null;
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  result: "V" | "N" | "D";
+  seasonId: number | null;
+  seasonName: string | null;
+  competitionId: number | null;
+  competitionName: string | null;
+  competitionShortName: string | null;
+  position: string;
+  rating: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  passesMade: number;
+  passAttempts: number;
+  passSuccess: number;
+  tacklesMade: number;
+  tackleAttempts: number;
+  tackleSuccess: number;
+  saves: number;
+  redCards: number;
+};
+
+type PlayerHistoryResponse = {
+  playerId: string;
+  playerName: string;
+  performances: PlayerMatchHistoryItem[];
+};
+
 type LineupSpot = {
   slot: string;
   name: string;
@@ -2217,6 +2251,12 @@ export default function Home() {
           }
           currentFilterLabel={
             currentFilterLabel
+          }
+          seasonId={
+            selectedSeason
+          }
+          competitionId={
+            selectedCompetition
           }
           onClose={() =>
             setSelectedPlayer(
@@ -5914,16 +5954,37 @@ function ComparisonMiniStat({
 function PlayerDetailModal({
   player,
   currentFilterLabel,
+  seasonId,
+  competitionId,
   onClose,
 }: {
   player: Player;
   currentFilterLabel: string;
+  seasonId: string;
+  competitionId: string;
   onClose: () => void;
 }) {
   const [
     selectedPosition,
     setSelectedPosition,
   ] = useState("global");
+
+  const [
+    history,
+    setHistory,
+  ] = useState<PlayerMatchHistoryItem[]>(
+    []
+  );
+
+  const [
+    historyLoading,
+    setHistoryLoading,
+  ] = useState(true);
+
+  const [
+    historyError,
+    setHistoryError,
+  ] = useState("");
 
   const availablePositions =
     player.positionStats
@@ -5941,6 +6002,181 @@ function PlayerDetailModal({
     getPlayerStatsForScope(
       player,
       selectedPosition
+    );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPlayerHistory() {
+      try {
+        setHistoryLoading(true);
+        setHistoryError("");
+
+        const params =
+          new URLSearchParams();
+
+        params.set(
+          "playerId",
+          player.id
+        );
+
+        params.set(
+          "playerName",
+          player.name
+        );
+
+        if (
+          seasonId !==
+          "all"
+        ) {
+          params.set(
+            "seasonId",
+            seasonId
+          );
+        }
+
+        if (
+          competitionId !==
+          "all"
+        ) {
+          params.set(
+            "competitionId",
+            competitionId
+          );
+        }
+
+        const response =
+          await fetch(
+            `/api/player-history?${params.toString()}`,
+            {
+              cache:
+                "no-store",
+            }
+          );
+
+        const data =
+          (await response.json()) as PlayerHistoryResponse & {
+            error?: string;
+            details?: string;
+          };
+
+        if (!response.ok) {
+          throw new Error(
+            data.details ??
+              data.error ??
+              "Impossible de charger l'historique du joueur."
+          );
+        }
+
+        if (!cancelled) {
+          setHistory(
+            data.performances ??
+              []
+          );
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setHistoryError(
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger l'historique du joueur."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoading(
+            false
+          );
+        }
+      }
+    }
+
+    void loadPlayerHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    player.id,
+    player.name,
+    seasonId,
+    competitionId,
+  ]);
+
+  const filteredHistory =
+    useMemo(
+      () =>
+        selectedPosition ===
+        "global"
+          ? history
+          : history.filter(
+              (performance) =>
+                performance.position ===
+                selectedPosition
+            ),
+      [
+        history,
+        selectedPosition,
+      ]
+    );
+
+  const historySummary =
+    useMemo(
+      () => {
+        const rated =
+          filteredHistory.filter(
+            (performance) =>
+              performance.rating >
+              0
+          );
+
+        const average =
+          rated.length > 0
+            ? rated.reduce(
+                (
+                  total,
+                  performance
+                ) =>
+                  total +
+                  performance.rating,
+                0
+              ) /
+              rated.length
+            : 0;
+
+        const recent =
+          rated.slice(
+            0,
+            5
+          );
+
+        const recentAverage =
+          recent.length > 0
+            ? recent.reduce(
+                (
+                  total,
+                  performance
+                ) =>
+                  total +
+                  performance.rating,
+                0
+              ) /
+              recent.length
+            : 0;
+
+        return {
+          average,
+          recentAverage,
+          delta:
+            recentAverage -
+            average,
+          ratedMatches:
+            rated.length,
+        };
+      },
+      [
+        filteredHistory,
+      ]
     );
 
   const goalsPerGame =
@@ -5962,7 +6198,7 @@ function PlayerDetailModal({
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
 
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-yellow-400/20 bg-[#07111f]">
+      <div className="max-h-[94vh] w-full max-w-7xl overflow-y-auto rounded-3xl border border-yellow-400/20 bg-[#07111f]">
 
         <div className="relative border-b border-white/10 bg-gradient-to-r from-yellow-400/10 via-transparent to-cyan-400/[0.04] p-7">
 
@@ -5994,7 +6230,7 @@ function PlayerDetailModal({
             <div className="min-w-0">
 
               <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
-                GX NOVA • FICHE JOUEUR
+                GX NOVA • FICHE JOUEUR AVANCÉE
               </p>
 
               <h2 className="mt-2 truncate text-3xl font-black">
@@ -6335,10 +6571,677 @@ function PlayerDetailModal({
 
         </div>
 
+        <div className="border-t border-white/[0.07] px-6 py-6">
+
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+
+            <div>
+
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">
+                Historique détaillé
+              </p>
+
+              <h3 className="mt-1 text-2xl font-black">
+                Évolution match par match
+              </h3>
+
+              <p className="mt-1 text-xs font-semibold text-gray-500">
+                {selectedPosition ===
+                "global"
+                  ? "Tous les postes joués"
+                  : `Uniquement les matchs joués comme ${formatPositionLong(
+                      selectedPosition
+                    ).toLowerCase()}`}
+              </p>
+
+            </div>
+
+            {!historyLoading &&
+              !historyError &&
+              filteredHistory.length >
+                0 && (
+
+              <div className="flex flex-wrap gap-2">
+
+                <PlayerHistorySummaryChip
+                  label="Moyenne"
+                  value={historySummary.average.toFixed(
+                    2
+                  )}
+                />
+
+                <PlayerHistorySummaryChip
+                  label="5 derniers"
+                  value={historySummary.recentAverage.toFixed(
+                    2
+                  )}
+                />
+
+                <PlayerHistorySummaryChip
+                  label="Forme"
+                  value={`${
+                    historySummary.delta >
+                    0
+                      ? "+"
+                      : ""
+                  }${historySummary.delta.toFixed(
+                    2
+                  )}`}
+                  tone={
+                    historySummary.delta >
+                    0.05
+                      ? "green"
+                      : historySummary.delta <
+                        -0.05
+                      ? "red"
+                      : "neutral"
+                  }
+                />
+
+              </div>
+
+            )}
+
+          </div>
+
+          {historyLoading ? (
+
+            <div className="rounded-2xl border border-white/[0.07] bg-[#091626] p-8 text-center">
+
+              <RefreshCw
+                size={22}
+                className="mx-auto animate-spin text-cyan-300"
+              />
+
+              <p className="mt-3 text-sm font-bold text-gray-500">
+                Chargement de l&apos;historique du joueur...
+              </p>
+
+            </div>
+
+          ) : historyError ? (
+
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.05] p-5 text-sm font-semibold text-rose-200">
+              {historyError}
+            </div>
+
+          ) : filteredHistory.length ===
+            0 ? (
+
+            <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center">
+
+              <BarChart3
+                size={30}
+                className="mx-auto text-gray-700"
+              />
+
+              <p className="mt-3 text-sm font-bold text-gray-600">
+                Aucun match disponible pour ce poste et ces filtres.
+              </p>
+
+            </div>
+
+          ) : (
+
+            <div className="space-y-5">
+
+              <PlayerRatingTrend
+                performances={
+                  filteredHistory
+                }
+                average={
+                  historySummary.average
+                }
+              />
+
+              <PlayerMatchHistoryTable
+                performances={
+                  filteredHistory
+                }
+              />
+
+            </div>
+
+          )}
+
+        </div>
+
       </div>
 
     </div>
   );
+}
+
+function PlayerHistorySummaryChip({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?:
+    | "green"
+    | "red"
+    | "neutral";
+}) {
+  const valueClass =
+    tone === "green"
+      ? "text-emerald-300"
+      : tone === "red"
+      ? "text-rose-300"
+      : "text-yellow-300";
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-2">
+
+      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">
+        {label}
+      </p>
+
+      <p className={`mt-1 text-lg font-black ${valueClass}`}>
+        {value}
+      </p>
+
+    </div>
+  );
+}
+
+function PlayerRatingTrend({
+  performances,
+  average,
+}: {
+  performances: PlayerMatchHistoryItem[];
+  average: number;
+}) {
+  const points =
+    performances
+      .filter(
+        (performance) =>
+          performance.rating >
+          0
+      )
+      .slice(
+        0,
+        20
+      )
+      .reverse();
+
+  const width = 900;
+  const height = 250;
+  const left = 46;
+  const right = 28;
+  const top = 24;
+  const bottom = 42;
+
+  const usableWidth =
+    width -
+    left -
+    right;
+
+  const usableHeight =
+    height -
+    top -
+    bottom;
+
+  const pointForIndex = (
+    rating: number,
+    index: number
+  ) => {
+    const x =
+      points.length <= 1
+        ? left +
+          usableWidth /
+            2
+        : left +
+          (index /
+            (points.length -
+              1)) *
+            usableWidth;
+
+    const y =
+      top +
+      (1 -
+        Math.max(
+          0,
+          Math.min(
+            10,
+            rating
+          )
+        ) /
+          10) *
+        usableHeight;
+
+    return {
+      x,
+      y,
+    };
+  };
+
+  const polyline =
+    points
+      .map(
+        (
+          performance,
+          index
+        ) => {
+          const point =
+            pointForIndex(
+              performance.rating,
+              index
+            );
+
+          return `${point.x},${point.y}`;
+        }
+      )
+      .join(" ");
+
+  const averageY =
+    top +
+    (1 -
+      Math.max(
+        0,
+        Math.min(
+          10,
+          average
+        )
+      ) /
+        10) *
+      usableHeight;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-cyan-400/15 bg-[#091626]">
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+
+        <div>
+
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-cyan-300">
+            Courbe de forme
+          </p>
+
+          <h4 className="mt-1 text-base font-black">
+            Note EA • {points.length} dernier{points.length > 1 ? "s" : ""} match{points.length > 1 ? "s" : ""}
+          </h4>
+
+        </div>
+
+        <div className="rounded-lg border border-yellow-400/15 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-300">
+          Moy. {average.toFixed(
+            2
+          )}
+        </div>
+
+      </div>
+
+      {points.length > 0 ? (
+
+        <div className="overflow-x-auto p-4">
+
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="h-[260px] min-w-[760px] w-full"
+            role="img"
+            aria-label="Évolution des notes du joueur"
+          >
+
+            {[2, 4, 6, 8, 10].map(
+              (value) => {
+                const y =
+                  top +
+                  (1 -
+                    value /
+                      10) *
+                    usableHeight;
+
+                return (
+                  <g
+                    key={
+                      value
+                    }
+                  >
+
+                    <line
+                      x1={
+                        left
+                      }
+                      x2={
+                        width -
+                        right
+                      }
+                      y1={y}
+                      y2={y}
+                      stroke="rgba(255,255,255,0.07)"
+                      strokeWidth="1"
+                    />
+
+                    <text
+                      x={
+                        left -
+                        12
+                      }
+                      y={
+                        y +
+                        4
+                      }
+                      fill="rgba(148,163,184,0.55)"
+                      fontSize="11"
+                      textAnchor="end"
+                    >
+                      {value}
+                    </text>
+
+                  </g>
+                );
+              }
+            )}
+
+            <line
+              x1={left}
+              x2={
+                width -
+                right
+              }
+              y1={
+                averageY
+              }
+              y2={
+                averageY
+              }
+              stroke="rgba(250,204,21,0.35)"
+              strokeWidth="1.5"
+              strokeDasharray="7 7"
+            />
+
+            {points.length >
+              1 && (
+
+              <polyline
+                points={
+                  polyline
+                }
+                fill="none"
+                stroke="rgb(34,211,238)"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+            )}
+
+            {points.map(
+              (
+                performance,
+                index
+              ) => {
+                const point =
+                  pointForIndex(
+                    performance.rating,
+                    index
+                  );
+
+                return (
+                  <g
+                    key={`${performance.matchId}-${index}`}
+                  >
+
+                    <circle
+                      cx={
+                        point.x
+                      }
+                      cy={
+                        point.y
+                      }
+                      r="6"
+                      fill="rgb(250,204,21)"
+                      stroke="#07111f"
+                      strokeWidth="3"
+                    />
+
+                    <text
+                      x={
+                        point.x
+                      }
+                      y={
+                        point.y -
+                        12
+                      }
+                      fill="white"
+                      fontSize="11"
+                      fontWeight="900"
+                      textAnchor="middle"
+                    >
+                      {performance.rating.toFixed(
+                        1
+                      )}
+                    </text>
+
+                    <text
+                      x={
+                        point.x
+                      }
+                      y={
+                        height -
+                        16
+                      }
+                      fill="rgba(148,163,184,0.65)"
+                      fontSize="9"
+                      fontWeight="700"
+                      textAnchor="middle"
+                    >
+                      {shortOpponentName(
+                        performance.opponent
+                      )}
+                    </text>
+
+                  </g>
+                );
+              }
+            )}
+
+          </svg>
+
+        </div>
+
+      ) : (
+
+        <div className="p-8 text-center text-sm font-bold text-gray-600">
+          Aucune note à afficher.
+        </div>
+
+      )}
+
+    </section>
+  );
+}
+
+function PlayerMatchHistoryTable({
+  performances,
+}: {
+  performances: PlayerMatchHistoryItem[];
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#091626]">
+
+      <div className="border-b border-white/[0.07] px-5 py-4">
+
+        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-yellow-300">
+          Détail des matchs
+        </p>
+
+        <h4 className="mt-1 text-base font-black">
+          {performances.length} performance{performances.length > 1 ? "s" : ""}
+        </h4>
+
+      </div>
+
+      <div className="overflow-x-auto">
+
+        <div className="min-w-[1180px]">
+
+          <div className="grid grid-cols-[95px_190px_120px_85px_75px_70px_70px_90px_90px_80px_80px] border-b border-white/[0.07] bg-[#071321] px-4 py-3 text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">
+
+            <span>Date</span>
+            <span>Adversaire</span>
+            <span>Compétition</span>
+            <span>Poste</span>
+            <span className="text-center">Note</span>
+            <span className="text-center">B</span>
+            <span className="text-center">PD</span>
+            <span className="text-center">% Passes</span>
+            <span className="text-center">% Tacles</span>
+            <span className="text-center">Arrêts</span>
+            <span className="text-center">Score</span>
+
+          </div>
+
+          {performances.map(
+            (performance) => (
+
+              <a
+                key={
+                  performance.matchId
+                }
+                href={`/match-center?matchId=${performance.matchId}`}
+                className="grid grid-cols-[95px_190px_120px_85px_75px_70px_70px_90px_90px_80px_80px] items-center border-b border-white/[0.045] px-4 py-3 text-xs transition hover:bg-cyan-400/[0.035]"
+              >
+
+                <span className="font-bold text-gray-500">
+                  {formatPlayerHistoryDate(
+                    performance.playedAt
+                  )}
+                </span>
+
+                <span className="truncate font-black text-white">
+                  {performance.opponent}
+                </span>
+
+                <span className="truncate font-bold text-gray-500">
+                  {performance.competitionShortName ??
+                    performance.competitionName ??
+                    "Amical"}
+                </span>
+
+                <span className="font-black text-cyan-300">
+                  {formatPosition(
+                    performance.position
+                  )}
+                </span>
+
+                <span className="text-center">
+
+                  <span
+                    className={`inline-flex rounded-lg border px-2 py-1 text-[11px] font-black ${getRatingStyle(
+                      performance.rating
+                    )}`}
+                  >
+                    {performance.rating.toFixed(
+                      1
+                    )}
+                  </span>
+
+                </span>
+
+                <span className="text-center font-black text-white">
+                  {performance.goals}
+                </span>
+
+                <span className="text-center font-black text-white">
+                  {performance.assists}
+                </span>
+
+                <span className="text-center font-bold text-gray-400">
+                  {performance.passSuccess.toFixed(
+                    0
+                  )}%
+                </span>
+
+                <span className="text-center font-bold text-gray-400">
+                  {performance.tackleSuccess.toFixed(
+                    0
+                  )}%
+                </span>
+
+                <span className="text-center font-bold text-gray-400">
+                  {performance.saves}
+                </span>
+
+                <span className="text-center">
+
+                  <span
+                    className={`font-black ${
+                      performance.result ===
+                      "V"
+                        ? "text-emerald-300"
+                        : performance.result ===
+                          "D"
+                        ? "text-rose-300"
+                        : "text-gray-300"
+                    }`}
+                  >
+                    {performance.goalsFor}-{performance.goalsAgainst}
+                  </span>
+
+                </span>
+
+              </a>
+
+            )
+          )}
+
+        </div>
+
+      </div>
+
+    </section>
+  );
+}
+
+function formatPlayerHistoryDate(
+  value: string | null
+) {
+  if (!value) {
+    return "—";
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleDateString(
+    "fr-FR",
+    {
+      day: "2-digit",
+      month: "2-digit",
+    }
+  );
+}
+
+function shortOpponentName(
+  value: string
+) {
+  const cleaned =
+    value.trim();
+
+  if (
+    cleaned.length <=
+    10
+  ) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(
+    0,
+    8
+  )}…`;
 }
 
 
