@@ -58,13 +58,13 @@ type ProgrammeResponse = {
 
 const CLUB_LOGO = "/logo-gx-nova.png";
 const DAY_NAMES = [
+  "Dimanche",
   "Lundi",
   "Mardi",
   "Mercredi",
   "Jeudi",
   "Vendredi",
   "Samedi",
-  "Dimanche",
 ];
 
 function pad(value: number) {
@@ -88,12 +88,11 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function getMonday(date = new Date()) {
+function getSunday(date = new Date()) {
   const result = new Date(date);
   result.setHours(12, 0, 0, 0);
   const day = result.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + offset);
+  result.setDate(result.getDate() - day);
   return result;
 }
 
@@ -209,7 +208,7 @@ function fitText(
 
 export default function ProgrammePage() {
   const [weekStart, setWeekStart] = useState(() =>
-    toDateKey(getMonday())
+    toDateKey(getSunday())
   );
   const [schedule, setSchedule] = useState<ProgrammeSchedule>({});
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -222,24 +221,24 @@ export default function ProgrammePage() {
   const [message, setMessage] = useState("");
 
   const canEdit = role === "admin" || role === "staff";
-  const monday = useMemo(() => parseDateKey(weekStart), [weekStart]);
+  const sunday = useMemo(() => parseDateKey(weekStart), [weekStart]);
   const days = useMemo(
     () =>
       Array.from({ length: 7 }, (_, index) => {
-        const date = addDays(monday, index);
+        const date = addDays(sunday, index);
         return {
           date,
           key: toDateKey(date),
           name: DAY_NAMES[index],
         };
       }),
-    [monday]
+    [sunday]
   );
 
   const weekLabel = useMemo(() => {
-    const sunday = addDays(monday, 6);
-    return `Du ${formatShortDate(monday)} au ${formatShortDate(sunday)}`;
-  }, [monday]);
+    const saturday = addDays(sunday, 6);
+    return `Du ${formatShortDate(sunday)} au ${formatShortDate(saturday)}`;
+  }, [sunday]);
 
   const loadProgramme = useCallback(async () => {
     try {
@@ -276,11 +275,11 @@ export default function ProgrammePage() {
   }, [loadProgramme]);
 
   function changeWeek(offset: number) {
-    setWeekStart(toDateKey(addDays(monday, offset * 7)));
+    setWeekStart(toDateKey(addDays(sunday, offset * 7)));
   }
 
   function goCurrentWeek() {
-    setWeekStart(toDateKey(getMonday()));
+    setWeekStart(toDateKey(getSunday()));
   }
 
   function updateDay(dateKey: string, items: ProgrammeItem[]) {

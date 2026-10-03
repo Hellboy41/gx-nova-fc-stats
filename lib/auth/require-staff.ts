@@ -9,9 +9,7 @@ export type StaffProfile = {
   role: StaffRole;
 };
 
-export async function requireActiveStaff(options?: {
-  write?: boolean;
-}) {
+export async function requireActiveStaff(options?: { write?: boolean }) {
   const supabase = await createClient();
 
   const { data: claimsData, error: claimsError } =
