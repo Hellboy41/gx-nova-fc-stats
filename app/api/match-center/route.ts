@@ -45,6 +45,55 @@ type PlayerRow = {
   raw_data: JsonRecord | null;
 };
 
+type ProgrammeLinkInfo = {
+  weekStart: string;
+  eventDate: string;
+  eventId: string;
+  time: string;
+  opponentName: string;
+  title: string;
+  formation: string | null;
+  lineupCount: number;
+  benchCount: number;
+  hasPlan: boolean;
+};
+
+function findProgrammeEventForMatch(
+  programmeRows: Array<{ week_start: string; schedule: unknown }>,
+  matchId: number
+) {
+  for (const row of programmeRows) {
+    if (!row.schedule || typeof row.schedule !== "object" || Array.isArray(row.schedule)) {
+      continue;
+    }
+
+    const schedule = row.schedule as Record<string, unknown>;
+
+    for (const [eventDate, rawItems] of Object.entries(schedule)) {
+      if (!Array.isArray(rawItems)) continue;
+
+      for (const rawItem of rawItems) {
+        if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) continue;
+
+        const item = rawItem as Record<string, unknown>;
+        if (Number(item.linkedMatchId ?? 0) !== matchId) continue;
+
+        return {
+          weekStart: String(row.week_start),
+          eventDate,
+          eventId: String(item.id ?? ""),
+          time: typeof item.time === "string" ? item.time : "",
+          opponentName:
+            typeof item.opponentName === "string" ? item.opponentName : "",
+          title: typeof item.title === "string" ? item.title : "",
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function numberValue(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -284,6 +333,44 @@ export async function GET(request: Request) {
 
     const selectedMatch =
       matchRows.find((match) => match.id === requestedMatchId) ?? matchRows[0];
+
+    let programmeLink: ProgrammeLinkInfo | null = null;
+
+    const { data: programmeRowsData } = await admin
+      .from("weekly_programs")
+      .select("week_start, schedule")
+      .eq("club_id", CLUB_ID)
+      .order("week_start", { ascending: false })
+      .limit(24);
+
+    const programmeEvent = findProgrammeEventForMatch(
+      (programmeRowsData ?? []) as Array<{ week_start: string; schedule: unknown }>,
+      selectedMatch.id
+    );
+
+    if (programmeEvent?.eventId) {
+      const { data: eventPlan } = await admin
+        .from("programme_event_plans")
+        .select("formation, lineup, bench")
+        .eq("club_id", CLUB_ID)
+        .eq("week_start", programmeEvent.weekStart)
+        .eq("event_id", programmeEvent.eventId)
+        .maybeSingle();
+
+      const lineup = Array.isArray(eventPlan?.lineup) ? eventPlan.lineup : [];
+      const bench = Array.isArray(eventPlan?.bench) ? eventPlan.bench : [];
+
+      programmeLink = {
+        ...programmeEvent,
+        formation:
+          typeof eventPlan?.formation === "string" && eventPlan.formation
+            ? eventPlan.formation
+            : null,
+        lineupCount: lineup.length,
+        benchCount: bench.length,
+        hasPlan: Boolean(eventPlan),
+      };
+    }
 
     const allMatchIds = matchRows.map((match) => match.id);
     const { data: playerRowsData, error: playersError } = await admin
@@ -693,6 +780,7 @@ export async function GET(request: Request) {
         h2h,
         sameDayMatches,
         sessionPlayers,
+        programmeLink,
       },
       advancedPlayers,
       goalkeepers,

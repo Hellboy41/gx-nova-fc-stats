@@ -7,6 +7,7 @@ import {
   Award,
   BarChart3,
   Download,
+  ExternalLink,
   Goal,
   Medal,
   RefreshCw,
@@ -177,6 +178,18 @@ type MatchCenterResponse = {
     h2h: H2H;
     sameDayMatches: MatchSummary[];
     sessionPlayers: AdvancedPlayer[];
+    programmeLink: null | {
+      weekStart: string;
+      eventDate: string;
+      eventId: string;
+      time: string;
+      opponentName: string;
+      title: string;
+      formation: string | null;
+      lineupCount: number;
+      benchCount: number;
+      hasPlan: boolean;
+    };
   };
   advancedPlayers: AdvancedPlayer[];
   goalkeepers: Goalkeeper[];
@@ -1462,6 +1475,44 @@ export default function MatchCenterPage() {
                     </p>
                   )}
                 </section>
+
+                {selected.programmeLink && (
+                  <section className="rounded-3xl border border-cyan-400/20 bg-gradient-to-r from-cyan-400/[0.055] via-[#071321] to-yellow-400/[0.035] p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                          Composition programmée
+                        </p>
+                        <h2 className="mt-1 text-lg font-black">
+                          {selected.programmeLink.hasPlan
+                            ? `${selected.programmeLink.formation ?? "Formation"} • ${selected.programmeLink.lineupCount}/11 titulaire(s)`
+                            : "Aucune composition enregistrée"}
+                        </h2>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          {selected.programmeLink.eventDate}
+                          {selected.programmeLink.time ? ` • ${selected.programmeLink.time}` : ""}
+                          {selected.programmeLink.benchCount > 0
+                            ? ` • ${selected.programmeLink.benchCount} sur le banc`
+                            : ""}
+                        </p>
+                      </div>
+
+                      <a
+                        href={`/programme?weekStart=${encodeURIComponent(
+                          selected.programmeLink.weekStart
+                        )}&eventId=${encodeURIComponent(
+                          selected.programmeLink.eventId
+                        )}&openPlan=1`}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400/15"
+                      >
+                        <ExternalLink size={16} />
+                        {selected.programmeLink.hasPlan
+                          ? "Voir la composition"
+                          : "Préparer la composition"}
+                      </a>
+                    </div>
+                  </section>
+                )}
 
                 <section className="rounded-3xl border border-white/10 bg-[#071321] p-5">
                   <div className="mb-4 flex items-center gap-2">
