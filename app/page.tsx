@@ -16,7 +16,9 @@ import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  Copy,
   Database,
+  FileText,
   Eye,
   Filter,
   Home as HomeIcon,
@@ -276,6 +278,7 @@ type TabName =
   | "competitions"
   | "stats"
   | "analysis"
+  | "report"
   | "settings";
 
 type WindowStats = {
@@ -302,6 +305,64 @@ type AnalysisRecommendation = {
   title: string;
   reason: string;
   action: string;
+};
+
+type EveningReportMatch = {
+  id: number;
+  eaMatchId: string;
+  playedAt: string | null;
+  time: string;
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  result: "V" | "N" | "D";
+  competitionId: number | null;
+  competitionName: string | null;
+  competitionShortName: string | null;
+};
+
+type EveningReportPlayer = {
+  id: string;
+  name: string;
+  games: number;
+  positions: string[];
+  averageRating: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  passesMade: number;
+  passAttempts: number;
+  passSuccess: number;
+  tacklesMade: number;
+  tackleAttempts: number;
+  tackleSuccess: number;
+  saves: number;
+  redCards: number;
+  firstRating: number | null;
+  lastRating: number | null;
+  trendDelta: number | null;
+  ratings: Array<{
+    matchId: number;
+    rating: number;
+    position: string;
+  }>;
+};
+
+type EveningReportResponse = {
+  date: string;
+  matches: EveningReportMatch[];
+  players: EveningReportPlayer[];
+  mvp: EveningReportPlayer | null;
+  mvpMinimumGames: number;
+  totals: {
+    matches: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    cleanSheets: number;
+  };
 };
 
 type StaffRole =
@@ -1691,6 +1752,24 @@ export default function Home() {
               }
             />
 
+            <SidebarItem
+              icon={
+                <FileText
+                  size={19}
+                />
+              }
+              label="Rapport soirée"
+              active={
+                activeTab ===
+                "report"
+              }
+              onClick={() =>
+                setActiveTab(
+                  "report"
+                )
+              }
+            />
+
             <div className="my-5 border-t border-white/5" />
 
             <SidebarItem
@@ -1911,6 +1990,19 @@ export default function Home() {
                 }
               />
 
+              <TopTab
+                label="RAPPORT SOIRÉE"
+                active={
+                  activeTab ===
+                  "report"
+                }
+                onClick={() =>
+                  setActiveTab(
+                    "report"
+                  )
+                }
+              />
+
             </div>
 
           </div>
@@ -1944,7 +2036,9 @@ export default function Home() {
               activeTab ===
                 "stats" ||
               activeTab ===
-                "analysis") && (
+                "analysis" ||
+              activeTab ===
+                "report") && (
 
               <GlobalFilters
                 seasons={
@@ -2230,6 +2324,37 @@ export default function Home() {
                 }
                 competitions={
                   competitions
+                }
+                currentFilterLabel={
+                  currentFilterLabel
+                }
+                onOpenPlayer={
+                  setSelectedPlayer
+                }
+                onOpenMatch={
+                  openMatchDetail
+                }
+              />
+
+            )}
+
+            {/* RAPPORT SOIRÉE */}
+
+            {activeTab ===
+              "report" && (
+
+              <EveningReportDashboard
+                matches={
+                  matches
+                }
+                players={
+                  players
+                }
+                selectedSeason={
+                  selectedSeason
+                }
+                selectedCompetition={
+                  selectedCompetition
                 }
                 currentFilterLabel={
                   currentFilterLabel
@@ -11795,6 +11920,2316 @@ function formatDashboardEventDate(
 /* =========================================================
    ANALYSES AUTOMATIQUES
 ========================================================= */
+
+
+function EveningReportDashboard({
+  matches,
+  players,
+  selectedSeason,
+  selectedCompetition,
+  currentFilterLabel,
+  onOpenPlayer,
+  onOpenMatch,
+}: {
+  matches: Match[];
+  players: Player[];
+  selectedSeason: string;
+  selectedCompetition: string;
+  currentFilterLabel: string;
+  onOpenPlayer: (player: Player) => void;
+  onOpenMatch: (matchId: number) => void;
+}) {
+  const availableDates =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            matches
+              .map(
+                (match) =>
+                  eveningDateKey(
+                    match.date
+                  )
+              )
+              .filter(
+                (
+                  value
+                ): value is string =>
+                  Boolean(value)
+              )
+          )
+        ).sort(
+          (a, b) =>
+            b.localeCompare(
+              a
+            )
+        ),
+      [
+        matches,
+      ]
+    );
+
+  const [
+    selectedDate,
+    setSelectedDate,
+  ] = useState("");
+
+  const [
+    report,
+    setReport,
+  ] = useState<EveningReportResponse | null>(
+    null
+  );
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    copied,
+    setCopied,
+  ] = useState(false);
+
+  const [
+    exporting,
+    setExporting,
+  ] = useState(false);
+
+  useEffect(() => {
+    if (
+      availableDates.length ===
+      0
+    ) {
+      setSelectedDate(
+        ""
+      );
+      return;
+    }
+
+    if (
+      !selectedDate ||
+      !availableDates.includes(
+        selectedDate
+      )
+    ) {
+      setSelectedDate(
+        availableDates[0]
+      );
+    }
+  }, [
+    availableDates,
+    selectedDate,
+  ]);
+
+  useEffect(() => {
+    let cancelled =
+      false;
+
+    async function loadReport() {
+      if (
+        !selectedDate
+      ) {
+        setReport(
+          null
+        );
+        return;
+      }
+
+      try {
+        setLoading(
+          true
+        );
+        setError(
+          ""
+        );
+
+        const params =
+          new URLSearchParams();
+
+        params.set(
+          "date",
+          selectedDate
+        );
+
+        if (
+          selectedSeason !==
+          "all"
+        ) {
+          params.set(
+            "seasonId",
+            selectedSeason
+          );
+        }
+
+        if (
+          selectedCompetition !==
+          "all"
+        ) {
+          params.set(
+            "competitionId",
+            selectedCompetition
+          );
+        }
+
+        const response =
+          await fetch(
+            `/api/evening-report?${params.toString()}`,
+            {
+              cache:
+                "no-store",
+            }
+          );
+
+        const data =
+          (await response.json()) as EveningReportResponse & {
+            error?: string;
+            details?: string;
+          };
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            data.details ??
+              data.error ??
+              "Impossible de charger le rapport de soirée."
+          );
+        }
+
+        if (
+          !cancelled
+        ) {
+          setReport(
+            data
+          );
+        }
+      } catch (err) {
+        if (
+          !cancelled
+        ) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger le rapport de soirée."
+          );
+        }
+      } finally {
+        if (
+          !cancelled
+        ) {
+          setLoading(
+            false
+          );
+        }
+      }
+    }
+
+    void loadReport();
+
+    return () => {
+      cancelled =
+        true;
+    };
+  }, [
+    selectedDate,
+    selectedSeason,
+    selectedCompetition,
+  ]);
+
+  const summary =
+    useMemo(
+      () =>
+        buildEveningSummary(
+          report
+        ),
+      [
+        report,
+      ]
+    );
+
+  const notableProgression =
+    useMemo(
+      () =>
+        report?.players
+          .filter(
+            (player) =>
+              player.trendDelta !==
+                null &&
+              player.trendDelta >=
+                0.3
+          )
+          .sort(
+            (a, b) =>
+              (
+                b.trendDelta ??
+                0
+              ) -
+              (
+                a.trendDelta ??
+                0
+              )
+          )[0] ??
+        null,
+      [
+        report,
+      ]
+    );
+
+  const notableDrop =
+    useMemo(
+      () =>
+        report?.players
+          .filter(
+            (player) =>
+              player.trendDelta !==
+                null &&
+              player.trendDelta <=
+                -0.3
+          )
+          .sort(
+            (a, b) =>
+              (
+                a.trendDelta ??
+                0
+              ) -
+              (
+                b.trendDelta ??
+                0
+              )
+          )[0] ??
+        null,
+      [
+        report,
+      ]
+    );
+
+  const findPagePlayer = (
+    reportPlayer:
+      EveningReportPlayer
+  ) =>
+    players.find(
+      (player) =>
+        player.id ===
+        reportPlayer.id
+    ) ??
+    players.find(
+      (player) =>
+        normalizePlayerName(
+          player.name
+        ) ===
+        normalizePlayerName(
+          reportPlayer.name
+        )
+    ) ??
+    null;
+
+  const copyDiscordText =
+    async () => {
+      if (
+        !report
+      ) {
+        return;
+      }
+
+      const text =
+        buildEveningDiscordText(
+          report,
+          summary,
+          notableProgression,
+          notableDrop
+        );
+
+      try {
+        await navigator.clipboard.writeText(
+          text
+        );
+        setCopied(
+          true
+        );
+
+        window.setTimeout(
+          () =>
+            setCopied(
+              false
+            ),
+          1800
+        );
+      } catch {
+        setError(
+          "Le navigateur n'a pas autorisé la copie dans le presse-papiers."
+        );
+      }
+    };
+
+  const exportDiscordPoster =
+    async () => {
+      if (
+        !report
+      ) {
+        return;
+      }
+
+      try {
+        setExporting(
+          true
+        );
+        setError(
+          ""
+        );
+
+        await exportEveningReportPoster(
+          report,
+          summary,
+          notableProgression,
+          notableDrop
+        );
+      } catch (
+        err
+      ) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de générer l'image Discord."
+        );
+      } finally {
+        setExporting(
+          false
+        );
+      }
+    };
+
+  if (
+    availableDates.length ===
+    0
+  ) {
+    return (
+      <section className="rounded-3xl border border-white/10 bg-[#091626] p-10 text-center">
+
+        <FileText
+          size={38}
+          className="mx-auto text-gray-700"
+        />
+
+        <h2 className="mt-4 text-2xl font-black">
+          Rapport de soirée
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-600">
+          Aucun match n&apos;est disponible avec les filtres actuels.
+        </p>
+
+      </section>
+    );
+  }
+
+  return (
+    <>
+
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+
+        <div>
+
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-400">
+            GX NOVA • RAPPORT DE SOIRÉE
+          </p>
+
+          <h2 className="mt-2 text-3xl font-black">
+            Synthèse automatique staff
+          </h2>
+
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-gray-500">
+            Une soirée, tous les matchs, le MVP, les tendances joueurs et les points à retenir dans un seul rapport.
+          </p>
+
+          <p className="mt-2 text-xs font-bold text-cyan-300">
+            {currentFilterLabel}
+          </p>
+
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+
+          <label className="min-w-[220px]">
+
+            <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.15em] text-gray-600">
+              Soirée
+            </span>
+
+            <select
+              value={
+                selectedDate
+              }
+              onChange={
+                (
+                  event
+                ) =>
+                  setSelectedDate(
+                    event.target.value
+                  )
+              }
+              className="w-full rounded-xl border border-yellow-400/20 bg-[#050d18] px-4 py-3 text-sm font-black text-white outline-none"
+            >
+
+              {availableDates.map(
+                (date) => (
+
+                  <option
+                    key={
+                      date
+                    }
+                    value={
+                      date
+                    }
+                  >
+                    {formatEveningDateLabel(
+                      date
+                    )}
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </label>
+
+          <button
+            type="button"
+            onClick={
+              copyDiscordText
+            }
+            disabled={
+              !report ||
+              loading
+            }
+            className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-black text-cyan-300 disabled:opacity-40"
+          >
+            <Copy
+              size={17}
+            />
+            {copied
+              ? "Copié"
+              : "Copier Discord"}
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              exportDiscordPoster
+            }
+            disabled={
+              !report ||
+              loading ||
+              exporting
+            }
+            className="flex items-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 disabled:opacity-40"
+          >
+            <Save
+              size={17}
+            />
+            {exporting
+              ? "Export..."
+              : "Exporter PNG"}
+          </button>
+
+        </div>
+
+      </div>
+
+      {error && (
+
+        <div className="mb-5 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-4 text-sm font-bold text-rose-200">
+          {error}
+        </div>
+
+      )}
+
+      {loading ? (
+
+        <div className="rounded-3xl border border-white/10 bg-[#091626] p-12 text-center">
+
+          <RefreshCw
+            size={28}
+            className="mx-auto animate-spin text-cyan-300"
+          />
+
+          <p className="mt-4 text-sm font-black text-gray-500">
+            Construction du rapport...
+          </p>
+
+        </div>
+
+      ) : report &&
+        report.matches.length >
+          0 ? (
+
+        <>
+
+          <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3 2xl:grid-cols-6">
+
+            <ReportKpi
+              label="Matchs"
+              value={
+                report.totals.matches
+              }
+              helper={formatEveningDateLabel(
+                report.date
+              )}
+            />
+
+            <ReportKpi
+              label="Victoires"
+              value={
+                report.totals.wins
+              }
+              helper={`${eveningWinRate(
+                report
+              ).toFixed(
+                0
+              )}%`}
+              tone="green"
+            />
+
+            <ReportKpi
+              label="Nuls"
+              value={
+                report.totals.draws
+              }
+              helper="soirée"
+            />
+
+            <ReportKpi
+              label="Défaites"
+              value={
+                report.totals.losses
+              }
+              helper="soirée"
+              tone="red"
+            />
+
+            <ReportKpi
+              label="Buts"
+              value={`${report.totals.goalsFor}-${report.totals.goalsAgainst}`}
+              helper="marqués / encaissés"
+              tone="yellow"
+            />
+
+            <ReportKpi
+              label="Clean sheets"
+              value={
+                report.totals.cleanSheets
+              }
+              helper="match(s)"
+              tone="cyan"
+            />
+
+          </div>
+
+          <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+            <section className="overflow-hidden rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/[0.055] via-[#091626] to-cyan-400/[0.02] 2xl:col-span-5">
+
+              <div className="border-b border-white/[0.07] px-5 py-4">
+
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
+                  MVP de la soirée
+                </p>
+
+                <h3 className="mt-1 text-lg font-black">
+                  Meilleure performance moyenne
+                </h3>
+
+              </div>
+
+              {report.mvp ? (
+
+                <div className="p-5">
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pagePlayer =
+                        findPagePlayer(
+                          report.mvp as EveningReportPlayer
+                        );
+
+                      if (
+                        pagePlayer
+                      ) {
+                        onOpenPlayer(
+                          pagePlayer
+                        );
+                      }
+                    }}
+                    className="w-full rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.045] p-5 text-left transition hover:bg-yellow-400/[0.07]"
+                  >
+
+                    <div className="flex items-center gap-4">
+
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/30 bg-yellow-400/10 text-xl font-black text-yellow-300">
+                        {getPlayerInitials(
+                          report.mvp.name
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+
+                        <p className="truncate text-xl font-black">
+                          {formatPlayerName(
+                            report.mvp.name
+                          )}
+                        </p>
+
+                        <p className="mt-1 text-xs font-bold text-gray-600">
+                          {report.mvp.games} match{report.mvp.games > 1 ? "s" : ""} • {report.mvp.positions.map(
+                            formatPosition
+                          ).join(
+                            " / "
+                          )}
+                        </p>
+
+                      </div>
+
+                      <div className="text-right">
+
+                        <p className="text-3xl font-black text-yellow-300">
+                          {report.mvp.averageRating.toFixed(
+                            2
+                          )}
+                        </p>
+
+                        <p className="text-[9px] font-black uppercase text-gray-700">
+                          note moyenne
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-4 gap-2">
+
+                      <ReportMiniStat
+                        label="Buts"
+                        value={
+                          report.mvp.goals
+                        }
+                      />
+
+                      <ReportMiniStat
+                        label="PD"
+                        value={
+                          report.mvp.assists
+                        }
+                      />
+
+                      <ReportMiniStat
+                        label="Passes"
+                        value={`${report.mvp.passSuccess.toFixed(
+                          0
+                        )}%`}
+                      />
+
+                      <ReportMiniStat
+                        label="Arrêts"
+                        value={
+                          report.mvp.saves
+                        }
+                      />
+
+                    </div>
+
+                  </button>
+
+                  <p className="mt-3 text-[10px] font-semibold leading-5 text-gray-600">
+                    MVP automatique calculé sur la note EA moyenne avec au moins {report.mvpMinimumGames} apparition{report.mvpMinimumGames > 1 ? "s" : ""} quand la soirée comporte plusieurs matchs.
+                  </p>
+
+                </div>
+
+              ) : (
+
+                <p className="p-8 text-center text-sm font-bold text-gray-600">
+                  Aucune note joueur disponible.
+                </p>
+
+              )}
+
+            </section>
+
+            <section className="rounded-3xl border border-cyan-400/15 bg-[#091626] 2xl:col-span-7">
+
+              <PanelHeader
+                title="RÉSUMÉ COLLECTIF"
+                right={formatEveningDateLabel(
+                  report.date
+                )}
+              />
+
+              <div className="grid gap-3 p-5 md:grid-cols-2">
+
+                {summary.headlines.map(
+                  (
+                    item,
+                    index
+                  ) => (
+
+                    <EveningSummaryCard
+                      key={`${item.title}-${index}`}
+                      title={
+                        item.title
+                      }
+                      description={
+                        item.description
+                      }
+                      tone={
+                        item.tone
+                      }
+                    />
+
+                  )
+                )}
+
+              </div>
+
+            </section>
+
+          </div>
+
+          <div className="mb-5 grid gap-5 2xl:grid-cols-12">
+
+            <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#091626] 2xl:col-span-7">
+
+              <PanelHeader
+                title="MATCHS DE LA SOIRÉE"
+                right={`${report.matches.length} match(s)`}
+              />
+
+              <div className="grid gap-3 p-5 md:grid-cols-2">
+
+                {report.matches.map(
+                  (
+                    match
+                  ) => (
+
+                    <button
+                      key={
+                        match.id
+                      }
+                      type="button"
+                      onClick={() =>
+                        onOpenMatch(
+                          match.id
+                        )
+                      }
+                      className={`rounded-2xl border p-4 text-left transition hover:scale-[1.01] ${getMatchCardStyle(
+                        match.result
+                      )}`}
+                    >
+
+                      <div className="flex items-center justify-between gap-3">
+
+                        <div className="min-w-0">
+
+                          <p className="text-[9px] font-black uppercase tracking-[0.13em] text-gray-600">
+                            {match.time} • {match.competitionShortName ??
+                              match.competitionName ??
+                              "Amical"}
+                          </p>
+
+                          <p className="mt-2 truncate text-base font-black">
+                            {match.opponent}
+                          </p>
+
+                        </div>
+
+                        <ResultBadge
+                          result={
+                            match.result
+                          }
+                        />
+
+                      </div>
+
+                      <p className="mt-4 text-3xl font-black text-white">
+                        {match.goalsFor} - {match.goalsAgainst}
+                      </p>
+
+                    </button>
+
+                  )
+                )}
+
+              </div>
+
+            </section>
+
+            <section className="rounded-3xl border border-yellow-400/15 bg-[#091626] 2xl:col-span-5">
+
+              <PanelHeader
+                title="ÉVOLUTION JOUEURS"
+                right="1er → dernier match"
+              />
+
+              <div className="space-y-3 p-5">
+
+                <PlayerEveningTrendCard
+                  title="Progression notable"
+                  player={
+                    notableProgression
+                  }
+                  positive
+                  onOpenPlayer={(
+                    reportPlayer
+                  ) => {
+                    const pagePlayer =
+                      findPagePlayer(
+                        reportPlayer
+                      );
+
+                    if (
+                      pagePlayer
+                    ) {
+                      onOpenPlayer(
+                        pagePlayer
+                      );
+                    }
+                  }}
+                />
+
+                <PlayerEveningTrendCard
+                  title="Baisse à surveiller"
+                  player={
+                    notableDrop
+                  }
+                  positive={
+                    false
+                  }
+                  onOpenPlayer={(
+                    reportPlayer
+                  ) => {
+                    const pagePlayer =
+                      findPagePlayer(
+                        reportPlayer
+                      );
+
+                    if (
+                      pagePlayer
+                    ) {
+                      onOpenPlayer(
+                        pagePlayer
+                      );
+                    }
+                  }}
+                />
+
+              </div>
+
+            </section>
+
+          </div>
+
+          <section className="mb-5 rounded-3xl border border-cyan-400/15 bg-[#091626]">
+
+            <PanelHeader
+              title="POINTS À RETENIR POUR LE STAFF"
+              right="À vérifier avec le ressenti match"
+            />
+
+            <div className="grid gap-3 p-5 lg:grid-cols-3">
+
+              {summary.staffPoints.map(
+                (
+                  point,
+                  index
+                ) => (
+
+                  <div
+                    key={`${point}-${index}`}
+                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4"
+                  >
+
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-yellow-300">
+                      Point {index + 1}
+                    </p>
+
+                    <p className="mt-2 text-sm font-semibold leading-6 text-gray-300">
+                      {point}
+                    </p>
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-[#07111f] p-5">
+
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-600">
+              Lecture du rapport
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-gray-500">
+              Le rapport automatise uniquement ce que les données permettent d&apos;observer : scores, résultats, notes EA et statistiques joueurs. Les points staff sont des indicateurs à confirmer dans le Match Center ; ils ne prétendent pas connaître la cause tactique d&apos;un résultat.
+            </p>
+
+          </section>
+
+        </>
+
+      ) : (
+
+        <section className="rounded-3xl border border-white/10 bg-[#091626] p-10 text-center">
+
+          <FileText
+            size={36}
+            className="mx-auto text-gray-700"
+          />
+
+          <p className="mt-4 text-sm font-black text-gray-500">
+            Aucun match trouvé pour cette soirée avec les filtres actuels.
+          </p>
+
+        </section>
+
+      )}
+
+    </>
+  );
+}
+
+function ReportKpi({
+  label,
+  value,
+  helper,
+  tone = "default",
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  tone?: "default" | "green" | "red" | "yellow" | "cyan";
+}) {
+  const valueClass =
+    tone === "green"
+      ? "text-emerald-300"
+      : tone === "red"
+      ? "text-rose-300"
+      : tone === "yellow"
+      ? "text-yellow-300"
+      : tone === "cyan"
+      ? "text-cyan-300"
+      : "text-white";
+
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-[#091626] p-4">
+
+      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+        {label}
+      </p>
+
+      <p className={`mt-2 text-3xl font-black ${valueClass}`}>
+        {value}
+      </p>
+
+      <p className="mt-1 truncate text-[10px] font-bold text-gray-600">
+        {helper}
+      </p>
+
+    </div>
+  );
+}
+
+function ReportMiniStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3 text-center">
+
+      <p className="text-lg font-black text-white">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[8px] font-black uppercase tracking-[0.12em] text-gray-700">
+        {label}
+      </p>
+
+    </div>
+  );
+}
+
+function EveningSummaryCard({
+  title,
+  description,
+  tone,
+}: {
+  title: string;
+  description: string;
+  tone: "positive" | "warning" | "neutral";
+}) {
+  const style =
+    tone === "positive"
+      ? "border-emerald-400/15 bg-emerald-400/[0.04]"
+      : tone === "warning"
+      ? "border-rose-400/15 bg-rose-400/[0.04]"
+      : "border-white/[0.07] bg-black/10";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${style}`}>
+
+      <p className="text-sm font-black text-white">
+        {title}
+      </p>
+
+      <p className="mt-2 text-xs font-semibold leading-5 text-gray-500">
+        {description}
+      </p>
+
+    </div>
+  );
+}
+
+function PlayerEveningTrendCard({
+  title,
+  player,
+  positive,
+  onOpenPlayer,
+}: {
+  title: string;
+  player: EveningReportPlayer | null | undefined;
+  positive: boolean;
+  onOpenPlayer: (player: EveningReportPlayer) => void;
+}) {
+  if (
+    !player ||
+    player.trendDelta ===
+      null ||
+    player.firstRating ===
+      null ||
+    player.lastRating ===
+      null
+  ) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/10 p-5">
+
+        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+          {title}
+        </p>
+
+        <p className="mt-2 text-xs font-semibold text-gray-700">
+          Aucun écart notable avec au moins deux matchs notés.
+        </p>
+
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        onOpenPlayer(
+          player
+        )
+      }
+      className={`w-full rounded-2xl border p-4 text-left transition ${
+        positive
+          ? "border-emerald-400/15 bg-emerald-400/[0.035] hover:border-emerald-400/30"
+          : "border-rose-400/15 bg-rose-400/[0.035] hover:border-rose-400/30"
+      }`}
+    >
+
+      <div className="flex items-center justify-between gap-3">
+
+        <div className="min-w-0">
+
+          <p className="text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+            {title}
+          </p>
+
+          <p className="mt-2 truncate font-black text-white">
+            {formatPlayerName(
+              player.name
+            )}
+          </p>
+
+          <p className="mt-1 text-[10px] font-bold text-gray-600">
+            {player.positions.map(
+              formatPosition
+            ).join(
+              " / "
+            )}
+          </p>
+
+        </div>
+
+        <div className="text-right">
+
+          <p className={`text-xl font-black ${
+            positive
+              ? "text-emerald-300"
+              : "text-rose-300"
+          }`}>
+            {player.trendDelta >
+            0
+              ? "+"
+              : ""}
+            {player.trendDelta.toFixed(
+              2
+            )}
+          </p>
+
+          <p className="mt-1 text-[9px] font-bold text-gray-600">
+            {player.firstRating.toFixed(
+              1
+            )} → {player.lastRating.toFixed(
+              1
+            )}
+          </p>
+
+        </div>
+
+      </div>
+
+    </button>
+  );
+}
+
+function buildEveningSummary(
+  report: EveningReportResponse | null
+) {
+  if (
+    !report
+  ) {
+    return {
+      headlines: [] as Array<{
+        title: string;
+        description: string;
+        tone: "positive" | "warning" | "neutral";
+      }>,
+      staffPoints: [] as string[],
+    };
+  }
+
+  const totals =
+    report.totals;
+
+  const winRate =
+    eveningWinRate(
+      report
+    );
+
+  const goalsPerMatch =
+    totals.matches >
+    0
+      ? totals.goalsFor /
+        totals.matches
+      : 0;
+
+  const concededPerMatch =
+    totals.matches >
+    0
+      ? totals.goalsAgainst /
+        totals.matches
+      : 0;
+
+  const headlines:
+    Array<{
+      title: string;
+      description: string;
+      tone: "positive" | "warning" | "neutral";
+    }> = [];
+
+  if (
+    winRate >=
+    60
+  ) {
+    headlines.push({
+      title:
+        "Soirée positive en résultats",
+      description: `${totals.wins} victoire(s) sur ${totals.matches} match(s), soit ${winRate.toFixed(
+        0
+      )}% de victoires.`,
+      tone:
+        "positive",
+    });
+  } else if (
+    totals.losses >
+    totals.wins
+  ) {
+    headlines.push({
+      title:
+        "Soirée difficile en résultats",
+      description: `${totals.losses} défaite(s) pour ${totals.wins} victoire(s) sur la soirée.`,
+      tone:
+        "warning",
+    });
+  } else {
+    headlines.push({
+      title:
+        "Soirée équilibrée",
+      description: `${totals.wins}V • ${totals.draws}N • ${totals.losses}D sur ${totals.matches} match(s).`,
+      tone:
+        "neutral",
+    });
+  }
+
+  if (
+    goalsPerMatch >=
+    2
+  ) {
+    headlines.push({
+      title:
+        "Bonne production offensive",
+      description: `${goalsPerMatch.toFixed(
+        2
+      )} buts marqués par match sur la soirée.`,
+      tone:
+        "positive",
+    });
+  } else if (
+    goalsPerMatch <
+      1 &&
+    totals.matches >=
+      2
+  ) {
+    headlines.push({
+      title:
+        "Production offensive limitée",
+      description: `${goalsPerMatch.toFixed(
+        2
+      )} but marqué par match sur la soirée.`,
+      tone:
+        "warning",
+    });
+  } else {
+    headlines.push({
+      title:
+        "Production offensive",
+      description: `${totals.goalsFor} but(s) marqués sur ${totals.matches} match(s).`,
+      tone:
+        "neutral",
+    });
+  }
+
+  if (
+    concededPerMatch <=
+      1 &&
+    totals.matches >
+      0
+  ) {
+    headlines.push({
+      title:
+        "Soirée globalement solide",
+      description: `${concededPerMatch.toFixed(
+        2
+      )} but encaissé par match et ${totals.cleanSheets} clean sheet(s).`,
+      tone:
+        "positive",
+    });
+  } else if (
+    concededPerMatch >=
+    2
+  ) {
+    headlines.push({
+      title:
+        "Buts encaissés à surveiller",
+      description: `${concededPerMatch.toFixed(
+        2
+      )} buts encaissés par match sur la soirée.`,
+      tone:
+        "warning",
+    });
+  } else {
+    headlines.push({
+      title:
+        "Bilan défensif",
+      description: `${totals.goalsAgainst} but(s) encaissé(s) et ${totals.cleanSheets} clean sheet(s).`,
+      tone:
+        "neutral",
+    });
+  }
+
+  const closeMatches =
+    report.matches.filter(
+      (match) =>
+        Math.abs(
+          match.goalsFor -
+            match.goalsAgainst
+        ) <=
+        1
+    );
+
+  if (
+    closeMatches.length >
+    0
+  ) {
+    const closeWins =
+      closeMatches.filter(
+        (match) =>
+          match.result ===
+          "V"
+      ).length;
+
+    headlines.push({
+      title:
+        "Gestion des matchs serrés",
+      description: `${closeWins} victoire(s) sur ${closeMatches.length} match(s) décidés par un but maximum.`,
+      tone:
+        closeWins /
+          closeMatches.length >=
+        0.5
+          ? "positive"
+          : "neutral",
+    });
+  }
+
+  const staffPoints:
+    string[] =
+    [];
+
+  if (
+    totals.goalsAgainst >=
+    totals.matches *
+      2
+  ) {
+    staffPoints.push(
+      "Revoir en priorité dans le Match Center les matchs à 2 buts encaissés ou plus afin d'identifier manuellement les situations récurrentes."
+    );
+  } else if (
+    totals.cleanSheets >
+    0
+  ) {
+    staffPoints.push(
+      `La soirée contient ${totals.cleanSheets} clean sheet(s) : comparer ces matchs aux autres peut aider le staff à confirmer ce qui a mieux fonctionné défensivement.`
+    );
+  }
+
+  if (
+    totals.goalsFor <
+    totals.matches
+  ) {
+    staffPoints.push(
+      "La production offensive est inférieure à un but par match : regarder les matchs sans but permet de vérifier si le problème vient de la création, de la finition ou d'un autre facteur non visible dans les données EA."
+    );
+  } else {
+    staffPoints.push(
+      `${totals.goalsFor} but(s) marqués sur la soirée : conserver les séquences offensives qui ont produit les meilleurs résultats et les confronter au ressenti du staff.`
+    );
+  }
+
+  if (
+    report.mvp
+  ) {
+    staffPoints.push(
+      `${formatPlayerName(
+        report.mvp.name
+      )} ressort MVP automatique avec ${report.mvp.averageRating.toFixed(
+        2
+      )} de moyenne sur ${report.mvp.games} apparition(s).`
+    );
+  } else {
+    staffPoints.push(
+      "Aucune note joueur suffisante pour désigner un MVP automatique."
+    );
+  }
+
+  return {
+    headlines:
+      headlines.slice(
+        0,
+        4
+      ),
+    staffPoints:
+      staffPoints.slice(
+        0,
+        3
+      ),
+  };
+}
+
+function buildEveningDiscordText(
+  report: EveningReportResponse,
+  summary: ReturnType<
+    typeof buildEveningSummary
+  >,
+  progression: EveningReportPlayer | null | undefined,
+  drop: EveningReportPlayer | null | undefined
+) {
+  const lines =
+    [
+      `📊 **GX NOVA — RAPPORT DE SOIRÉE**`,
+      `📅 ${formatEveningDateLabel(
+        report.date
+      )}`,
+      "",
+      `**Bilan :** ${report.totals.wins}V • ${report.totals.draws}N • ${report.totals.losses}D`,
+      `⚽ Buts : ${report.totals.goalsFor} marqués / ${report.totals.goalsAgainst} encaissés`,
+      "",
+      "**Matchs :**",
+      ...report.matches.map(
+        (match) =>
+          `• ${match.time} — GX NOVA ${match.goalsFor}-${match.goalsAgainst} ${match.opponent} (${match.competitionShortName ??
+            match.competitionName ??
+            "Amical"})`
+      ),
+    ];
+
+  if (
+    report.mvp
+  ) {
+    lines.push(
+      "",
+      `🏆 **MVP : ${formatPlayerName(
+        report.mvp.name
+      )}** — ${report.mvp.averageRating.toFixed(
+        2
+      )} de moyenne • ${report.mvp.goals} B • ${report.mvp.assists} PD`
+    );
+  }
+
+  if (
+    progression &&
+    progression.trendDelta !==
+      null
+  ) {
+    lines.push(
+      `📈 Progression : ${formatPlayerName(
+        progression.name
+      )} ${progression.trendDelta > 0 ? "+" : ""}${progression.trendDelta.toFixed(
+        2
+      )}`
+    );
+  }
+
+  if (
+    drop &&
+    drop.trendDelta !==
+      null
+  ) {
+    lines.push(
+      `📉 À surveiller : ${formatPlayerName(
+        drop.name
+      )} ${drop.trendDelta.toFixed(
+        2
+      )}`
+    );
+  }
+
+  lines.push(
+    "",
+    "**Points staff :**",
+    ...summary.staffPoints.map(
+      (
+        point,
+        index
+      ) =>
+        `${index + 1}. ${point}`
+    )
+  );
+
+  return lines.join(
+    "\n"
+  );
+}
+
+function eveningWinRate(
+  report: EveningReportResponse
+) {
+  return report.totals.matches >
+    0
+    ? (
+        report.totals.wins /
+        report.totals.matches
+      ) *
+        100
+    : 0;
+}
+
+function eveningDateKey(
+  value: string
+) {
+  if (
+    !value
+  ) {
+    return "";
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value.slice(
+      0,
+      10
+    );
+  }
+
+  const parts =
+    new Intl.DateTimeFormat(
+      "fr-FR",
+      {
+        timeZone:
+          "Europe/Paris",
+        year:
+          "numeric",
+        month:
+          "2-digit",
+        day:
+          "2-digit",
+      }
+    ).formatToParts(
+      date
+    );
+
+  const get =
+    (
+      type: string
+    ) =>
+      parts.find(
+        (part) =>
+          part.type ===
+          type
+      )?.value ??
+      "";
+
+  return `${get(
+    "year"
+  )}-${get(
+    "month"
+  )}-${get(
+    "day"
+  )}`;
+}
+
+function formatEveningDateLabel(
+  value: string
+) {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    value.split(
+      "-"
+    ).map(
+      Number
+    );
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    return value;
+  }
+
+  const date =
+    new Date(
+      Date.UTC(
+        year,
+        month -
+          1,
+        day,
+        12
+      )
+    );
+
+  const label =
+    new Intl.DateTimeFormat(
+      "fr-FR",
+      {
+        weekday:
+          "long",
+        day:
+          "2-digit",
+        month:
+          "long",
+        year:
+          "numeric",
+        timeZone:
+          "Europe/Paris",
+      }
+    ).format(
+      date
+    );
+
+  return (
+    label.charAt(
+      0
+    ).toUpperCase() +
+    label.slice(
+      1
+    )
+  );
+}
+
+async function exportEveningReportPoster(
+  report: EveningReportResponse,
+  summary: ReturnType<
+    typeof buildEveningSummary
+  >,
+  progression: EveningReportPlayer | null | undefined,
+  drop: EveningReportPlayer | null | undefined
+) {
+  const canvas =
+    document.createElement(
+      "canvas"
+    );
+
+  canvas.width =
+    1600;
+  canvas.height =
+    900;
+
+  const ctx =
+    canvas.getContext(
+      "2d"
+    );
+
+  if (
+    !ctx
+  ) {
+    throw new Error(
+      "Canvas indisponible."
+    );
+  }
+
+  const bg =
+    ctx.createLinearGradient(
+      0,
+      0,
+      1600,
+      900
+    );
+
+  bg.addColorStop(
+    0,
+    "#030812"
+  );
+  bg.addColorStop(
+    0.58,
+    "#071321"
+  );
+  bg.addColorStop(
+    1,
+    "#06101d"
+  );
+
+  ctx.fillStyle =
+    bg;
+  ctx.fillRect(
+    0,
+    0,
+    1600,
+    900
+  );
+
+  ctx.save();
+  ctx.globalAlpha =
+    0.18;
+  ctx.strokeStyle =
+    "#22d3ee";
+  ctx.lineWidth =
+    2;
+
+  for (
+    let x =
+      -300;
+    x <
+    1800;
+    x +=
+    170
+  ) {
+    ctx.beginPath();
+    ctx.moveTo(
+      x,
+      0
+    );
+    ctx.lineTo(
+      x +
+        520,
+      900
+    );
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  const logo =
+    await loadFirstCanvasImage(
+      CLUB_LOGO_CANDIDATES
+    );
+
+  if (
+    logo
+  ) {
+    ctx.drawImage(
+      logo,
+      72,
+      55,
+      130,
+      130
+    );
+  }
+
+  ctx.fillStyle =
+    "#facc15";
+  ctx.font =
+    "900 27px Arial";
+  ctx.fillText(
+    "GX NOVA • RAPPORT DE SOIRÉE",
+    235,
+    92
+  );
+
+  ctx.fillStyle =
+    "#ffffff";
+  ctx.font =
+    "900 54px Arial";
+  ctx.fillText(
+    formatEveningDateLabel(
+      report.date
+    ).toUpperCase(),
+    235,
+    151
+  );
+
+  drawPosterBox(
+    ctx,
+    72,
+    220,
+    570,
+    245,
+    "BILAN",
+    "#facc15"
+  );
+
+  ctx.fillStyle =
+    "#ffffff";
+  ctx.font =
+    "900 66px Arial";
+  ctx.fillText(
+    `${report.totals.wins}V  ${report.totals.draws}N  ${report.totals.losses}D`,
+    110,
+    330
+  );
+
+  ctx.fillStyle =
+    "#94a3b8";
+  ctx.font =
+    "700 25px Arial";
+  ctx.fillText(
+    `${report.totals.goalsFor} buts marqués • ${report.totals.goalsAgainst} encaissés`,
+    110,
+    382
+  );
+
+  ctx.fillText(
+    `${report.totals.cleanSheets} clean sheet(s) • ${eveningWinRate(
+      report
+    ).toFixed(
+      0
+    )}% de victoires`,
+    110,
+    422
+  );
+
+  drawPosterBox(
+    ctx,
+    670,
+    220,
+    858,
+    245,
+    "MVP DE LA SOIRÉE",
+    "#22d3ee"
+  );
+
+  if (
+    report.mvp
+  ) {
+    ctx.fillStyle =
+      "#ffffff";
+    ctx.font =
+      "900 42px Arial";
+    ctx.fillText(
+      formatPlayerName(
+        report.mvp.name
+      ),
+      710,
+      320
+    );
+
+    ctx.fillStyle =
+      "#facc15";
+    ctx.font =
+      "900 62px Arial";
+    ctx.fillText(
+      report.mvp.averageRating.toFixed(
+        2
+      ),
+      710,
+      397
+    );
+
+    ctx.fillStyle =
+      "#94a3b8";
+    ctx.font =
+      "700 23px Arial";
+    ctx.fillText(
+      `${report.mvp.games} match(s) • ${report.mvp.goals} B • ${report.mvp.assists} PD • ${report.mvp.saves} arrêts`,
+      885,
+      390
+    );
+  } else {
+    ctx.fillStyle =
+      "#64748b";
+    ctx.font =
+      "700 28px Arial";
+    ctx.fillText(
+      "Aucune note joueur disponible",
+      710,
+      350
+    );
+  }
+
+  drawPosterBox(
+    ctx,
+    72,
+    495,
+    960,
+    330,
+    "MATCHS",
+    "#facc15"
+  );
+
+  const displayMatches =
+    report.matches.slice(
+      0,
+      6
+    );
+
+  displayMatches.forEach(
+    (
+      match,
+      index
+    ) => {
+      const y =
+        575 +
+        index *
+          39;
+
+      ctx.fillStyle =
+        match.result ===
+        "V"
+          ? "#34d399"
+          : match.result ===
+            "D"
+          ? "#fb7185"
+          : "#cbd5e1";
+
+      ctx.font =
+        "900 21px Arial";
+      ctx.fillText(
+        match.result,
+        110,
+        y
+      );
+
+      ctx.fillStyle =
+        "#94a3b8";
+      ctx.font =
+        "700 18px Arial";
+      ctx.fillText(
+        match.time,
+        152,
+        y
+      );
+
+      ctx.fillStyle =
+        "#ffffff";
+      ctx.font =
+        "900 20px Arial";
+      ctx.fillText(
+        `GX NOVA ${match.goalsFor}-${match.goalsAgainst} ${truncateCanvasText(
+          ctx,
+          match.opponent,
+          390
+        )}`,
+        220,
+        y
+      );
+
+      ctx.fillStyle =
+        "#64748b";
+      ctx.font =
+        "700 17px Arial";
+      ctx.fillText(
+        match.competitionShortName ??
+          match.competitionName ??
+          "Amical",
+        770,
+        y
+      );
+    }
+  );
+
+  drawPosterBox(
+    ctx,
+    1060,
+    495,
+    468,
+    330,
+    "À RETENIR",
+    "#22d3ee"
+  );
+
+  let pointY =
+    575;
+
+  const posterPoints =
+    [
+      ...summary.staffPoints.slice(
+        0,
+        2
+      ),
+    ];
+
+  if (
+    progression &&
+    progression.trendDelta !==
+      null
+  ) {
+    posterPoints.push(
+      `Progression : ${formatPlayerName(
+        progression.name
+      )} ${progression.trendDelta > 0 ? "+" : ""}${progression.trendDelta.toFixed(
+        2
+      )}`
+    );
+  } else if (
+    drop &&
+    drop.trendDelta !==
+      null
+  ) {
+    posterPoints.push(
+      `À surveiller : ${formatPlayerName(
+        drop.name
+      )} ${drop.trendDelta.toFixed(
+        2
+      )}`
+    );
+  }
+
+  for (
+    const point
+    of posterPoints.slice(
+      0,
+      3
+    )
+  ) {
+    ctx.fillStyle =
+      "#facc15";
+    ctx.beginPath();
+    ctx.arc(
+      1100,
+      pointY -
+        6,
+      5,
+      0,
+      Math.PI *
+        2
+    );
+    ctx.fill();
+
+    ctx.fillStyle =
+      "#cbd5e1";
+    ctx.font =
+      "700 18px Arial";
+
+    const lines =
+      wrapCanvasText(
+        ctx,
+        point,
+        365
+      ).slice(
+        0,
+        3
+      );
+
+    for (
+      const line
+      of lines
+    ) {
+      ctx.fillText(
+        line,
+        1120,
+        pointY
+      );
+      pointY +=
+        24;
+    }
+
+    pointY +=
+      18;
+  }
+
+  ctx.fillStyle =
+    "#475569";
+  ctx.font =
+    "700 17px Arial";
+  ctx.fillText(
+    "GX NOVA • FC27 PERFORMANCE CENTER",
+    72,
+    866
+  );
+
+  ctx.textAlign =
+    "right";
+  ctx.fillText(
+    "Données EA • Synthèse automatique staff",
+    1528,
+    866
+  );
+  ctx.textAlign =
+    "left";
+
+  const blob =
+    await new Promise<Blob | null>(
+      (
+        resolve
+      ) =>
+        canvas.toBlob(
+          resolve,
+          "image/png"
+        )
+    );
+
+  if (
+    !blob
+  ) {
+    throw new Error(
+      "Impossible de générer le PNG."
+    );
+  }
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+  link.href =
+    url;
+  link.download =
+    `GX-NOVA-rapport-soiree-${report.date}.png`;
+
+  document.body.appendChild(
+    link
+  );
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(
+    url
+  );
+}
+
+function drawPosterBox(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  title: string,
+  accent: string
+) {
+  ctx.save();
+
+  ctx.fillStyle =
+    "rgba(9,22,38,0.92)";
+  ctx.strokeStyle =
+    "rgba(255,255,255,0.10)";
+  ctx.lineWidth =
+    2;
+
+  ctx.beginPath();
+  ctx.roundRect(
+    x,
+    y,
+    width,
+    height,
+    28
+  );
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle =
+    accent;
+  ctx.font =
+    "900 18px Arial";
+  ctx.fillText(
+    title,
+    x +
+      38,
+    y +
+      48
+  );
+
+  ctx.restore();
+}
+
+async function loadFirstCanvasImage(
+  sources: string[]
+) {
+  for (
+    const source
+    of sources
+  ) {
+    try {
+      const image =
+        await new Promise<HTMLImageElement>(
+          (
+            resolve,
+            reject
+          ) => {
+            const item =
+              new Image();
+
+            item.onload =
+              () =>
+                resolve(
+                  item
+                );
+
+            item.onerror =
+              reject;
+
+            item.src =
+              source;
+          }
+        );
+
+      return image;
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return null;
+}
+
+function wrapCanvasText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+) {
+  const words =
+    text.split(
+      /\s+/
+    );
+
+  const lines:
+    string[] =
+    [];
+
+  let line =
+    "";
+
+  for (
+    const word
+    of words
+  ) {
+    const test =
+      line
+        ? `${line} ${word}`
+        : word;
+
+    if (
+      ctx.measureText(
+        test
+      ).width >
+        maxWidth &&
+      line
+    ) {
+      lines.push(
+        line
+      );
+      line =
+        word;
+    } else {
+      line =
+        test;
+    }
+  }
+
+  if (
+    line
+  ) {
+    lines.push(
+      line
+    );
+  }
+
+  return lines;
+}
+
+function truncateCanvasText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+) {
+  if (
+    ctx.measureText(
+      text
+    ).width <=
+    maxWidth
+  ) {
+    return text;
+  }
+
+  let value =
+    text;
+
+  while (
+    value.length >
+      2 &&
+    ctx.measureText(
+      `${value}…`
+    ).width >
+      maxWidth
+  ) {
+    value =
+      value.slice(
+        0,
+        -1
+      );
+  }
+
+  return `${value}…`;
+}
+
 
 function AnalysisDashboard({
   matches,
