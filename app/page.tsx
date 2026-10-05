@@ -1118,8 +1118,34 @@ export default function Home() {
       await loadData(false);
       await loadDashboard();
 
+      const syncMessageParts = [
+        `${data.matchesSynchronized ?? 0} matchs EA synchronisés`,
+      ];
+
+      if ((data.shortMatchesExcluded ?? 0) > 0) {
+        syncMessageParts.push(
+          `${data.shortMatchesExcluded} match${
+            data.shortMatchesExcluded > 1 ? "s" : ""
+          } interrompu${
+            data.shortMatchesExcluded > 1 ? "s" : ""
+          } exclu${
+            data.shortMatchesExcluded > 1 ? "s" : ""
+          }`
+        );
+      }
+
+      if ((data.artificialDrawsCorrected ?? 0) > 0) {
+        syncMessageParts.push(
+          `${data.artificialDrawsCorrected} résultat${
+            data.artificialDrawsCorrected > 1 ? "s" : ""
+          } EA corrigé${
+            data.artificialDrawsCorrected > 1 ? "s" : ""
+          }`
+        );
+      }
+
       setMessage(
-        `${data.matchesSynchronized ?? 0} matchs amicaux synchronisés`
+        syncMessageParts.join(" • ")
       );
     } catch (err) {
       setError(
@@ -2078,7 +2104,7 @@ export default function Home() {
 
           <header className="border-b border-white/10 bg-[#06111f]/95">
 
-            <div className="flex min-h-[105px] items-center justify-between gap-8 px-7">
+            <div className="flex min-h-[105px] items-center justify-between gap-3 px-4 sm:gap-8 sm:px-7">
 
               <div className="flex items-center gap-4">
 
@@ -2125,7 +2151,7 @@ export default function Home() {
                   disabled={
                     syncing
                   }
-                  className="hidden items-center gap-2 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-400 lg:flex"
+                  className="flex shrink-0 items-center gap-2 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-3 text-sm font-black text-yellow-400 transition hover:border-yellow-300/50 hover:bg-yellow-400/15 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
                 >
 
                   <RefreshCw
@@ -2137,9 +2163,17 @@ export default function Home() {
                     }
                   />
 
-                  {syncing
-                    ? "Synchronisation..."
-                    : "Synchroniser EA"}
+                  <span className="sm:hidden">
+                    {syncing
+                      ? "Sync..."
+                      : "Sync EA"}
+                  </span>
+
+                  <span className="hidden sm:inline">
+                    {syncing
+                      ? "Synchronisation..."
+                      : "Synchroniser EA"}
+                  </span>
 
                 </button>
 

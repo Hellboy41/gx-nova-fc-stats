@@ -33,6 +33,31 @@ function unauthorizedResponse(
 export async function updateSession(
   request: NextRequest
 ) {
+  const pathname = request.nextUrl.pathname;
+
+  /*
+   * Vercel Cron appelle cette route sans session Supabase.
+   * On l'autorise uniquement si le secret Vercel est présent
+   * dans l'en-tête Authorization.
+   */
+  if (pathname === "/api/cron/sync-matches") {
+    const cronSecret = process.env.CRON_SECRET;
+    const authorization = request.headers.get("authorization");
+
+    if (
+      request.method !== "GET" ||
+      !cronSecret ||
+      authorization !== `Bearer ${cronSecret}`
+    ) {
+      return NextResponse.json(
+        { error: "Cron non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -99,8 +124,6 @@ export async function updateSession(
   const claims = claimsError
     ? null
     : claimsData?.claims;
-
-  const pathname = request.nextUrl.pathname;
 
   const isPublicPath =
     pathname.startsWith("/login") ||
