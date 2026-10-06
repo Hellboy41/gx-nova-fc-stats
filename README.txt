@@ -1,27 +1,19 @@
-PACK CONNEXION STAFF GX NOVA
+GX NOVA — Programme compact intelligent
 
-Fichiers à copier dans C:\Projets\fc27-stats :
+Fichier à remplacer :
+app/programme/page.tsx
 
-proxy.ts
-src\lib\supabase\client.ts
-src\lib\supabase\server.ts
-src\lib\supabase\proxy.ts
-src\app\login\page.tsx
-src\app\api\me\route.ts
+Nouveautés :
+- journées réductibles manuellement ;
+- journées passées réduites automatiquement ;
+- journée du jour ouverte automatiquement ;
+- journées futures vides réduites automatiquement ;
+- boutons Tout réduire / Tout déplier ;
+- résumé directement visible sur chaque journée : joués, bilan, buts, matchs à préparer, horaires, XI complets, absents ;
+- matchs déjà joués affichés automatiquement sous forme compacte ;
+- bouton Modifier / Détails pour rouvrir la fiche complète d'un match joué ;
+- Composition et Match Center restent accessibles depuis la ligne compacte ;
+- aucune modification SQL ou API.
 
-Dépendances :
-npm install @supabase/supabase-js @supabase/ssr
-
-Variables déjà attendues dans .env.local :
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-
-Ne jamais exposer SUPABASE_SECRET_KEY côté navigateur.
-
-Après copie des fichiers :
-1. Créer le premier utilisateur dans Supabase > Authentication > Users.
-2. Créer son entrée dans public.staff_profiles avec le rôle admin.
-3. Redémarrer npm run dev.
-4. Ouvrir http://localhost:3000
-5. Se connecter.
-6. Tester http://localhost:3000/api/me
+Test local :
+npm run dev -- --webpack

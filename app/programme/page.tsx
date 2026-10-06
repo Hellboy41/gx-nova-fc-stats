@@ -12,6 +12,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   AlertTriangle,
   CircleCheck,
   Clock3,
@@ -432,8 +434,11 @@ export default function ProgrammePage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [dayCollapsedOverrides, setDayCollapsedOverrides] = useState<Record<string, boolean>>({});
+  const [programmeView, setProgrammeView] = useState<"prepare" | "week">("prepare");
 
   const canEdit = role === "admin" || role === "staff";
+  const todayKey = toDateKey(new Date());
   const sunday = useMemo(() => parseDateKey(weekStart), [weekStart]);
   const days = useMemo(
     () =>
@@ -452,6 +457,71 @@ export default function ProgrammePage() {
     const saturday = addDays(sunday, 6);
     return `Du ${formatShortDate(sunday)} au ${formatShortDate(saturday)}`;
   }, [sunday]);
+
+  const totalUpcomingCount = useMemo(
+    () =>
+      days.reduce(
+        (total, day) =>
+          total +
+          (schedule[day.key] ?? []).filter((item) => !item.linkedMatchId).length,
+        0
+      ),
+    [days, schedule]
+  );
+
+  const totalPlayedCount = useMemo(
+    () =>
+      days.reduce(
+        (total, day) =>
+          total +
+          (schedule[day.key] ?? []).filter((item) => Boolean(item.linkedMatchId)).length,
+        0
+      ),
+    [days, schedule]
+  );
+
+  const visibleDays = useMemo(() => {
+    if (programmeView === "week") {
+      return days;
+    }
+
+    return days.filter((day) =>
+      (schedule[day.key] ?? []).some((item) => !item.linkedMatchId)
+    );
+  }, [days, programmeView, schedule]);
+
+  function isDayCollapsed(dateKey: string, items: ProgrammeItem[]) {
+    const override = dayCollapsedOverrides[dateKey];
+
+    if (override !== undefined) {
+      return override;
+    }
+
+    if (dateKey === todayKey) {
+      return false;
+    }
+
+    if (dateKey < todayKey) {
+      return true;
+    }
+
+    return items.length === 0;
+  }
+
+  function toggleDay(dateKey: string, items: ProgrammeItem[]) {
+    const collapsed = isDayCollapsed(dateKey, items);
+
+    setDayCollapsedOverrides((current) => ({
+      ...current,
+      [dateKey]: !collapsed,
+    }));
+  }
+
+  function setAllDaysCollapsed(collapsed: boolean) {
+    setDayCollapsedOverrides(
+      Object.fromEntries(days.map((day) => [day.key, collapsed]))
+    );
+  }
 
   const loadProgramme = useCallback(async () => {
     try {
@@ -1673,6 +1743,9 @@ export default function ProgrammePage() {
               <p className="mt-2 text-sm text-gray-500">
                 Planifie les compétitions et tournois, puis exporte une affiche PNG premium en 2 affiches, prêtes pour Discord.
               </p>
+              <p className="mt-2 text-xs font-bold text-cyan-300/70">
+                Le mode « À préparer » masque automatiquement les matchs déjà joués pour garder uniquement les actions à venir.
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -1697,6 +1770,75 @@ export default function ProgrammePage() {
               >
                 <ChevronRight size={19} />
               </button>
+
+              <div className="flex items-center gap-1 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-1">
+                <button
+                  type="button"
+                  onClick={() => setProgrammeView("prepare")}
+                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition ${
+                    programmeView === "prepare"
+                      ? "bg-cyan-400 text-[#03111b]"
+                      : "text-cyan-300 hover:bg-cyan-400/10"
+                  }`}
+                  title="Afficher uniquement les matchs qui restent à préparer"
+                >
+                  <ClipboardList size={15} />
+                  <span>À préparer</span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] ${
+                      programmeView === "prepare"
+                        ? "bg-black/10 text-[#03111b]"
+                        : "bg-cyan-400/10 text-cyan-200"
+                    }`}
+                  >
+                    {totalUpcomingCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProgrammeView("week")}
+                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition ${
+                    programmeView === "week"
+                      ? "bg-white text-[#071321]"
+                      : "text-gray-400 hover:bg-white/[0.06] hover:text-white"
+                  }`}
+                  title="Afficher tous les matchs de la semaine"
+                >
+                  <CalendarDays size={15} />
+                  <span className="hidden sm:inline">Toute la semaine</span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] ${
+                      programmeView === "week"
+                        ? "bg-black/10 text-[#071321]"
+                        : "bg-white/[0.05] text-gray-500"
+                    }`}
+                  >
+                    {totalUpcomingCount + totalPlayedCount}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+                <button
+                  type="button"
+                  onClick={() => setAllDaysCollapsed(true)}
+                  className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-black text-gray-400 transition hover:bg-white/[0.06] hover:text-white"
+                  title="Réduire toutes les journées"
+                >
+                  <ChevronUp size={15} />
+                  <span className="hidden sm:inline">Tout réduire</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllDaysCollapsed(false)}
+                  className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-black text-gray-400 transition hover:bg-white/[0.06] hover:text-white"
+                  title="Déplier toutes les journées"
+                >
+                  <ChevronDown size={15} />
+                  <span className="hidden sm:inline">Tout déplier</span>
+                </button>
+              </div>
 
               {canEdit && (
                 <button
@@ -1742,100 +1884,256 @@ export default function ProgrammePage() {
             Chargement du programme...
           </div>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {days.map((day) => {
+          <>
+            {programmeView === "prepare" && visibleDays.length === 0 ? (
+              <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.04] px-6 py-14 text-center">
+                <CircleCheck size={34} className="mx-auto text-emerald-300" />
+                <h2 className="mt-4 text-xl font-black text-white">
+                  Tout est prêt pour cette semaine
+                </h2>
+                <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-gray-500">
+                  Aucun match ne reste à préparer. Tu peux repasser sur « Toute la semaine » pour consulter les rencontres déjà jouées.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setProgrammeView("week")}
+                  className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.08]"
+                >
+                  Voir toute la semaine
+                </button>
+              </div>
+            ) : (
+              <div className="grid items-start gap-4 xl:grid-cols-2">
+            {visibleDays.map((day) => {
               const items = schedule[day.key] ?? [];
+              const playedItems = items.filter((item) => Boolean(item.linkedMatchId));
+              const upcomingItems = items.filter((item) => !item.linkedMatchId);
+              const displayedItems =
+                programmeView === "prepare" ? upcomingItems : items;
+              const collapsed =
+                programmeView === "prepare"
+                  ? dayCollapsedOverrides[day.key] ?? false
+                  : isDayCollapsed(day.key, items);
+              const wins = playedItems.filter((item) => item.result === "V").length;
+              const draws = playedItems.filter((item) => item.result === "N").length;
+              const losses = playedItems.filter((item) => item.result === "D").length;
+              const goalsFor = playedItems.reduce((total, item) => total + (item.goalsFor ?? 0), 0);
+              const goalsAgainst = playedItems.reduce((total, item) => total + (item.goalsAgainst ?? 0), 0);
+              const upcomingTimes = upcomingItems
+                .map((item) => item.time)
+                .filter(Boolean)
+                .slice(0, 4);
+              const fullLineups = upcomingItems.filter(
+                (item) => (plansByEventId[item.id]?.lineup.length ?? 0) >= 11
+              ).length;
+              const absentCount = upcomingItems.reduce((total, item) => {
+                const entries = Object.values(plansByEventId[item.id]?.availability ?? {});
+                return total + entries.filter((entry) => entry.status === "absent").length;
+              }, 0);
+              const isToday = day.key === todayKey;
+              const isPast = day.key < todayKey;
 
               return (
                 <section
                   key={day.key}
-                  className="overflow-hidden rounded-3xl border border-white/10 bg-[#071321]"
+                  className={`overflow-hidden rounded-3xl border bg-[#071321] transition ${
+                    isToday
+                      ? "border-cyan-400/25 shadow-[0_0_0_1px_rgba(34,211,238,0.04)]"
+                      : "border-white/10"
+                  }`}
                 >
-                  <div className="flex items-center justify-between border-b border-white/5 bg-[#091626] px-5 py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/10 text-sm font-black text-yellow-400">
-                        {formatDayDate(day.date)}
+                  <button
+                    type="button"
+                    onClick={() => toggleDay(day.key, displayedItems)}
+                    className={`w-full bg-[#091626] px-5 text-left transition hover:bg-[#0b1a2b] ${
+                      collapsed ? "py-4" : "border-b border-white/5 py-4"
+                    }`}
+                    aria-expanded={!collapsed}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border text-sm font-black ${
+                            isToday
+                              ? "border-cyan-400/25 bg-cyan-400/10 text-cyan-300"
+                              : "border-yellow-400/20 bg-yellow-400/10 text-yellow-400"
+                          }`}
+                        >
+                          {formatDayDate(day.date)}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="text-lg font-black">{day.name}</h2>
+
+                            {isToday && (
+                              <span className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">
+                                Aujourd&apos;hui
+                              </span>
+                            )}
+
+                            {programmeView === "prepare" && upcomingItems.length > 0 && (
+                              <span className="rounded-lg border border-yellow-400/15 bg-yellow-400/[0.05] px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-yellow-300">
+                                À préparer
+                              </span>
+                            )}
+
+                            {isPast && !isToday && (
+                              <span
+                                className={`rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${
+                                  programmeView === "prepare" && upcomingItems.length > 0
+                                    ? "border-amber-400/20 bg-amber-400/[0.07] text-amber-300"
+                                    : "border-white/8 bg-white/[0.025] text-gray-600"
+                                }`}
+                              >
+                                {programmeView === "prepare" && upcomingItems.length > 0
+                                  ? "À vérifier"
+                                  : "Passé"}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="mt-0.5 text-xs text-gray-600">
+                            {formatLongDate(day.date)}
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {!displayedItems.length ? (
+                              <span className="text-[11px] font-bold text-gray-600">
+                                Aucun événement
+                              </span>
+                            ) : (
+                              <>
+                                {programmeView === "week" && playedItems.length > 0 && (
+                                  <span className="rounded-lg border border-emerald-400/15 bg-emerald-400/[0.06] px-2 py-1 text-[10px] font-black text-emerald-300">
+                                    {playedItems.length} joué{playedItems.length > 1 ? "s" : ""}
+                                  </span>
+                                )}
+
+                                {programmeView === "week" && playedItems.length > 0 && (
+                                  <span className="rounded-lg border border-white/8 bg-white/[0.025] px-2 py-1 text-[10px] font-black text-gray-500">
+                                    {wins}V • {draws}N • {losses}D
+                                  </span>
+                                )}
+
+                                {programmeView === "week" && playedItems.length > 0 && (
+                                  <span className="rounded-lg border border-white/8 bg-white/[0.025] px-2 py-1 text-[10px] font-black text-gray-500">
+                                    {goalsFor} BP • {goalsAgainst} BC
+                                  </span>
+                                )}
+
+                                {upcomingItems.length > 0 && (
+                                  <span className="rounded-lg border border-yellow-400/15 bg-yellow-400/[0.05] px-2 py-1 text-[10px] font-black text-yellow-300">
+                                    {upcomingItems.length} à préparer
+                                  </span>
+                                )}
+
+                                {upcomingTimes.length > 0 && (
+                                  <span className="text-[10px] font-black text-gray-600">
+                                    {upcomingTimes.join(" • ")}
+                                  </span>
+                                )}
+
+                                {upcomingItems.length > 0 && fullLineups > 0 && (
+                                  <span className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.05] px-2 py-1 text-[10px] font-black text-cyan-300">
+                                    {fullLineups}/{upcomingItems.length} XI complet{upcomingItems.length > 1 ? "s" : ""}
+                                  </span>
+                                )}
+
+                                {absentCount > 0 && (
+                                  <span className="rounded-lg border border-red-400/15 bg-red-400/[0.05] px-2 py-1 text-[10px] font-black text-red-300">
+                                    {absentCount} absent{absentCount > 1 ? "s" : ""}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-lg font-black">{day.name}</h2>
-                        <p className="text-xs text-gray-600">
-                          {formatLongDate(day.date)}
-                        </p>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="hidden rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-black text-gray-500 sm:inline-flex">
+                          {displayedItems.length} événement{displayedItems.length > 1 ? "s" : ""}
+                        </span>
+
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-gray-400">
+                          {collapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                        </span>
                       </div>
                     </div>
+                  </button>
 
-                    <span className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-black text-gray-500">
-                      {items.length} événement{items.length > 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  <div className="space-y-4 p-4 lg:p-5">
-                    {items.map((item) => (
-                      <ProgrammeEditorCard
-                        key={item.id}
-                        item={item}
-                        competitions={competitions}
-                        canEdit={canEdit}
-                        uploading={uploadingId === item.id}
-                        linking={linkingKey === `${day.key}::${item.id}`}
-                        candidates={linkCandidates[`${day.key}::${item.id}`] ?? []}
-                        plan={plansByEventId[item.id] ?? null}
-                        onOpenPlan={() => setPlanningEvent({ dateKey: day.key, item })}
-                        onPatch={(patch) =>
-                          patchItem(day.key, item.id, patch)
-                        }
-                        onRemove={() => removeItem(day.key, item.id)}
-                        onUpload={(file) =>
-                          void uploadOpponentLogo(day.key, item.id, file)
-                        }
-                        onConfirm={(matchId) =>
-                          void confirmEaMatch(day.key, item.id, matchId)
-                        }
-                        onUnlink={() => void unlinkEaMatch(day.key, item.id)}
-                      />
-                    ))}
-
-                    {!items.length && (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-5 py-8 text-center">
-                        <CalendarDays
-                          size={28}
-                          className="mx-auto text-gray-700"
+                  {!collapsed && (
+                    <div className="space-y-4 p-4 lg:p-5">
+                      {displayedItems.map((item) => (
+                        <ProgrammeEditorCard
+                          key={item.id}
+                          item={item}
+                          competitions={competitions}
+                          canEdit={canEdit}
+                          uploading={uploadingId === item.id}
+                          linking={linkingKey === `${day.key}::${item.id}`}
+                          candidates={linkCandidates[`${day.key}::${item.id}`] ?? []}
+                          plan={plansByEventId[item.id] ?? null}
+                          onOpenPlan={() => setPlanningEvent({ dateKey: day.key, item })}
+                          onPatch={(patch) =>
+                            patchItem(day.key, item.id, patch)
+                          }
+                          onRemove={() => removeItem(day.key, item.id)}
+                          onUpload={(file) =>
+                            void uploadOpponentLogo(day.key, item.id, file)
+                          }
+                          onConfirm={(matchId) =>
+                            void confirmEaMatch(day.key, item.id, matchId)
+                          }
+                          onUnlink={() => void unlinkEaMatch(day.key, item.id)}
                         />
-                        <p className="mt-3 text-sm font-bold text-gray-500">
-                          Aucun événement prévu.
-                        </p>
-                      </div>
-                    )}
+                      ))}
 
-                    {canEdit && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            addProgrammeItem(day.key, "competition")
-                          }
-                          className="flex items-center justify-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.06] px-3 py-3 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/10"
-                        >
-                          <Trophy size={15} />
-                          Compétition
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            addProgrammeItem(day.key, "tournament")
-                          }
-                          className="flex items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/[0.06] px-3 py-3 text-xs font-black text-blue-300 transition hover:bg-blue-400/10"
-                        >
-                          <Sparkles size={15} />
-                          Tournoi
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                      {!displayedItems.length && (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-5 py-8 text-center">
+                          <CalendarDays
+                            size={28}
+                            className="mx-auto text-gray-700"
+                          />
+                          <p className="mt-3 text-sm font-bold text-gray-500">
+                            Aucun événement prévu.
+                          </p>
+                        </div>
+                      )}
+
+                      {canEdit && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addProgrammeItem(day.key, "competition")
+                            }
+                            className="flex items-center justify-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.06] px-3 py-3 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/10"
+                          >
+                            <Trophy size={15} />
+                            Compétition
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addProgrammeItem(day.key, "tournament")
+                            }
+                            className="flex items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/[0.06] px-3 py-3 text-xs font-black text-blue-300 transition hover:bg-blue-400/10"
+                          >
+                            <Sparkles size={15} />
+                            Tournoi
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
               );
             })}
-          </div>
+              </div>
+            )}
+          </>
         )}
 
         {!!aliases.length && (
@@ -1934,6 +2232,109 @@ function ProgrammeEditorCard({
   onUnlink: () => void;
 }) {
   const isCompetition = item.type === "competition";
+  const [showPlayedDetails, setShowPlayedDetails] = useState(false);
+
+  const planEntries = Object.values(plan?.availability ?? {});
+  const planAvailable = planEntries.filter((entry) => entry.status === "available").length;
+  const planAbsent = planEntries.filter((entry) => entry.status === "absent").length;
+  const planLineupCount = plan?.lineup.length ?? 0;
+
+  if (item.linkedMatchId && !showPlayedDetails) {
+    return (
+      <div className="rounded-2xl border border-emerald-400/20 bg-gradient-to-r from-emerald-400/[0.055] via-[#081522] to-[#071321] p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.12em] text-emerald-300">
+                <CircleCheck size={15} /> Joué
+              </span>
+
+              <span className={`rounded-lg border px-2 py-1 text-[10px] font-black ${resultBadgeClass(item.result)}`}>
+                {item.result ?? "-"}
+              </span>
+
+              <span className="rounded-lg border border-white/8 bg-white/[0.025] px-2 py-1 text-[10px] font-black text-gray-500">
+                {competitionLabel(item, competitions)}
+              </span>
+
+              {item.linkConfidence !== null && (
+                <span className="rounded-lg border border-white/8 bg-white/[0.025] px-2 py-1 text-[10px] font-black text-gray-600">
+                  {item.linkMethod === "auto" ? "Auto" : "Confirmé"} • {item.linkConfidence}%
+                </span>
+              )}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="text-sm font-black text-gray-500">
+                {item.time || "--:--"}
+              </span>
+
+              <p className="min-w-0 text-lg font-black text-white">
+                GX NOVA{" "}
+                <span className="text-yellow-400">{item.goalsFor ?? "-"}</span>
+                {" - "}
+                <span className="text-cyan-300">{item.goalsAgainst ?? "-"}</span>
+                {" "}
+                <span className="break-words">
+                  {item.eaOpponentName || item.opponentName || "Adversaire"}
+                </span>
+              </p>
+            </div>
+
+            <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-black">
+              {plan && (
+                <>
+                  <span className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.05] px-2 py-1 text-cyan-300">
+                    Compo {planLineupCount}/11 • {plan.formation}
+                  </span>
+                  <span className="rounded-lg border border-emerald-400/15 bg-emerald-400/[0.05] px-2 py-1 text-emerald-300">
+                    {planAvailable} dispo
+                  </span>
+                  {planAbsent > 0 && (
+                    <span className="rounded-lg border border-red-400/15 bg-red-400/[0.05] px-2 py-1 text-red-300">
+                      {planAbsent} absent{planAbsent > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </>
+              )}
+
+              <span className="text-gray-700">
+                EA {formatEaTime(item.eaPlayedAt)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onOpenPlan}
+              className="flex items-center gap-2 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.05] px-3 py-2 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/10"
+            >
+              <ClipboardList size={14} />
+              Composition
+            </button>
+
+            <a
+              href={`/match-center?matchId=${item.linkedMatchId}`}
+              className="flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/15"
+            >
+              <ExternalLink size={14} />
+              Match Center
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setShowPlayedDetails(true)}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-black text-gray-400 transition hover:bg-white/[0.07] hover:text-white"
+            >
+              <ChevronDown size={14} />
+              {canEdit ? "Modifier" : "Détails"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1964,16 +2365,30 @@ function ProgrammeEditorCard({
           </div>
         </div>
 
-        {canEdit && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/15 bg-red-400/[0.05] text-red-400 transition hover:bg-red-400/10"
-            title="Supprimer"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {item.linkedMatchId && (
+            <button
+              type="button"
+              onClick={() => setShowPlayedDetails(false)}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs font-black text-gray-400 transition hover:bg-white/[0.07] hover:text-white"
+              title="Réduire le match joué"
+            >
+              <ChevronUp size={14} />
+              Réduire
+            </button>
+          )}
+
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/15 bg-red-400/[0.05] text-red-400 transition hover:bg-red-400/10"
+              title="Supprimer"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
