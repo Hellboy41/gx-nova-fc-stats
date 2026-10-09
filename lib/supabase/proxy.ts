@@ -183,10 +183,16 @@ export async function updateSession(
       request.method.toUpperCase()
     );
 
+  const isViewerAllowedSync =
+    staffProfile.role === "viewer" &&
+    request.method.toUpperCase() === "POST" &&
+    pathname === "/api/sync-matches";
+
   const isViewerMutation =
     staffProfile.role === "viewer" &&
     isApiMutation &&
-    pathname !== "/api/logout";
+    pathname !== "/api/logout" &&
+    !isViewerAllowedSync;
 
   if (isViewerMutation) {
     return NextResponse.json(
