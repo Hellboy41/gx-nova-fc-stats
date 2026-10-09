@@ -13,7 +13,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const authorization = await requireActiveStaff({ write: true });
+  const authorization = await requireActiveStaff();
   if (authorization.error) return authorization.error;
 
   const run = await startEaSyncRun(
