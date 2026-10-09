@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
+import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
 const CLUB_ID = "1663";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -89,6 +90,7 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+  const archivedPlayerKeys = await getArchivedPlayerKeys(CLUB_ID);
   const [plansResult, playersResult, currentLineupResult] = await Promise.all([
     admin
       .from("programme_event_plans")
@@ -125,6 +127,14 @@ export async function GET(request: Request) {
     const id = cleanText(row.player_ea_id, 120) || `name:${cleanText(row.player_name, 120).toLowerCase()}`;
     const name = cleanText(row.player_name, 120);
     if (!id || !name || rosterMap.has(id)) continue;
+
+    const playerKey = getPlayerKey(
+      cleanText(row.player_ea_id, 120) || null,
+      name
+    );
+
+    if (archivedPlayerKeys.has(playerKey)) continue;
+
     rosterMap.set(id, {
       id,
       name,
