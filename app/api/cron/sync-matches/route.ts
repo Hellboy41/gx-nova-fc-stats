@@ -6,6 +6,11 @@ import {
   EaSyncError,
   syncEaMatches,
 } from "@/lib/ea/sync-matches";
+import {
+  finishEaSyncRunError,
+  finishEaSyncRunSuccess,
+  startEaSyncRun,
+} from "@/lib/ea/sync-history";
 
 export const dynamic = "force-dynamic";
 
@@ -36,15 +41,26 @@ export async function GET(
     );
   }
 
+  const run = await startEaSyncRun("cron");
+
   try {
     const result =
       await syncEaMatches();
 
+    await finishEaSyncRunSuccess(run, result);
+
     return NextResponse.json({
       ...result,
       trigger: "vercel-cron",
+      syncRunId: run?.id ?? null,
+      cronSchedule:
+        request.headers.get(
+          "x-vercel-cron-schedule"
+        ) ?? null,
     });
   } catch (error) {
+    await finishEaSyncRunError(run, error);
+
     console.error(
       "Erreur cron sync-matches :",
       error
@@ -58,6 +74,8 @@ export async function GET(
           error instanceof Error
             ? error.message
             : "Erreur inconnue",
+        trigger: "vercel-cron",
+        syncRunId: run?.id ?? null,
       },
       {
         status:

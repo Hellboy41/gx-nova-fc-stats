@@ -4,6 +4,11 @@ import {
   EaSyncError,
   syncEaMatches,
 } from "@/lib/ea/sync-matches";
+import {
+  finishEaSyncRunError,
+  finishEaSyncRunSuccess,
+  startEaSyncRun,
+} from "@/lib/ea/sync-history";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +16,24 @@ export async function POST() {
   const authorization = await requireActiveStaff({ write: true });
   if (authorization.error) return authorization.error;
 
+  const run = await startEaSyncRun(
+    "manual",
+    authorization.profile?.userId ?? null
+  );
+
   try {
     const result = await syncEaMatches();
-    return NextResponse.json(result);
+
+    await finishEaSyncRunSuccess(run, result);
+
+    return NextResponse.json({
+      ...result,
+      syncRunId: run?.id ?? null,
+      trigger: "manual",
+    });
   } catch (error) {
+    await finishEaSyncRunError(run, error);
+
     console.error("Erreur sync-matches :", error);
 
     return NextResponse.json(
@@ -24,6 +43,8 @@ export async function POST() {
           error instanceof Error
             ? error.message
             : "Erreur inconnue",
+        syncRunId: run?.id ?? null,
+        trigger: "manual",
       },
       {
         status:
