@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
 const CLUB_ID = "1663";
 
@@ -287,6 +288,11 @@ export async function GET(
       );
     }
 
+    const archivedPlayerKeys =
+      await getArchivedPlayerKeys(
+        CLUB_ID
+      );
+
     const performances =
       (
         playersData ??
@@ -313,6 +319,20 @@ export async function GET(
       const performance
       of performances
     ) {
+      const playerKey =
+        getPlayerKey(
+          performance.player_ea_id,
+          performance.player_name
+        );
+
+      if (
+        archivedPlayerKeys.has(
+          playerKey
+        )
+      ) {
+        continue;
+      }
+
       const playerId =
         performance.player_ea_id
           ? `ea:${performance.player_ea_id}`
