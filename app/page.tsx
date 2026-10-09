@@ -532,6 +532,16 @@ type AvailableAuthUser = {
   email: string | null;
 };
 
+type ManagedClubPlayer = {
+  playerKey: string;
+  playerEaId: string | null;
+  name: string;
+  position: string;
+  games: number;
+  isActive: boolean;
+  archivedAt: string | null;
+};
+
 type DashboardProgrammeEvent = {
   weekStart: string;
   eventDate: string;
@@ -2844,6 +2854,15 @@ function SettingsDashboard() {
   const [settingsMessage, setSettingsMessage] =
     useState("");
 
+  const [activeClubPlayers, setActiveClubPlayers] =
+    useState<ManagedClubPlayer[]>([]);
+
+  const [archivedClubPlayers, setArchivedClubPlayers] =
+    useState<ManagedClubPlayer[]>([]);
+
+  const [savingPlayerKey, setSavingPlayerKey] =
+    useState<string | null>(null);
+
   const loadSettings = useCallback(
     async () => {
       try {
@@ -2875,18 +2894,47 @@ function SettingsDashboard() {
           setStaffMembers([]);
           setAvailableUsers([]);
           setDrafts({});
+          setActiveClubPlayers([]);
+          setArchivedClubPlayers([]);
           return;
         }
 
-        const staffResponse = await fetch(
-          "/api/staff",
-          {
-            cache: "no-store",
-          }
-        );
+        const [staffResponse, playersResponse] =
+          await Promise.all([
+            fetch(
+              "/api/staff",
+              {
+                cache: "no-store",
+              }
+            ),
+            fetch(
+              "/api/admin/players",
+              {
+                cache: "no-store",
+              }
+            ),
+          ]);
 
         const staffData =
           await staffResponse.json();
+
+        const playersData =
+          await playersResponse.json();
+
+        if (!playersResponse.ok) {
+          throw new Error(
+            playersData.error ??
+              "Impossible de récupérer la gestion de l'effectif."
+          );
+        }
+
+        setActiveClubPlayers(
+          (playersData.activePlayers ?? []) as ManagedClubPlayer[]
+        );
+
+        setArchivedClubPlayers(
+          (playersData.archivedPlayers ?? []) as ManagedClubPlayer[]
+        );
 
         if (!staffResponse.ok) {
           throw new Error(
@@ -3071,6 +3119,85 @@ function SettingsDashboard() {
     }
   }
 
+  async function setClubPlayerActive(
+    player: ManagedClubPlayer,
+    isActive: boolean
+  ) {
+    const actionLabel =
+      isActive
+        ? "réintégrer"
+        : "retirer du club";
+
+    if (
+      !isActive &&
+      !window.confirm(
+        `Retirer ${formatPlayerName(
+          player.name
+        )} du club ?\n\nSes anciens matchs seront conservés, mais il disparaîtra des statistiques individuelles, classements et compositions.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setSavingPlayerKey(
+        player.playerKey
+      );
+      setSettingsError("");
+      setSettingsMessage("");
+
+      const response = await fetch(
+        "/api/admin/players",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            playerKey:
+              player.playerKey,
+            playerEaId:
+              player.playerEaId,
+            playerName:
+              player.name,
+            isActive,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ??
+            `Impossible de ${actionLabel} ce joueur.`
+        );
+      }
+
+      setSettingsMessage(
+        isActive
+          ? `${formatPlayerName(
+              player.name
+            )} a été réintégré à l'effectif.`
+          : `${formatPlayerName(
+              player.name
+            )} a été retiré de l'effectif actif. Son historique de matchs est conservé.`
+      );
+
+      await loadSettings();
+    } catch (err) {
+      setSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Erreur pendant la modification du joueur."
+      );
+    } finally {
+      setSavingPlayerKey(null);
+    }
+  }
+
   const roleLabel =
     currentUser?.role === "admin"
       ? "Administrateur"
@@ -3190,6 +3317,7 @@ function SettingsDashboard() {
                   "Synchronisation EA et modifications",
                   "Gestion composition et compétitions",
                   "Gestion des comptes staff",
+                  "Retrait / réintégration des joueurs",
                 ]}
                 active={
                   currentUser?.role === "admin"
@@ -3228,6 +3356,163 @@ function SettingsDashboard() {
 
           {currentUser?.role === "admin" && (
             <>
+              <section className="overflow-hidden rounded-2xl border border-cyan-400/20 bg-[#091626] 2xl:col-span-12">
+                <PanelHeader
+                  title="GESTION DE L'EFFECTIF"
+                  right="Administrateur uniquement"
+                />
+
+                <div className="border-b border-white/5 px-5 py-4 text-xs leading-5 text-gray-500">
+                  Retirer un joueur ne supprime jamais ses anciens matchs. Il disparaît des statistiques individuelles, classements et choix de composition, mais reste visible dans l'historique des rencontres.
+                </div>
+
+                <div className="grid gap-5 p-5 xl:grid-cols-2">
+                  <div className="overflow-hidden rounded-2xl border border-emerald-400/15 bg-[#06111f]">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-300">
+                          Effectif actif
+                        </p>
+                        <p className="mt-1 text-xs text-gray-600">
+                          Présents dans les statistiques et compositions
+                        </p>
+                      </div>
+
+                      <span className="rounded-lg border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1 text-xs font-black text-emerald-300">
+                        {activeClubPlayers.length}
+                      </span>
+                    </div>
+
+                    <div className="max-h-[520px] overflow-y-auto">
+                      {activeClubPlayers.length > 0 ? (
+                        activeClubPlayers.map((player) => (
+                          <div
+                            key={player.playerKey}
+                            className="flex items-center gap-3 border-b border-white/5 px-4 py-3"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-yellow-400/20 bg-yellow-400/10 text-xs font-black text-yellow-300">
+                              {getPlayerInitials(player.name)}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-black text-white">
+                                {formatPlayerName(player.name)}
+                              </p>
+                              <p className="mt-1 text-[10px] font-bold text-gray-600">
+                                {formatPositionLong(player.position)} • {player.games} match{player.games > 1 ? "s" : ""}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void setClubPlayerActive(
+                                  player,
+                                  false
+                                )
+                              }
+                              disabled={
+                                savingPlayerKey ===
+                                player.playerKey
+                              }
+                              className="flex shrink-0 items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-2 text-xs font-black text-red-300 transition hover:bg-red-400/10 disabled:opacity-40"
+                            >
+                              {savingPlayerKey === player.playerKey ? (
+                                <RefreshCw
+                                  size={14}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                              Retirer
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-sm font-bold text-gray-600">
+                          Aucun joueur actif.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#06111f]">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">
+                          Joueurs archivés
+                        </p>
+                        <p className="mt-1 text-xs text-gray-600">
+                          Historique conservé • réintégration possible
+                        </p>
+                      </div>
+
+                      <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-black text-gray-400">
+                        {archivedClubPlayers.length}
+                      </span>
+                    </div>
+
+                    <div className="max-h-[520px] overflow-y-auto">
+                      {archivedClubPlayers.length > 0 ? (
+                        archivedClubPlayers.map((player) => (
+                          <div
+                            key={player.playerKey}
+                            className="flex items-center gap-3 border-b border-white/5 px-4 py-3"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-black text-gray-500">
+                              {getPlayerInitials(player.name)}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-black text-gray-300">
+                                {formatPlayerName(player.name)}
+                              </p>
+                              <p className="mt-1 text-[10px] font-bold text-gray-600">
+                                {player.archivedAt
+                                  ? `Archivé le ${formatDateTime(
+                                      player.archivedAt
+                                    )}`
+                                  : "Archivé"}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void setClubPlayerActive(
+                                  player,
+                                  true
+                                )
+                              }
+                              disabled={
+                                savingPlayerKey ===
+                                player.playerKey
+                              }
+                              className="flex shrink-0 items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-2 text-xs font-black text-cyan-300 transition hover:bg-cyan-400/10 disabled:opacity-40"
+                            >
+                              {savingPlayerKey === player.playerKey ? (
+                                <RefreshCw
+                                  size={14}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <RotateCcw size={14} />
+                              )}
+                              Réintégrer
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-sm font-bold text-gray-600">
+                          Aucun joueur archivé.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <section className="rounded-2xl border border-yellow-400/20 bg-[#091626] 2xl:col-span-12">
                 <PanelHeader
                   title="AJOUTER UN MEMBRE"
