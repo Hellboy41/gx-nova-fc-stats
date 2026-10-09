@@ -210,7 +210,7 @@ export async function GET(
       ).filter(
         (match) =>
           match.played_at &&
-          parisDateKey(
+          eveningDateKey(
             match.played_at
           ) ===
             date
@@ -792,6 +792,11 @@ export async function GET(
 
     return NextResponse.json({
       date,
+      window: {
+        startHour: 10,
+        endHour: 10,
+        timeZone: PARIS_TIME_ZONE,
+      },
       matches:
         formattedMatches,
       players,
@@ -876,7 +881,7 @@ function addUtcDays(
     );
 }
 
-function parisDateKey(
+function eveningDateKey(
   value: string
 ) {
   const date =
@@ -896,6 +901,10 @@ function parisDateKey(
           "2-digit",
         day:
           "2-digit",
+        hour:
+          "2-digit",
+        hour12:
+          false,
       }
     ).formatToParts(
       date
@@ -912,13 +921,81 @@ function parisDateKey(
       )?.value ??
       "";
 
-  return `${get(
-    "year"
-  )}-${get(
-    "month"
-  )}-${get(
-    "day"
-  )}`;
+  const year =
+    Number(
+      get(
+        "year"
+      )
+    );
+
+  const month =
+    Number(
+      get(
+        "month"
+      )
+    );
+
+  const day =
+    Number(
+      get(
+        "day"
+      )
+    );
+
+  const hour =
+    Number(
+      get(
+        "hour"
+      )
+    );
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    return "";
+  }
+
+  if (
+    hour >= 10
+  ) {
+    return `${String(
+      year
+    ).padStart(
+      4,
+      "0"
+    )}-${String(
+      month
+    ).padStart(
+      2,
+      "0"
+    )}-${String(
+      day
+    ).padStart(
+      2,
+      "0"
+    )}`;
+  }
+
+  const previousDay =
+    new Date(
+      Date.UTC(
+        year,
+        month -
+          1,
+        day -
+          1,
+        12
+      )
+    );
+
+  return previousDay
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
 }
 
 function parisTime(
