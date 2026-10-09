@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
+import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
 const CLUB_ID = "1663";
 const PARIS_TIME_ZONE = "Europe/Paris";
@@ -340,6 +341,11 @@ export async function GET(
       throw playerError;
     }
 
+    const archivedPlayerKeys =
+      await getArchivedPlayerKeys(
+        CLUB_ID
+      );
+
     const matchMap =
       new Map<
         number,
@@ -366,6 +372,20 @@ export async function GET(
         []
       ) as PlayerRow[]
     ) {
+      const playerKey =
+        getPlayerKey(
+          performance.player_ea_id,
+          performance.player_name
+        );
+
+      if (
+        archivedPlayerKeys.has(
+          playerKey
+        )
+      ) {
+        continue;
+      }
+
       const identity =
         performance.player_ea_id?.trim() ||
         normalizeName(
