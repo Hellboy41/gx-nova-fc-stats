@@ -16089,6 +16089,10 @@ function EveningReportDashboard({
             Une soirée, tous les matchs, le MVP, les tendances joueurs et les points à retenir dans un seul rapport.
           </p>
 
+          <p className="mt-2 text-xs font-semibold text-gray-600">
+            Une soirée couvre désormais de 10h00 à 09h59 le lendemain, heure de Paris. Les matchs après minuit restent donc rattachés à la soirée de la veille.
+          </p>
+
           <p className="mt-2 text-xs font-bold text-cyan-300">
             {currentFilterLabel}
           </p>
@@ -16100,7 +16104,7 @@ function EveningReportDashboard({
           <label className="min-w-[220px]">
 
             <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.15em] text-gray-600">
-              Soirée
+              Soirée • 10h → 10h
             </span>
 
             <select
@@ -17253,6 +17257,10 @@ function eveningDateKey(
           "2-digit",
         day:
           "2-digit",
+        hour:
+          "2-digit",
+        hour12:
+          false,
       }
     ).formatToParts(
       date
@@ -17269,13 +17277,81 @@ function eveningDateKey(
       )?.value ??
       "";
 
-  return `${get(
-    "year"
-  )}-${get(
-    "month"
-  )}-${get(
-    "day"
-  )}`;
+  const year =
+    Number(
+      get(
+        "year"
+      )
+    );
+
+  const month =
+    Number(
+      get(
+        "month"
+      )
+    );
+
+  const day =
+    Number(
+      get(
+        "day"
+      )
+    );
+
+  const hour =
+    Number(
+      get(
+        "hour"
+      )
+    );
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    return "";
+  }
+
+  if (
+    hour >= 10
+  ) {
+    return `${String(
+      year
+    ).padStart(
+      4,
+      "0"
+    )}-${String(
+      month
+    ).padStart(
+      2,
+      "0"
+    )}-${String(
+      day
+    ).padStart(
+      2,
+      "0"
+    )}`;
+  }
+
+  const previousDay =
+    new Date(
+      Date.UTC(
+        year,
+        month -
+          1,
+        day -
+          1,
+        12
+      )
+    );
+
+  return previousDay
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
 }
 
 function formatEveningDateLabel(
