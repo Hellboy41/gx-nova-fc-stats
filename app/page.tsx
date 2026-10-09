@@ -598,6 +598,9 @@ export default function Home() {
   const canExport =
     canWrite;
 
+  const canSyncEa =
+    Boolean(currentUser);
+
   const [
     selectedSeason,
     setSelectedSeason,
@@ -1096,7 +1099,7 @@ export default function Home() {
   ======================================================= */
 
   async function syncEaMatches() {
-    if (!canWrite) {
+    if (!canSyncEa) {
       return;
     }
 
@@ -2152,7 +2155,7 @@ export default function Home() {
 
               </div>
 
-              {canWrite && (
+              {canSyncEa && (
 
                 <button
                   onClick={
@@ -3344,7 +3347,8 @@ function SettingsDashboard() {
                 lines={[
                   "Consultation du dashboard",
                   "Consultation matchs et joueurs",
-                  "Aucune modification",
+                  "Synchronisation EA autorisée",
+                  "Aucune autre modification",
                   "Aucune gestion des accès",
                 ]}
                 active={
