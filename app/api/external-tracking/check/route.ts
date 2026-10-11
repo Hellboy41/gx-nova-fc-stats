@@ -6,6 +6,7 @@ import { normalizeClubPlayerName } from "@/lib/players/status";
 const CLUB_ID = "1663";
 const PLATFORM = "common-gen5";
 const PARIS_TIME_ZONE = "Europe/Paris";
+const MAX_CLUBS_PER_SCAN = 80;
 const MATCH_TYPES = [
   "friendlyMatch",
   "leagueMatch",
@@ -15,8 +16,6 @@ type TrackingRow = {
   player_key: string;
   player_ea_id: string | null;
   player_name: string;
-  external_club_id: string | null;
-  external_club_name: string | null;
   watch_date: string | null;
   watch_permanent: boolean;
   is_enabled: boolean;
@@ -31,23 +30,15 @@ type RawClub = {
   };
 };
 
-type RawPlayer =
-  Record<string, unknown>;
+type RawPlayer = Record<string, unknown>;
 
 type RawMatch = {
   matchId?: string | number;
   timestamp?: string | number;
-  clubs?: Record<
-    string,
-    RawClub
-  >;
+  clubs?: Record<string, RawClub>;
   players?: Record<
     string,
-    RawPlayer[] |
-      Record<
-        string,
-        RawPlayer
-      >
+    RawPlayer[] | Record<string, RawPlayer>
   >;
 };
 
@@ -59,15 +50,13 @@ function staffOnly(
   }
 
   if (
-    authorization.profile?.role !==
-      "admin" &&
-    authorization.profile?.role !==
-      "staff"
+    authorization.profile?.role !== "admin" &&
+    authorization.profile?.role !== "staff"
   ) {
     return NextResponse.json(
       {
         error:
-          "Le suivi externe est réservé à l'administrateur et au staff.",
+          "Le scanner externe est réservé à l'administrateur et au staff.",
       },
       { status: 403 }
     );
@@ -79,10 +68,10 @@ function staffOnly(
 export async function POST() {
   const authorization =
     await requireActiveStaff();
+
   const accessError =
-    staffOnly(
-      authorization
-    );
+    staffOnly(authorization);
+
   if (accessError) {
     return accessError;
   }
@@ -91,37 +80,27 @@ export async function POST() {
     createAdminClient();
 
   const eveningDate =
-    eveningDateKey(
-      new Date()
-    );
+    eveningDateKey(new Date());
 
   const {
-    data,
-    error,
+    data: trackingData,
+    error: trackingError,
   } =
     await admin
-      .from(
-        "external_player_tracking"
-      )
+      .from("external_player_tracking")
       .select(
-        "player_key, player_ea_id, player_name, external_club_id, external_club_name, watch_date, watch_permanent, is_enabled"
+        "player_key, player_ea_id, player_name, watch_date, watch_permanent, is_enabled"
       )
-      .eq(
-        "club_id",
-        CLUB_ID
-      )
-      .eq(
-        "is_enabled",
-        true
-      );
+      .eq("club_id", CLUB_ID)
+      .eq("is_enabled", true);
 
-  if (error) {
+  if (trackingError) {
     return NextResponse.json(
       {
         error:
           "Impossible de charger les joueurs surveillés.",
         details:
-          error.message,
+          trackingError.message,
       },
       { status: 500 }
     );
@@ -129,407 +108,443 @@ export async function POST() {
 
   const watched =
     (
-      (data ?? []) as TrackingRow[]
+      (trackingData ?? []) as TrackingRow[]
     ).filter(
       (row) =>
         row.watch_permanent ||
-        row.watch_date ===
-          eveningDate
+        row.watch_date === eveningDate
     );
 
-  const clubIds =
-    Array.from(
-      new Set(
-        watched
-          .map(
-            (row) =>
-              row.external_club_id
-                ?.trim() ??
-              ""
-          )
-          .filter(Boolean)
+  if (watched.length === 0) {
+    return NextResponse.json({
+      success: true,
+      eveningDate,
+      watchedPlayers: 0,
+      checkedClubs: 0,
+      matchesScanned: 0,
+      discoveredClubs: 0,
+      failedRequests: 0,
+      detectionsSaved: 0,
+      message:
+        "Aucun joueur n'est marqué à surveiller pour cette soirée.",
+    });
+  }
+
+  await seedCatalogFromGxMatches(admin);
+
+  const {
+    data: catalogData,
+    error: catalogError,
+  } =
+    await admin
+      .from("ea_club_catalog")
+      .select(
+        "club_id, club_name, last_checked_at, last_seen_at"
+      )
+      .eq("platform", PLATFORM)
+      .neq("club_id", CLUB_ID)
+      .order("last_checked_at", {
+        ascending: true,
+        nullsFirst: true,
+      })
+      .order("last_seen_at", {
+        ascending: false,
+        nullsFirst: false,
+      })
+      .limit(MAX_CLUBS_PER_SCAN);
+
+  if (catalogError) {
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de charger le catalogue de clubs EA.",
+        details:
+          catalogError.message,
+      },
+      { status: 500 }
+    );
+  }
+
+  const scanStartedAt =
+    new Date().toISOString();
+
+  const scanIds =
+    new Map<string, number>();
+
+  for (const player of watched) {
+    const {
+      data: inserted,
+      error: insertError,
+    } =
+      await admin
+        .from("external_player_scans")
+        .insert({
+          club_id: CLUB_ID,
+          scan_date: eveningDate,
+          player_key:
+            player.player_key,
+          player_ea_id:
+            player.player_ea_id,
+          player_name:
+            player.player_name,
+          status: "running",
+          started_at:
+            scanStartedAt,
+          triggered_by:
+            authorization.profile
+              ?.userId ??
+            null,
+        })
+        .select("id")
+        .single();
+
+    if (!insertError && inserted?.id) {
+      scanIds.set(
+        player.player_key,
+        Number(inserted.id)
+      );
+    }
+  }
+
+  let checkedClubs = 0;
+  let matchesScanned = 0;
+  let failedRequests = 0;
+  let discoveredClubs = 0;
+  let detectionsSaved = 0;
+
+  const detectedByPlayer =
+    new Map<string, number>();
+
+  const knownCatalogIds =
+    new Set(
+      (catalogData ?? []).map(
+        (row) =>
+          String(row.club_id)
       )
     );
 
-  const matchesByClub =
-    new Map<
-      string,
-      Array<{
-        match: RawMatch;
-        matchType:
-          typeof MATCH_TYPES[number];
-      }>
-    >();
+  const seenRelevantMatches =
+    new Set<string>();
 
-  const clubErrors =
-    new Map<
-      string,
-      string
-    >();
+  for (const catalogRow of
+    catalogData ?? []) {
+    const externalClubId =
+      String(
+        catalogRow.club_id
+      );
 
-  await Promise.all(
-    clubIds.map(
-      async (
-        externalClubId
-      ) => {
-        const matches:
-          Array<{
-            match: RawMatch;
-            matchType:
-              typeof MATCH_TYPES[number];
-          }> = [];
+    let clubSucceeded = false;
 
-        for (const matchType of
-          MATCH_TYPES) {
-          try {
-            const fetched =
-              await fetchEaMatches(
-                externalClubId,
-                matchType
-              );
+    for (const matchType of MATCH_TYPES) {
+      try {
+        const matches =
+          await fetchEaMatches(
+            externalClubId,
+            matchType
+          );
 
-            for (const match of
-              fetched) {
-              matches.push({
-                match,
-                matchType,
-              });
-            }
-          } catch (error) {
-            clubErrors.set(
-              externalClubId,
-              error instanceof
-                Error
-                ? error.message
-                : "Erreur EA inconnue."
+        clubSucceeded = true;
+
+        for (const match of matches) {
+          const timestamp =
+            numberValue(
+              match.timestamp
             );
-          }
-        }
 
-        const unique =
-          new Map<
-            string,
-            {
-              match: RawMatch;
-              matchType:
-                typeof MATCH_TYPES[number];
+          const playedAt =
+            timestamp > 0
+              ? new Date(
+                  timestamp * 1000
+                ).toISOString()
+              : null;
+
+          discoverClubsFromMatch(
+            match,
+            externalClubId
+          );
+
+          for (const [
+            discoveredId,
+            club,
+          ] of Object.entries(
+            match.clubs ?? {}
+          )) {
+            if (
+              !discoveredId ||
+              discoveredId ===
+                CLUB_ID
+            ) {
+              continue;
             }
-          >();
 
-        for (const item of
-          matches) {
-          const key =
+            if (
+              !knownCatalogIds.has(
+                discoveredId
+              )
+            ) {
+              knownCatalogIds.add(
+                discoveredId
+              );
+              discoveredClubs++;
+            }
+
+            await admin
+              .from(
+                "ea_club_catalog"
+              )
+              .upsert(
+                {
+                  platform:
+                    PLATFORM,
+                  club_id:
+                    discoveredId,
+                  club_name:
+                    club.details
+                      ?.name?.trim() ||
+                    null,
+                  discovered_from_club_id:
+                    externalClubId,
+                  last_seen_at:
+                    playedAt,
+                  updated_at:
+                    new Date()
+                      .toISOString(),
+                },
+                {
+                  onConflict:
+                    "platform,club_id",
+                }
+              );
+          }
+
+          if (
+            !playedAt ||
+            eveningDateKey(
+              new Date(
+                playedAt
+              )
+            ) !== eveningDate
+          ) {
+            continue;
+          }
+
+          const matchKey =
             String(
-              item.match.matchId ??
-                ""
+              match.matchId ??
+                `${externalClubId}:${timestamp}:${matchType}`
             );
 
           if (
-            key &&
-            !unique.has(
-              key
+            !seenRelevantMatches.has(
+              matchKey
             )
           ) {
-            unique.set(
-              key,
-              item
+            seenRelevantMatches.add(
+              matchKey
             );
+            matchesScanned++;
+          }
+
+          for (const player of watched) {
+            if (
+              !playerAppearedAnywhere(
+                match,
+                player.player_ea_id,
+                player.player_name
+              )
+            ) {
+              continue;
+            }
+
+            const playerClubEntry =
+              findPlayerClub(
+                match,
+                player.player_ea_id,
+                player.player_name
+              );
+
+            if (
+              !playerClubEntry ||
+              playerClubEntry.clubId ===
+                CLUB_ID
+            ) {
+              continue;
+            }
+
+            const ownClub =
+              match.clubs?.[
+                playerClubEntry.clubId
+              ];
+
+            const opponentEntry =
+              Object.entries(
+                match.clubs ?? {}
+              ).find(
+                ([clubId]) =>
+                  clubId !==
+                  playerClubEntry.clubId
+              );
+
+            const opponent =
+              opponentEntry?.[1];
+
+            const goalsFor =
+              numberValue(
+                ownClub?.goals
+              );
+
+            const goalsAgainst =
+              ownClub
+                ?.goalsAgainst !==
+                undefined
+                ? numberValue(
+                    ownClub
+                      .goalsAgainst
+                  )
+                : numberValue(
+                    opponent?.goals
+                  );
+
+            const eaMatchId =
+              String(
+                match.matchId ??
+                  ""
+              );
+
+            if (!eaMatchId) {
+              continue;
+            }
+
+            const {
+              error: saveError,
+            } =
+              await admin
+                .from(
+                  "external_player_detections"
+                )
+                .upsert(
+                  {
+                    club_id:
+                      CLUB_ID,
+                    player_key:
+                      player.player_key,
+                    player_ea_id:
+                      player.player_ea_id,
+                    player_name:
+                      player.player_name,
+                    external_club_id:
+                      playerClubEntry.clubId,
+                    external_club_name:
+                      ownClub?.details
+                        ?.name?.trim() ||
+                      null,
+                    ea_match_id:
+                      eaMatchId,
+                    match_type:
+                      matchType,
+                    played_at:
+                      playedAt,
+                    opponent_name:
+                      opponent?.details
+                        ?.name?.trim() ||
+                      "Adversaire inconnu",
+                    goals_for:
+                      goalsFor,
+                    goals_against:
+                      goalsAgainst,
+                    detected_at:
+                      new Date()
+                        .toISOString(),
+                  },
+                  {
+                    onConflict:
+                      "club_id,player_key,ea_match_id",
+                  }
+                );
+
+            if (!saveError) {
+              detectionsSaved++;
+              detectedByPlayer.set(
+                player.player_key,
+                (
+                  detectedByPlayer.get(
+                    player.player_key
+                  ) ?? 0
+                ) + 1
+              );
+            }
           }
         }
-
-        matchesByClub.set(
-          externalClubId,
-          [...unique.values()]
-        );
+      } catch {
+        failedRequests++;
       }
-    )
-  );
+    }
 
-  let detectionsSaved =
-    0;
+    if (clubSucceeded) {
+      checkedClubs++;
+    }
 
-  const statuses:
-    Array<{
-      playerKey: string;
-      playerName: string;
-      externalClubId:
-        string | null;
-      externalClubName:
-        string | null;
-      checked: boolean;
-      error: string | null;
-      detections:
-        Array<{
-          eaMatchId: string;
-          playedAt:
-            string | null;
-          matchType: string;
-          opponentName:
-            string;
-          goalsFor:
-            number;
-          goalsAgainst:
-            number;
-        }>;
-    }> = [];
+    await admin
+      .from("ea_club_catalog")
+      .update({
+        last_checked_at:
+          new Date()
+            .toISOString(),
+        updated_at:
+          new Date()
+            .toISOString(),
+      })
+      .eq("platform", PLATFORM)
+      .eq(
+        "club_id",
+        externalClubId
+      );
+  }
 
-  for (const row of
-    watched) {
-    const externalClubId =
-      row.external_club_id
-        ?.trim() ??
-      "";
+  const completedAt =
+    new Date().toISOString();
 
-    if (!externalClubId) {
-      statuses.push({
-        playerKey:
-          row.player_key,
-        playerName:
-          row.player_name,
-        externalClubId:
-          null,
-        externalClubName:
-          row.external_club_name,
-        checked: false,
-        error:
-          "Club ID EA non renseigné.",
-        detections: [],
-      });
+  for (const player of watched) {
+    const detections =
+      detectedByPlayer.get(
+        player.player_key
+      ) ?? 0;
 
+    const status =
+      detections > 0
+        ? "detected"
+        : failedRequests > 0
+        ? "partial"
+        : "not_detected";
+
+    const scanId =
+      scanIds.get(
+        player.player_key
+      );
+
+    if (!scanId) {
       continue;
     }
 
-    const errorMessage =
-      clubErrors.get(
-        externalClubId
-      ) ??
-      null;
-
-    const detections:
-      Array<{
-        eaMatchId: string;
-        playedAt:
-          string | null;
-        matchType: string;
-        opponentName:
-          string;
-        goalsFor:
-          number;
-        goalsAgainst:
-          number;
-      }> = [];
-
-    for (const item of
-      matchesByClub.get(
-        externalClubId
-      ) ?? []) {
-      const timestamp =
-        numberValue(
-          item.match.timestamp
-        );
-
-      const playedAt =
-        timestamp > 0
-          ? new Date(
-              timestamp *
-                1000
-            ).toISOString()
-          : null;
-
-      if (
-        !playedAt ||
-        eveningDateKey(
-          new Date(
-            playedAt
-          )
-        ) !== eveningDate
-      ) {
-        continue;
-      }
-
-      if (
-        !playerAppeared(
-          item.match,
-          externalClubId,
-          row.player_ea_id,
-          row.player_name
-        )
-      ) {
-        continue;
-      }
-
-      const clubs =
-        item.match.clubs ??
-        {};
-
-      const ownClub =
-        clubs[
-          externalClubId
-        ];
-
-      const opponentEntry =
-        Object.entries(
-          clubs
-        ).find(
-          ([id]) =>
-            id !==
-            externalClubId
-        );
-
-      const opponent =
-        opponentEntry?.[1];
-
-      const ownClubName =
-        ownClub?.details
-          ?.name?.trim() ||
-        row.external_club_name ||
-        null;
-
-      const goalsFor =
-        numberValue(
-          ownClub?.goals
-        );
-
-      const goalsAgainst =
-        ownClub?.goalsAgainst !==
-          undefined
-          ? numberValue(
-              ownClub
-                .goalsAgainst
-            )
-          : numberValue(
-              opponent?.goals
-            );
-
-      const opponentName =
-        opponent?.details
-          ?.name?.trim() ||
-        "Adversaire inconnu";
-
-      const eaMatchId =
-        String(
-          item.match.matchId ??
-            ""
-        );
-
-      if (!eaMatchId) {
-        continue;
-      }
-
-      detections.push({
-        eaMatchId,
-        playedAt,
-        matchType:
-          item.matchType,
-        opponentName,
-        goalsFor,
-        goalsAgainst,
-      });
-
-      const {
-        error:
-          saveError,
-      } =
-        await admin
-          .from(
-            "external_player_detections"
-          )
-          .upsert(
-            {
-              club_id:
-                CLUB_ID,
-              player_key:
-                row.player_key,
-              player_ea_id:
-                row.player_ea_id,
-              player_name:
-                row.player_name,
-              external_club_id:
-                externalClubId,
-              external_club_name:
-                ownClubName,
-              ea_match_id:
-                eaMatchId,
-              match_type:
-                item.matchType,
-              played_at:
-                playedAt,
-              opponent_name:
-                opponentName,
-              goals_for:
-                goalsFor,
-              goals_against:
-                goalsAgainst,
-              detected_at:
-                new Date()
-                  .toISOString(),
-            },
-            {
-              onConflict:
-                "club_id,player_key,ea_match_id",
-            }
-          );
-
-      if (!saveError) {
-        detectionsSaved +=
-          1;
-      }
-
-      if (
-        ownClubName &&
-        ownClubName !==
-          row.external_club_name
-      ) {
-        await admin
-          .from(
-            "external_player_tracking"
-          )
-          .update({
-            external_club_name:
-              ownClubName,
-            updated_at:
-              new Date()
-                .toISOString(),
-          })
-          .eq(
-            "club_id",
-            CLUB_ID
-          )
-          .eq(
-            "player_key",
-            row.player_key
-          );
-      }
-    }
-
-    detections.sort(
-      (a, b) =>
-        String(
-          b.playedAt ??
-            ""
-        ).localeCompare(
-          String(
-            a.playedAt ??
-              ""
-          )
-        )
-    );
-
-    statuses.push({
-      playerKey:
-        row.player_key,
-      playerName:
-        row.player_name,
-      externalClubId,
-      externalClubName:
-        row.external_club_name,
-      checked:
-        errorMessage ===
-        null,
-      error:
-        errorMessage,
-      detections,
-    });
+    await admin
+      .from(
+        "external_player_scans"
+      )
+      .update({
+        status,
+        clubs_scanned:
+          checkedClubs,
+        matches_scanned:
+          matchesScanned,
+        discovered_clubs:
+          discoveredClubs,
+        failed_requests:
+          failedRequests,
+        detections,
+        completed_at:
+          completedAt,
+      })
+      .eq("id", scanId);
   }
 
   return NextResponse.json({
@@ -537,11 +552,101 @@ export async function POST() {
     eveningDate,
     watchedPlayers:
       watched.length,
-    checkedClubs:
-      clubIds.length,
+    checkedClubs,
+    matchesScanned,
+    discoveredClubs,
+    failedRequests,
     detectionsSaved,
-    statuses,
+    catalogLimit:
+      MAX_CLUBS_PER_SCAN,
   });
+}
+
+async function seedCatalogFromGxMatches(
+  admin: ReturnType<typeof createAdminClient>
+) {
+  const {
+    data,
+    error,
+  } =
+    await admin
+      .from("matches")
+      .select(
+        "raw_data, played_at"
+      )
+      .eq("club_id", CLUB_ID)
+      .order("played_at", {
+        ascending: false,
+      })
+      .limit(500);
+
+  if (error) {
+    throw new Error(
+      `Impossible d'initialiser le catalogue EA : ${error.message}`
+    );
+  }
+
+  for (const row of data ?? []) {
+    const raw =
+      row.raw_data;
+
+    if (
+      !raw ||
+      typeof raw !==
+        "object" ||
+      Array.isArray(raw)
+    ) {
+      continue;
+    }
+
+    const clubs =
+      (raw as RawMatch)
+        .clubs ??
+      {};
+
+    for (const [
+      clubId,
+      club,
+    ] of Object.entries(
+      clubs
+    )) {
+      if (
+        !clubId ||
+        clubId ===
+          CLUB_ID
+      ) {
+        continue;
+      }
+
+      await admin
+        .from(
+          "ea_club_catalog"
+        )
+        .upsert(
+          {
+            platform:
+              PLATFORM,
+            club_id:
+              clubId,
+            club_name:
+              club.details
+                ?.name?.trim() ||
+              null,
+            discovered_from_club_id:
+              CLUB_ID,
+            last_seen_at:
+              row.played_at,
+            updated_at:
+              new Date()
+                .toISOString(),
+          },
+          {
+            onConflict:
+              "platform,club_id",
+          }
+        );
+    }
+  }
 }
 
 async function fetchEaMatches(
@@ -603,31 +708,86 @@ async function fetchEaMatches(
   );
 }
 
-function playerAppeared(
+function findPlayerClub(
   match: RawMatch,
-  externalClubId: string,
   playerEaId:
     string | null,
   playerName: string
 ) {
-  const clubPlayers =
-    match.players?.[
-      externalClubId
-    ];
+  for (const [
+    clubId,
+    players,
+  ] of Object.entries(
+    match.players ?? {}
+  )) {
+    if (
+      playerAppearedInPlayers(
+        players,
+        playerEaId,
+        playerName
+      )
+    ) {
+      return {
+        clubId,
+      };
+    }
+  }
 
+  return null;
+}
+
+function playerAppearedAnywhere(
+  match: RawMatch,
+  playerEaId:
+    string | null,
+  playerName: string
+) {
+  return Boolean(
+    findPlayerClub(
+      match,
+      playerEaId,
+      playerName
+    )
+  );
+}
+
+function playerAppearedInPlayers(
+  value:
+    | RawPlayer[]
+    | Record<
+        string,
+        RawPlayer
+      >
+    | undefined,
+  playerEaId:
+    string | null,
+  playerName: string
+) {
   const wantedName =
     normalizeClubPlayerName(
       playerName
     );
 
   for (const item of
-    normalizePlayers(
-      clubPlayers
-    )) {
+    normalizePlayers(value)) {
     if (
       playerEaId &&
-      item.id ===
-        playerEaId
+      (
+        item.id ===
+          playerEaId ||
+        textValue(
+          firstValue(
+            item.player,
+            [
+              "blazeId",
+              "playerId",
+              "personaId",
+              "id",
+            ]
+          )
+        ) ===
+          playerEaId
+      )
     ) {
       return true;
     }
@@ -673,9 +833,7 @@ function normalizePlayers(
   }
 
   if (
-    Array.isArray(
-      value
-    )
+    Array.isArray(value)
   ) {
     return value.map(
       (
@@ -741,24 +899,27 @@ function textValue(
     return "";
   }
 
-  return String(
-    value
-  );
+  return String(value);
 }
 
 function numberValue(
   value: unknown
 ) {
   const parsed =
-    Number(
-      value
-    );
+    Number(value);
 
   return Number.isFinite(
     parsed
   )
     ? parsed
     : 0;
+}
+
+function discoverClubsFromMatch(
+  _match: RawMatch,
+  _sourceClubId: string
+) {
+  // Le catalogue est enrichi directement dans la boucle principale.
 }
 
 function eveningDateKey(
@@ -781,45 +942,24 @@ function eveningDateKey(
         hour12:
           false,
       }
-    ).formatToParts(
-      value
-    );
+    ).formatToParts(value);
 
   const get =
-    (
-      type: string
-    ) =>
+    (type: string) =>
       parts.find(
         (part) =>
-          part.type ===
-          type
+          part.type === type
       )?.value ??
       "";
 
   const year =
-    Number(
-      get(
-        "year"
-      )
-    );
+    Number(get("year"));
   const month =
-    Number(
-      get(
-        "month"
-      )
-    );
+    Number(get("month"));
   const day =
-    Number(
-      get(
-        "day"
-      )
-    );
+    Number(get("day"));
   const hour =
-    Number(
-      get(
-        "hour"
-      )
-    );
+    Number(get("hour"));
 
   if (
     !year ||
@@ -829,9 +969,7 @@ function eveningDateKey(
     return "";
   }
 
-  if (
-    hour >= 10
-  ) {
+  if (hour >= 10) {
     return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
@@ -847,8 +985,5 @@ function eveningDateKey(
 
   return previous
     .toISOString()
-    .slice(
-      0,
-      10
-    );
+    .slice(0, 10);
 }
