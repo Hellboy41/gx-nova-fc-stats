@@ -542,6 +542,39 @@ type ManagedClubPlayer = {
   archivedAt: string | null;
 };
 
+type ExternalTrackingDetection = {
+  eaMatchId: string;
+  externalClubId: string;
+  externalClubName: string | null;
+  matchType: string | null;
+  playedAt: string | null;
+  opponentName: string | null;
+  goalsFor: number | null;
+  goalsAgainst: number | null;
+  detectedAt: string;
+};
+
+type ExternalTrackingItem = {
+  id: number;
+  playerKey: string;
+  playerEaId: string | null;
+  playerName: string;
+  externalClubId: string | null;
+  externalClubName: string | null;
+  watchDate: string | null;
+  watchPermanent: boolean;
+  isEnabled: boolean;
+  notes: string | null;
+  updatedAt: string | null;
+  isWatchingTonight: boolean;
+  detectionsTonight: ExternalTrackingDetection[];
+};
+
+type ExternalTrackingResponse = {
+  eveningDate: string;
+  items: ExternalTrackingItem[];
+};
+
 type DashboardProgrammeEvent = {
   weekStart: string;
   eventDate: string;
@@ -2467,6 +2500,9 @@ export default function Home() {
                 }
                 currentFilterLabel={
                   currentFilterLabel
+                }
+                canManageExternalTracking={
+                  canWrite
                 }
                 onOpenPlayer={
                   setSelectedPlayer
@@ -6824,10 +6860,12 @@ function MetricBox({
 function RosterManager({
   players,
   currentFilterLabel,
+  canManageExternalTracking,
   onOpenPlayer,
 }: {
   players: Player[];
   currentFilterLabel: string;
+  canManageExternalTracking: boolean;
   onOpenPlayer: (player: Player) => void;
 }) {
   const [search, setSearch] =
@@ -7337,6 +7375,12 @@ function RosterManager({
         </p>
 
       </div>
+
+      {canManageExternalTracking && (
+        <ExternalPlayerTrackingPanel
+          players={players}
+        />
+      )}
 
       <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-5">
 
@@ -8125,6 +8169,911 @@ function RosterManager({
       </div>
 
     </>
+  );
+}
+
+
+function ExternalPlayerTrackingPanel({
+  players,
+}: {
+  players: Player[];
+}) {
+  const [
+    response,
+    setResponse,
+  ] = useState<ExternalTrackingResponse | null>(
+    null
+  );
+
+  const [
+    selectedPlayerId,
+    setSelectedPlayerId,
+  ] = useState("");
+
+  const [
+    externalClubId,
+    setExternalClubId,
+  ] = useState("");
+
+  const [
+    externalClubName,
+    setExternalClubName,
+  ] = useState("");
+
+  const [
+    watchMode,
+    setWatchMode,
+  ] = useState<
+    "off" | "tonight" | "permanent"
+  >("tonight");
+
+  const [
+    notes,
+    setNotes,
+  ] = useState("");
+
+  const [
+    loadingTracking,
+    setLoadingTracking,
+  ] = useState(true);
+
+  const [
+    savingTracking,
+    setSavingTracking,
+  ] = useState(false);
+
+  const [
+    checkingTracking,
+    setCheckingTracking,
+  ] = useState(false);
+
+  const [
+    trackingError,
+    setTrackingError,
+  ] = useState("");
+
+  const [
+    trackingMessage,
+    setTrackingMessage,
+  ] = useState("");
+
+  const loadTracking =
+    useCallback(
+      async () => {
+        try {
+          setLoadingTracking(
+            true
+          );
+          setTrackingError(
+            ""
+          );
+
+          const fetchResponse =
+            await fetch(
+              "/api/external-tracking",
+              {
+                cache:
+                  "no-store",
+              }
+            );
+
+          const data =
+            (await fetchResponse.json()) as ExternalTrackingResponse & {
+              error?: string;
+              details?: string;
+            };
+
+          if (
+            !fetchResponse.ok
+          ) {
+            throw new Error(
+              data.details ??
+                data.error ??
+                "Impossible de charger le suivi externe."
+            );
+          }
+
+          setResponse(
+            data
+          );
+        } catch (
+          error
+        ) {
+          setTrackingError(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger le suivi externe."
+          );
+        } finally {
+          setLoadingTracking(
+            false
+          );
+        }
+      },
+      []
+    );
+
+  useEffect(
+    () => {
+      void loadTracking();
+    },
+    [loadTracking]
+  );
+
+  useEffect(
+    () => {
+      if (
+        players.length ===
+        0
+      ) {
+        setSelectedPlayerId(
+          ""
+        );
+        return;
+      }
+
+      if (
+        !selectedPlayerId ||
+        !players.some(
+          (player) =>
+            player.id ===
+            selectedPlayerId
+        )
+      ) {
+        setSelectedPlayerId(
+          players[0].id
+        );
+      }
+    },
+    [
+      players,
+      selectedPlayerId,
+    ]
+  );
+
+  const selectedPlayer =
+    players.find(
+      (player) =>
+        player.id ===
+        selectedPlayerId
+    ) ??
+    null;
+
+  const existingTracking =
+    selectedPlayer
+      ? response?.items.find(
+          (item) =>
+            normalizePlayerName(
+              item.playerName
+            ) ===
+            normalizePlayerName(
+              selectedPlayer.name
+            )
+        ) ??
+        null
+      : null;
+
+  useEffect(
+    () => {
+      if (
+        !selectedPlayer
+      ) {
+        return;
+      }
+
+      if (
+        existingTracking
+      ) {
+        setExternalClubId(
+          existingTracking.externalClubId ??
+            ""
+        );
+        setExternalClubName(
+          existingTracking.externalClubName ??
+            ""
+        );
+        setNotes(
+          existingTracking.notes ??
+            ""
+        );
+
+        if (
+          !existingTracking.isEnabled
+        ) {
+          setWatchMode(
+            "off"
+          );
+        } else if (
+          existingTracking.watchPermanent
+        ) {
+          setWatchMode(
+            "permanent"
+          );
+        } else {
+          setWatchMode(
+            "tonight"
+          );
+        }
+
+        return;
+      }
+
+      setExternalClubId(
+        ""
+      );
+      setExternalClubName(
+        ""
+      );
+      setNotes(
+        ""
+      );
+      setWatchMode(
+        "tonight"
+      );
+    },
+    [
+      selectedPlayerId,
+      existingTracking?.id,
+      existingTracking?.updatedAt,
+    ]
+  );
+
+  async function saveTracking() {
+    if (
+      !selectedPlayer
+    ) {
+      return;
+    }
+
+    try {
+      setSavingTracking(
+        true
+      );
+      setTrackingError(
+        ""
+      );
+      setTrackingMessage(
+        ""
+      );
+
+      const playerEaId =
+        /^\d+$/.test(
+          selectedPlayer.id
+        )
+          ? selectedPlayer.id
+          : null;
+
+      const saveResponse =
+        await fetch(
+          "/api/external-tracking",
+          {
+            method:
+              "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                playerEaId,
+                playerName:
+                  selectedPlayer.name,
+                externalClubId,
+                externalClubName,
+                watchMode,
+                notes,
+              }),
+          }
+        );
+
+      const data =
+        await saveResponse.json();
+
+      if (
+        !saveResponse.ok
+      ) {
+        throw new Error(
+          data.details ??
+            data.error ??
+            "Impossible d'enregistrer le suivi."
+        );
+      }
+
+      await loadTracking();
+
+      setTrackingMessage(
+        watchMode ===
+          "off"
+          ? `Suivi désactivé pour ${formatPlayerName(
+              selectedPlayer.name
+            )}.`
+          : watchMode ===
+              "permanent"
+          ? `Surveillance permanente activée pour ${formatPlayerName(
+              selectedPlayer.name
+            )}.`
+          : `${formatPlayerName(
+              selectedPlayer.name
+            )} sera surveillé pour la soirée.`
+      );
+    } catch (
+      error
+    ) {
+      setTrackingError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'enregistrer le suivi."
+      );
+    } finally {
+      setSavingTracking(
+        false
+      );
+    }
+  }
+
+  async function checkExternalClubs() {
+    try {
+      setCheckingTracking(
+        true
+      );
+      setTrackingError(
+        ""
+      );
+      setTrackingMessage(
+        ""
+      );
+
+      const checkResponse =
+        await fetch(
+          "/api/external-tracking/check",
+          {
+            method:
+              "POST",
+          }
+        );
+
+      const data =
+        await checkResponse.json();
+
+      if (
+        !checkResponse.ok
+      ) {
+        throw new Error(
+          data.details ??
+            data.error ??
+            "Impossible de vérifier les clubs externes."
+        );
+      }
+
+      await loadTracking();
+
+      setTrackingMessage(
+        `${data.watchedPlayers ?? 0} joueur(s) surveillé(s) • ${data.checkedClubs ?? 0} club(s) vérifié(s) • ${data.detectionsSaved ?? 0} détection(s) trouvée(s).`
+      );
+    } catch (
+      error
+    ) {
+      setTrackingError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de vérifier les clubs externes."
+      );
+    } finally {
+      setCheckingTracking(
+        false
+      );
+    }
+  }
+
+  const orderedItems =
+    useMemo(
+      () =>
+        [
+          ...(response?.items ??
+            []),
+        ].sort(
+          (a, b) =>
+            Number(
+              b.isWatchingTonight
+            ) -
+              Number(
+                a.isWatchingTonight
+              ) ||
+            b.detectionsTonight.length -
+              a.detectionsTonight.length ||
+            a.playerName.localeCompare(
+              b.playerName,
+              "fr"
+            )
+        ),
+      [
+        response,
+      ]
+    );
+
+  const watchedTonight =
+    orderedItems.filter(
+      (item) =>
+        item.isWatchingTonight
+    );
+
+  const detectedTonight =
+    watchedTonight.filter(
+      (item) =>
+        item.detectionsTonight.length >
+        0
+    );
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-3xl border border-orange-400/20 bg-gradient-to-br from-orange-400/[0.045] via-[#091626] to-cyan-400/[0.025]">
+
+      <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 xl:flex-row xl:items-center xl:justify-between">
+
+        <div>
+
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">
+            STAFF • SUIVI EXTERNE
+          </p>
+
+          <h3 className="mt-1 text-xl font-black">
+            Joueurs annoncés non disponibles
+          </h3>
+
+          <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-gray-500">
+            Sélectionne uniquement les joueurs à surveiller. Le contrôle cherche leur gamertag dans les derniers matchs EA du club externe renseigné. Cette zone n&apos;est jamais affichée aux Viewers.
+          </p>
+
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            void checkExternalClubs()
+          }
+          disabled={
+            checkingTracking ||
+            loadingTracking
+          }
+          className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-orange-400/25 bg-orange-400/[0.08] px-4 py-3 text-sm font-black text-orange-200 transition hover:bg-orange-400/[0.13] disabled:opacity-40"
+        >
+          <RefreshCw
+            size={17}
+            className={
+              checkingTracking
+                ? "animate-spin"
+                : ""
+            }
+          />
+          {checkingTracking
+            ? "Vérification EA..."
+            : "Vérifier les clubs externes"}
+        </button>
+
+      </div>
+
+      <div className="grid gap-5 p-5 2xl:grid-cols-12">
+
+        <div className="2xl:col-span-5">
+
+          <div className="rounded-2xl border border-white/[0.08] bg-[#06111f] p-5">
+
+            <div className="mb-4 grid grid-cols-3 gap-3">
+
+              <SmallStatCard
+                title="Surveillés"
+                value={
+                  watchedTonight.length
+                }
+                subtitle="ce soir"
+              />
+
+              <SmallStatCard
+                title="Détectés"
+                value={
+                  detectedTonight.length
+                }
+                subtitle="ailleurs"
+              />
+
+              <SmallStatCard
+                title="Date"
+                value={
+                  response?.eveningDate
+                    ?.slice(
+                      5
+                    )
+                    .split(
+                      "-"
+                    )
+                    .reverse()
+                    .join(
+                      "/"
+                    ) ??
+                  "--"
+                }
+                subtitle="soirée"
+              />
+
+            </div>
+
+            <label className="block">
+
+              <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+                Joueur
+              </span>
+
+              <select
+                value={
+                  selectedPlayerId
+                }
+                onChange={(
+                  event
+                ) =>
+                  setSelectedPlayerId(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-black text-white outline-none"
+              >
+                {players.map(
+                  (player) => (
+                    <option
+                      key={
+                        player.id
+                      }
+                      value={
+                        player.id
+                      }
+                    >
+                      {formatPlayerName(
+                        player.name
+                      )}
+                    </option>
+                  )
+                )}
+              </select>
+
+            </label>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+
+              <label>
+
+                <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+                  Club ID EA
+                </span>
+
+                <input
+                  value={
+                    externalClubId
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setExternalClubId(
+                      event.target.value.replace(
+                        /[^0-9]/g,
+                        ""
+                      )
+                    )
+                  }
+                  placeholder="Ex : 123456"
+                  className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-bold text-white outline-none focus:border-orange-400/30"
+                />
+
+              </label>
+
+              <label>
+
+                <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+                  Nom du club
+                </span>
+
+                <input
+                  value={
+                    externalClubName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setExternalClubName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Optionnel"
+                  className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-bold text-white outline-none focus:border-orange-400/30"
+                />
+
+              </label>
+
+            </div>
+
+            <label className="mt-4 block">
+
+              <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+                Surveillance
+              </span>
+
+              <select
+                value={
+                  watchMode
+                }
+                onChange={(
+                  event
+                ) =>
+                  setWatchMode(
+                    event.target.value as
+                      | "off"
+                      | "tonight"
+                      | "permanent"
+                  )
+                }
+                className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-black text-white outline-none"
+              >
+                <option value="tonight">
+                  Ce soir uniquement
+                </option>
+                <option value="permanent">
+                  Permanente
+                </option>
+                <option value="off">
+                  Désactivée
+                </option>
+              </select>
+
+            </label>
+
+            <label className="mt-4 block">
+
+              <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
+                Note staff
+              </span>
+
+              <textarea
+                value={
+                  notes
+                }
+                onChange={(
+                  event
+                ) =>
+                  setNotes(
+                    event.target.value
+                  )
+                }
+                rows={3}
+                placeholder="Ex : annoncé non dispo sur Discord"
+                className="w-full resize-none rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-semibold text-white outline-none focus:border-orange-400/30"
+              />
+
+            </label>
+
+            <button
+              type="button"
+              onClick={() =>
+                void saveTracking()
+              }
+              disabled={
+                !selectedPlayer ||
+                savingTracking
+              }
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/15 disabled:opacity-40"
+            >
+              {savingTracking ? (
+                <RefreshCw
+                  size={16}
+                  className="animate-spin"
+                />
+              ) : (
+                <Save
+                  size={16}
+                />
+              )}
+              Enregistrer le suivi
+            </button>
+
+          </div>
+
+          {trackingError && (
+            <div className="mt-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3 text-xs font-bold text-rose-200">
+              {trackingError}
+            </div>
+          )}
+
+          {trackingMessage && (
+            <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-xs font-bold text-emerald-200">
+              {trackingMessage}
+            </div>
+          )}
+
+        </div>
+
+        <div className="2xl:col-span-7">
+
+          <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#06111f]">
+
+            <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+
+              <div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                  Surveillance de la soirée
+                </p>
+
+                <p className="mt-1 text-xs font-semibold text-gray-600">
+                  Un statut rouge signifie que le joueur a été trouvé dans un match EA du club externe.
+                </p>
+
+              </div>
+
+              <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-black text-gray-400">
+                {watchedTonight.length}
+              </span>
+
+            </div>
+
+            {loadingTracking ? (
+              <div className="p-10 text-center text-sm font-bold text-gray-600">
+                Chargement du suivi...
+              </div>
+            ) : watchedTonight.length >
+              0 ? (
+              <div className="divide-y divide-white/[0.06]">
+
+                {watchedTonight.map(
+                  (item) => {
+                    const detected =
+                      item.detectionsTonight.length >
+                      0;
+
+                    return (
+                      <div
+                        key={
+                          item.playerKey
+                        }
+                        className="p-4"
+                      >
+
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+
+                          <div className="flex items-center gap-3">
+
+                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-xs font-black ${
+                              detected
+                                ? "border-rose-400/30 bg-rose-400/10 text-rose-300"
+                                : "border-cyan-400/20 bg-cyan-400/[0.07] text-cyan-300"
+                            }`}>
+                              {getPlayerInitials(
+                                item.playerName
+                              )}
+                            </div>
+
+                            <div>
+
+                              <p className="font-black text-white">
+                                {formatPlayerName(
+                                  item.playerName
+                                )}
+                              </p>
+
+                              <p className="mt-1 text-[10px] font-bold text-gray-600">
+                                {item.externalClubName ||
+                                  "Club externe"}{" "}
+                                {item.externalClubId
+                                  ? `• ID ${item.externalClubId}`
+                                  : "• Club ID manquant"}
+                                {item.watchPermanent
+                                  ? " • Permanent"
+                                  : ""}
+                              </p>
+
+                            </div>
+
+                          </div>
+
+                          <span className={`rounded-xl border px-3 py-2 text-xs font-black ${
+                            detected
+                              ? "border-rose-400/25 bg-rose-400/[0.08] text-rose-200"
+                              : item.externalClubId
+                              ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200"
+                              : "border-orange-400/20 bg-orange-400/[0.06] text-orange-200"
+                          }`}>
+                            {detected
+                              ? `🔴 Détecté ailleurs • ${item.detectionsTonight.length} match(s)`
+                              : item.externalClubId
+                              ? "🟢 Aucune apparition détectée"
+                              : "🟠 Club ID à renseigner"}
+                          </span>
+
+                        </div>
+
+                        {item.notes && (
+                          <p className="mt-3 rounded-lg border border-white/[0.06] bg-black/10 px-3 py-2 text-xs font-semibold text-gray-500">
+                            {item.notes}
+                          </p>
+                        )}
+
+                        {detected && (
+                          <div className="mt-3 grid gap-2 md:grid-cols-2">
+
+                            {item.detectionsTonight.map(
+                              (
+                                detection
+                              ) => (
+                                <div
+                                  key={
+                                    detection.eaMatchId
+                                  }
+                                  className="rounded-xl border border-rose-400/15 bg-rose-400/[0.035] p-3"
+                                >
+                                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-rose-300">
+                                    {detection.playedAt
+                                      ? new Date(
+                                          detection.playedAt
+                                        ).toLocaleTimeString(
+                                          "fr-FR",
+                                          {
+                                            hour:
+                                              "2-digit",
+                                            minute:
+                                              "2-digit",
+                                          }
+                                        )
+                                      : "--:--"}{" "}
+                                    • {detection.matchType ===
+                                      "leagueMatch"
+                                      ? "Ligue"
+                                      : "Amical"}
+                                  </p>
+
+                                  <p className="mt-1 text-sm font-black text-white">
+                                    {item.externalClubName ||
+                                      "Club externe"}{" "}
+                                    {detection.goalsFor ??
+                                      "-"}-
+                                    {detection.goalsAgainst ??
+                                      "-"}{" "}
+                                    {detection.opponentName ||
+                                      "Adversaire"}
+                                  </p>
+                                </div>
+                              )
+                            )}
+
+                          </div>
+                        )}
+
+                      </div>
+                    );
+                  }
+                )}
+
+              </div>
+            ) : (
+              <div className="p-10 text-center">
+
+                <Eye
+                  size={30}
+                  className="mx-auto text-gray-700"
+                />
+
+                <p className="mt-3 text-sm font-black text-gray-600">
+                  Aucun joueur à surveiller ce soir.
+                </p>
+
+                <p className="mt-1 text-xs text-gray-700">
+                  Sélectionne un joueur à gauche et choisis « Ce soir uniquement ».
+                </p>
+
+              </div>
+            )}
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
   );
 }
 
