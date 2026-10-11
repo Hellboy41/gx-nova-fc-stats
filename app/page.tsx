@@ -559,8 +559,6 @@ type ExternalTrackingItem = {
   playerKey: string;
   playerEaId: string | null;
   playerName: string;
-  externalClubId: string | null;
-  externalClubName: string | null;
   watchDate: string | null;
   watchPermanent: boolean;
   isEnabled: boolean;
@@ -568,6 +566,18 @@ type ExternalTrackingItem = {
   updatedAt: string | null;
   isWatchingTonight: boolean;
   detectionsTonight: ExternalTrackingDetection[];
+  latestScan: null | {
+    id: number;
+    status: string;
+    clubsScanned: number;
+    matchesScanned: number;
+    discoveredClubs: number;
+    failedRequests: number;
+    detections: number;
+    startedAt: string;
+    completedAt: string | null;
+    error: string | null;
+  };
 };
 
 type ExternalTrackingResponse = {
@@ -8191,16 +8201,6 @@ function ExternalPlayerTrackingPanel({
   ] = useState("");
 
   const [
-    externalClubId,
-    setExternalClubId,
-  ] = useState("");
-
-  const [
-    externalClubName,
-    setExternalClubName,
-  ] = useState("");
-
-  const [
     watchMode,
     setWatchMode,
   ] = useState<
@@ -8364,14 +8364,6 @@ function ExternalPlayerTrackingPanel({
       if (
         existingTracking
       ) {
-        setExternalClubId(
-          existingTracking.externalClubId ??
-            ""
-        );
-        setExternalClubName(
-          existingTracking.externalClubName ??
-            ""
-        );
         setNotes(
           existingTracking.notes ??
             ""
@@ -8398,12 +8390,6 @@ function ExternalPlayerTrackingPanel({
         return;
       }
 
-      setExternalClubId(
-        ""
-      );
-      setExternalClubName(
-        ""
-      );
       setNotes(
         ""
       );
@@ -8458,8 +8444,6 @@ function ExternalPlayerTrackingPanel({
                 playerEaId,
                 playerName:
                   selectedPlayer.name,
-                externalClubId,
-                externalClubName,
                 watchMode,
                 notes,
               }),
@@ -8511,7 +8495,7 @@ function ExternalPlayerTrackingPanel({
     }
   }
 
-  async function checkExternalClubs() {
+  async function runExternalScanner() {
     try {
       setCheckingTracking(
         true
@@ -8541,14 +8525,17 @@ function ExternalPlayerTrackingPanel({
         throw new Error(
           data.details ??
             data.error ??
-            "Impossible de vérifier les clubs externes."
+            "Impossible de lancer le scanner externe."
         );
       }
 
       await loadTracking();
 
       setTrackingMessage(
-        `${data.watchedPlayers ?? 0} joueur(s) surveillé(s) • ${data.checkedClubs ?? 0} club(s) vérifié(s) • ${data.detectionsSaved ?? 0} détection(s) trouvée(s).`
+        data.watchedPlayers === 0
+          ? data.message ??
+            "Aucun joueur à surveiller ce soir."
+          : `${data.watchedPlayers ?? 0} joueur(s) scanné(s) • ${data.checkedClubs ?? 0} club(s) contrôlé(s) • ${data.matchesScanned ?? 0} match(s) de la soirée analysé(s) • ${data.detectionsSaved ?? 0} détection(s).`
       );
     } catch (
       error
@@ -8556,7 +8543,7 @@ function ExternalPlayerTrackingPanel({
       setTrackingError(
         error instanceof Error
           ? error.message
-          : "Impossible de vérifier les clubs externes."
+          : "Impossible de lancer le scanner externe."
       );
     } finally {
       setCheckingTracking(
@@ -8612,15 +8599,15 @@ function ExternalPlayerTrackingPanel({
         <div>
 
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">
-            STAFF • SUIVI EXTERNE
+            STAFF • SCANNER EXTERNE
           </p>
 
           <h3 className="mt-1 text-xl font-black">
-            Joueurs annoncés non disponibles
+            Contrôle des joueurs annoncés non disponibles
           </h3>
 
-          <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-gray-500">
-            Sélectionne uniquement les joueurs à surveiller. Le contrôle cherche leur gamertag dans les derniers matchs EA du club externe renseigné. Cette zone n&apos;est jamais affichée aux Viewers.
+          <p className="mt-1 max-w-4xl text-xs font-semibold leading-5 text-gray-500">
+            Aucun deuxième Club ID n&apos;est nécessaire. Le scanner part des clubs déjà rencontrés par GX NOVA, contrôle leurs matchs EA récents et enrichit progressivement son catalogue avec les nouveaux clubs découverts. Un résultat négatif signifie « non détecté dans le périmètre scanné », pas une garantie absolue sur tout FC27.
           </p>
 
         </div>
@@ -8628,7 +8615,7 @@ function ExternalPlayerTrackingPanel({
         <button
           type="button"
           onClick={() =>
-            void checkExternalClubs()
+            void runExternalScanner()
           }
           disabled={
             checkingTracking ||
@@ -8645,8 +8632,8 @@ function ExternalPlayerTrackingPanel({
             }
           />
           {checkingTracking
-            ? "Vérification EA..."
-            : "Vérifier les clubs externes"}
+            ? "Scan EA en cours..."
+            : "Scanner les joueurs ce soir"}
         </button>
 
       </div>
@@ -8691,7 +8678,7 @@ function ExternalPlayerTrackingPanel({
                     ) ??
                   "--"
                 }
-                subtitle="soirée"
+                subtitle="10h → 10h"
               />
 
             </div>
@@ -8734,59 +8721,6 @@ function ExternalPlayerTrackingPanel({
               </select>
 
             </label>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-
-              <label>
-
-                <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
-                  Club ID EA
-                </span>
-
-                <input
-                  value={
-                    externalClubId
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setExternalClubId(
-                      event.target.value.replace(
-                        /[^0-9]/g,
-                        ""
-                      )
-                    )
-                  }
-                  placeholder="Ex : 123456"
-                  className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-bold text-white outline-none focus:border-orange-400/30"
-                />
-
-              </label>
-
-              <label>
-
-                <span className="mb-2 block text-[9px] font-black uppercase tracking-[0.14em] text-gray-600">
-                  Nom du club
-                </span>
-
-                <input
-                  value={
-                    externalClubName
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setExternalClubName(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Optionnel"
-                  className="w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3 text-sm font-bold text-white outline-none focus:border-orange-400/30"
-                />
-
-              </label>
-
-            </div>
 
             <label className="mt-4 block">
 
@@ -8900,7 +8834,7 @@ function ExternalPlayerTrackingPanel({
                 </p>
 
                 <p className="mt-1 text-xs font-semibold text-gray-600">
-                  Un statut rouge signifie que le joueur a été trouvé dans un match EA du club externe.
+                  La couverture du dernier scan est affichée pour éviter de confondre « non détecté » avec « impossible partout ».
                 </p>
 
               </div>
@@ -8924,6 +8858,13 @@ function ExternalPlayerTrackingPanel({
                     const detected =
                       item.detectionsTonight.length >
                       0;
+
+                    const scan =
+                      item.latestScan;
+
+                    const partial =
+                      scan?.status ===
+                      "partial";
 
                     return (
                       <div
@@ -8956,14 +8897,12 @@ function ExternalPlayerTrackingPanel({
                               </p>
 
                               <p className="mt-1 text-[10px] font-bold text-gray-600">
-                                {item.externalClubName ||
-                                  "Club externe"}{" "}
-                                {item.externalClubId
-                                  ? `• ID ${item.externalClubId}`
-                                  : "• Club ID manquant"}
                                 {item.watchPermanent
-                                  ? " • Permanent"
-                                  : ""}
+                                  ? "Surveillance permanente"
+                                  : "Surveillance ce soir"}
+                                {scan
+                                  ? ` • ${scan.clubsScanned} clubs / ${scan.matchesScanned} matchs`
+                                  : " • Aucun scan lancé"}
                               </p>
 
                             </div>
@@ -8973,18 +8912,64 @@ function ExternalPlayerTrackingPanel({
                           <span className={`rounded-xl border px-3 py-2 text-xs font-black ${
                             detected
                               ? "border-rose-400/25 bg-rose-400/[0.08] text-rose-200"
-                              : item.externalClubId
+                              : partial
+                              ? "border-orange-400/20 bg-orange-400/[0.06] text-orange-200"
+                              : scan
                               ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200"
-                              : "border-orange-400/20 bg-orange-400/[0.06] text-orange-200"
+                              : "border-white/10 bg-white/[0.03] text-gray-400"
                           }`}>
                             {detected
                               ? `🔴 Détecté ailleurs • ${item.detectionsTonight.length} match(s)`
-                              : item.externalClubId
-                              ? "🟢 Aucune apparition détectée"
-                              : "🟠 Club ID à renseigner"}
+                              : partial
+                              ? "🟠 Non détecté • scan partiel"
+                              : scan
+                              ? "🟢 Non détecté dans le périmètre"
+                              : "⚪ En attente de scan"}
                           </span>
 
                         </div>
+
+                        {scan && (
+                          <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+
+                            <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3">
+                              <p className="text-[9px] font-black uppercase text-gray-600">
+                                Clubs
+                              </p>
+                              <p className="mt-1 text-lg font-black text-white">
+                                {scan.clubsScanned}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3">
+                              <p className="text-[9px] font-black uppercase text-gray-600">
+                                Matchs soirée
+                              </p>
+                              <p className="mt-1 text-lg font-black text-white">
+                                {scan.matchesScanned}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3">
+                              <p className="text-[9px] font-black uppercase text-gray-600">
+                                Nouveaux clubs
+                              </p>
+                              <p className="mt-1 text-lg font-black text-cyan-300">
+                                +{scan.discoveredClubs}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3">
+                              <p className="text-[9px] font-black uppercase text-gray-600">
+                                Requêtes en erreur
+                              </p>
+                              <p className="mt-1 text-lg font-black text-orange-200">
+                                {scan.failedRequests}
+                              </p>
+                            </div>
+
+                          </div>
+                        )}
 
                         {item.notes && (
                           <p className="mt-3 rounded-lg border border-white/[0.06] bg-black/10 px-3 py-2 text-xs font-semibold text-gray-500">
@@ -9026,8 +9011,8 @@ function ExternalPlayerTrackingPanel({
                                   </p>
 
                                   <p className="mt-1 text-sm font-black text-white">
-                                    {item.externalClubName ||
-                                      "Club externe"}{" "}
+                                    {detection.externalClubName ||
+                                      `Club ${detection.externalClubId}`}{" "}
                                     {detection.goalsFor ??
                                       "-"}-
                                     {detection.goalsAgainst ??
