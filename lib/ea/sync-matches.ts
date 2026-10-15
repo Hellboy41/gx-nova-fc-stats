@@ -64,6 +64,8 @@ type MatchAnalysis = {
   officialGoalsAgainst: number;
   aggregateGoalsFor: number | null;
   aggregateGoalsAgainst: number | null;
+  playerScoreFor: number | null;
+  playerScoreAgainst: number | null;
   goalsFor: number;
   goalsAgainst: number;
   result: "V" | "N" | "D";
@@ -579,6 +581,14 @@ function analyzeMatch(match: RawMatch): MatchAnalysis {
     ? aggregateGoals(match, opponentClubId)
     : null;
 
+  const playerScoreFor =
+    playerReportedScore(match, CLUB_ID);
+
+  const playerScoreAgainst =
+    opponentClubId
+      ? playerReportedScore(match, opponentClubId)
+      : null;
+
   const looksLikeDefaultThreeNil =
     (officialGoalsFor === 3 && officialGoalsAgainst === 0) ||
     (officialGoalsFor === 0 && officialGoalsAgainst === 3);
@@ -593,18 +603,33 @@ function analyzeMatch(match: RawMatch): MatchAnalysis {
     aggregateGoalsAgainst !== null &&
     aggregateGoalsFor === aggregateGoalsAgainst;
 
+  const playerScoreShowsDraw =
+    playerScoreFor !== null &&
+    playerScoreAgainst !== null &&
+    playerScoreFor === playerScoreAgainst;
+
+  const recoveredDrawGoals =
+    Math.max(
+      aggregateShowsDraw
+        ? aggregateGoalsFor ?? 0
+        : 0,
+      playerScoreShowsDraw
+        ? playerScoreFor ?? 0
+        : 0
+    );
+
   const artificialDrawCorrected =
     !isShortMatch &&
     isRegulationEnd &&
     looksLikeDefaultThreeNil &&
-    aggregateShowsDraw;
+    (aggregateShowsDraw || playerScoreShowsDraw);
 
   const goalsFor = artificialDrawCorrected
-    ? aggregateGoalsFor ?? officialGoalsFor
+    ? recoveredDrawGoals
     : officialGoalsFor;
 
   const goalsAgainst = artificialDrawCorrected
-    ? aggregateGoalsAgainst ?? officialGoalsAgainst
+    ? recoveredDrawGoals
     : officialGoalsAgainst;
 
   return {
@@ -616,6 +641,8 @@ function analyzeMatch(match: RawMatch): MatchAnalysis {
     officialGoalsAgainst,
     aggregateGoalsFor,
     aggregateGoalsAgainst,
+    playerScoreFor,
+    playerScoreAgainst,
     goalsFor,
     goalsAgainst,
     result: resultFromScore(goalsFor, goalsAgainst),
@@ -645,6 +672,56 @@ function getMatchDurationSeconds(match: RawMatch) {
 function aggregateGoals(match: RawMatch, clubId: string) {
   const aggregate = match.aggregate?.[clubId];
   return aggregate ? numberOrNull(aggregate.goals) : null;
+}
+
+function playerReportedScore(
+  match: RawMatch,
+  clubId: string
+) {
+  const values =
+    normalizePlayers(
+      match.players?.[clubId]
+    )
+      .map(({ player }) =>
+        numberOrNull(
+          firstValue(
+            player,
+            ["SCORE", "score"]
+          )
+        )
+      )
+      .filter(
+        (value): value is number =>
+          value !== null &&
+          value >= 0 &&
+          value <= 20
+      );
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  const counts =
+    new Map<number, number>();
+
+  for (const value of values) {
+    counts.set(
+      value,
+      (counts.get(value) ?? 0) + 1
+    );
+  }
+
+  let bestValue: number | null = null;
+  let bestCount = 0;
+
+  for (const [value, count] of counts) {
+    if (count > bestCount) {
+      bestValue = value;
+      bestCount = count;
+    }
+  }
+
+  return bestValue;
 }
 
 function resultFromScore(
