@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
 import {
-  type DebriefPerformancesResponse, performancesDiscordText, sumPlayerPerformances,
+  type LiveEveningReport,
+  LiveEveningSummary, LiveMatchResults, LivePlayerStats,
+} from "@/components/debrief/LiveReportPanels";
+import {
+  type DebriefPerformancesResponse, performancesDiscordText,
 } from "@/lib/debrief-performances";
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
@@ -15,19 +19,6 @@ import {
   makeDefaultChapters, safeHttpsUrl, videoEmbedUrl,
 } from "@/lib/debrief-studio";
 
-type ReportMatch = {
-  id: number;
-  time: string;
-  opponent: string;
-  goalsFor: number;
-  goalsAgainst: number;
-  competitionName: string | null;
-  competitionShortName: string | null;
-};
-type EveningReport = {
-  matches: ReportMatch[];
-  totals: { matches: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number };
-};
 type StudioResponse = {
   chapters: DebriefChapter[];
   updatedAt: string | null;
@@ -113,7 +104,7 @@ export default function DebriefStudioPage() {
   const [chapters, setChapters] = useState<DebriefChapter[]>(makeDefaultChapters);
   const [activeId, setActiveId] = useState("");
   const [role, setRole] = useState<"admin" | "staff" | "viewer">("viewer");
-  const [report, setReport] = useState<EveningReport | null>(null);
+  const [report, setReport] = useState<LiveEveningReport | null>(null);
   const [performances, setPerformances] = useState<DebriefPerformancesResponse | null>(null);
   const [performanceError, setPerformanceError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -123,7 +114,7 @@ export default function DebriefStudioPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [presenting, setPresenting] = useState(false);
-  const [showLiveStats, setShowLiveStats] = useState(false);
+  const [liveView, setLiveView] = useState<"chapter" | "bilan" | "resultats" | "joueurs">("chapter");
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "image">("video");
   const [mediaCaption, setMediaCaption] = useState("");
@@ -162,7 +153,7 @@ export default function DebriefStudioPage() {
       setSavedAt(studio.updatedAt);
       setDirty(false);
       if (reportResponse.ok) {
-        const data = (await reportResponse.json()) as EveningReport;
+        const data = (await reportResponse.json()) as LiveEveningReport;
         if (version !== requestVersion.current) return;
         setReport(data);
       } else {
@@ -200,14 +191,20 @@ export default function DebriefStudioPage() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.key === "Escape") setPresenting(false);
-      if (event.key === "ArrowRight") setActiveId((id) => {
+      if (event.key === "ArrowRight") {
+        setLiveView("chapter");
+        setActiveId((id) => {
         const index = chapters.findIndex((chapter) => chapter.id === id);
         return chapters[Math.min(chapters.length - 1, index + 1)]?.id ?? id;
-      });
-      if (event.key === "ArrowLeft") setActiveId((id) => {
+        });
+      }
+      if (event.key === "ArrowLeft") {
+        setLiveView("chapter");
+        setActiveId((id) => {
         const index = chapters.findIndex((chapter) => chapter.id === id);
         return chapters[Math.max(0, index - 1)]?.id ?? id;
-      });
+        });
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -215,7 +212,8 @@ export default function DebriefStudioPage() {
 
   const chapterCount = chapters.length;
   const mediaCount = useMemo(() => chapters.reduce((count, chapter) => count + chapter.media.length, 0), [chapters]);
-  const individualTotals = useMemo(() => sumPlayerPerformances(performances?.matches ?? []), [performances]);
+  const livePanel = liveView !== "chapter" ? liveView : activeIndex === 0 ? "bilan" : activeIndex === 1 ? "resultats" : activeIndex === 2 ? "joueurs" : null;
+  const showChapterAnalysis = liveView === "chapter" && (active.analysis.trim().length > 0 || active.media.length > 0 || livePanel === null);
 
   function changeChapter(id: string, patch: Partial<DebriefChapter>) {
     if (!canEdit) return;
@@ -334,7 +332,7 @@ export default function DebriefStudioPage() {
             </label>
             <button type="button" onClick={() => void copyDiscord()} className="flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-300"><Copy size={16}/> Copier Discord</button>
             <a href="#performances" className="flex items-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-2.5 text-sm font-bold text-yellow-300">Corriger les stats EA</a>
-            <button type="button" onClick={() => { setShowLiveStats(false); setPresenting(true); }} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold"><MonitorPlay size={16}/> Mode live</button>
+            <button type="button" onClick={() => { setLiveView("chapter"); setPresenting(true); }} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold"><MonitorPlay size={16}/> Mode live</button>
             {canEdit && <button type="button" disabled={!dirty || saving} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-black disabled:opacity-40"><Save size={16}/>{saving ? "Enregistrement..." : "Enregistrer"}</button>}
           </div>
         </div>
@@ -385,7 +383,7 @@ export default function DebriefStudioPage() {
                     <span>{match.time} — {match.opponent}</span><strong>{match.goalsFor}-{match.goalsAgainst}</strong>
                   </div>
                 ))}
-                <p className="mt-2 text-[10px] text-gray-500">Ces statistiques EA sont en lecture seule dans cette V1.</p>
+                <p className="mt-2 text-[10px] text-gray-500">Scores collectifs issus d’EA. Les performances individuelles corrigées sont affichées dans « Corriger les stats EA » et dans le live.</p>
               </div>
             )}
           </section>
@@ -425,37 +423,38 @@ export default function DebriefStudioPage() {
           <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#06111f] px-5 py-4">
             <div><p className="text-xs font-black tracking-[0.2em] text-cyan-300">GX NOVA • DÉBRIEF LIVE</p><p className="text-sm text-gray-400">{formatDate(date)}</p></div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setActiveId(chapters[Math.max(0, activeIndex - 1)].id)} disabled={activeIndex === 0} className="rounded-lg border border-white/15 p-2 disabled:opacity-30"><ArrowLeft size={18}/></button>
+              <button type="button" onClick={() => { setLiveView("chapter"); setActiveId(chapters[Math.max(0, activeIndex - 1)].id); }} disabled={activeIndex === 0} className="rounded-lg border border-white/15 p-2 disabled:opacity-30"><ArrowLeft size={18}/></button>
               <span className="w-12 text-center text-sm font-black text-yellow-300">{activeIndex + 1}/{chapters.length}</span>
-              <button type="button" onClick={() => setActiveId(chapters[Math.min(chapters.length - 1, activeIndex + 1)].id)} disabled={activeIndex === chapters.length - 1} className="rounded-lg border border-white/15 p-2 disabled:opacity-30"><ArrowRight size={18}/></button>
-              <button type="button" onClick={() => setShowLiveStats((current) => !current)}
-                className={`rounded-lg border px-3 py-2 text-sm font-bold ${showLiveStats ? "border-yellow-400 text-yellow-300" : "border-white/15 text-gray-300"}`}>
-                {showLiveStats ? "Retour au chapitre" : "Stats joueurs"}
-              </button>
+              <button type="button" onClick={() => { setLiveView("chapter"); setActiveId(chapters[Math.min(chapters.length - 1, activeIndex + 1)].id); }} disabled={activeIndex === chapters.length - 1} className="rounded-lg border border-white/15 p-2 disabled:opacity-30"><ArrowRight size={18}/></button>
+              {([
+                ["bilan", "Bilan"],
+                ["resultats", "Résultats"],
+                ["joueurs", "Stats joueurs"],
+              ] as const).map(([view, label]) => (
+                <button key={view} type="button" onClick={() => setLiveView((current) => current === view ? "chapter" : view)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${liveView === view ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-white/15 text-gray-300 hover:border-cyan-400/50"}`}>
+                  {label}
+                </button>
+              ))}
               <button type="button" onClick={() => setPresenting(false)} className="ml-3 flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm"><X size={17}/> Quitter</button>
             </div>
           </div>
           <div className="mx-auto max-w-[1600px] px-6 py-8">
             <div className="mb-6 flex flex-wrap gap-2">
-              {chapters.map((chapter, index) => <button type="button" key={chapter.id} onClick={() => setActiveId(chapter.id)} className={`rounded-lg border px-3 py-2 text-sm font-bold ${chapter.id === active.id ? "border-yellow-400 text-yellow-300" : "border-white/10 text-gray-500"}`}>{String(index + 1).padStart(2, "0")}</button>)}
+              {chapters.map((chapter, index) => <button type="button" key={chapter.id} onClick={() => { setLiveView("chapter"); setActiveId(chapter.id); }} title={chapter.title} className={`rounded-lg border px-3 py-2 text-sm font-bold ${liveView === "chapter" && chapter.id === active.id ? "border-yellow-400 text-yellow-300" : "border-white/10 text-gray-500"}`}>{String(index + 1).padStart(2, "0")}</button>)}
             </div>
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-yellow-300">{showLiveStats ? "STATISTIQUES EA CORRIGÉES" : `Chapitre ${String(activeIndex + 1).padStart(2, "0")}`}</p>
-            <h2 className="mb-8 mt-2 text-4xl font-black lg:text-6xl">{showLiveStats ? "Performances individuelles" : active.title}</h2>
-            {!showLiveStats && <ChapterBody chapter={active} presentation/>}
-            {showLiveStats && individualTotals.length > 0 && (
-              <section className="mt-8 rounded-2xl border border-yellow-400/20 bg-[#091626] p-5">
-                <p className="mb-3 text-sm font-black uppercase tracking-[0.15em] text-yellow-300">Statistiques individuelles corrigées</p>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {individualTotals.map((player) => (
-                    <div key={player.playerName} className="rounded-xl border border-white/10 p-4">
-                      <p className="text-lg font-black">{player.playerName}</p>
-                      <p className="mt-2 text-sm text-cyan-300">{player.goals} but(s) • {player.assists} passes D • {player.shots} tirs</p>
-                      <p className="mt-1 text-xs text-gray-400">{player.matches} match(s) • Note : {player.ratingCount ? (player.ratingSum / player.ratingCount).toFixed(2) : "N/D"}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-yellow-300">
+              {liveView === "chapter" ? `Chapitre ${String(activeIndex + 1).padStart(2, "0")}` : "Données automatiques de la soirée"}
+            </p>
+            <h2 className="mb-8 mt-2 text-4xl font-black lg:text-6xl">
+              {liveView === "chapter" ? active.title : livePanel === "bilan" ? "Bilan de soirée" : livePanel === "resultats" ? "Match par match" : "Performances individuelles"}
+            </h2>
+            <div className="space-y-7">
+              {livePanel === "bilan" && <LiveEveningSummary report={report} performances={performances} performanceError={performanceError}/>}
+              {livePanel === "resultats" && <LiveMatchResults report={report} performances={performances} performanceError={performanceError}/>}
+              {livePanel === "joueurs" && <LivePlayerStats report={report} performances={performances} performanceError={performanceError}/>}
+              {showChapterAnalysis && <ChapterBody chapter={active} presentation/>}
+            </div>
           </div>
         </div>
       )}
