@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
   ExternalLink, FileText, Link as LinkIcon,
@@ -120,6 +120,7 @@ export default function DebriefStudioPage() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "image">("video");
   const [mediaCaption, setMediaCaption] = useState("");
+  const requestVersion = useRef(0);
 
   const canEdit = role === "admin" || role === "staff";
   const activeIndex = Math.max(0, chapters.findIndex((chapter) => chapter.id === activeId));
@@ -132,6 +133,7 @@ export default function DebriefStudioPage() {
 
   const loadStudio = useCallback(async () => {
     if (!isEveningDate(date)) return;
+    const version = ++requestVersion.current;
     setLoading(true);
     setError("");
     setMessage("");
@@ -141,6 +143,7 @@ export default function DebriefStudioPage() {
         fetch(`/api/evening-report?date=${encodeURIComponent(date)}`, { cache: "no-store" }),
       ]);
       const studio = (await studioResponse.json()) as StudioResponse;
+      if (version !== requestVersion.current) return;
       if (!studioResponse.ok) {
         throw new Error(studio.details ? `${studio.error} ${studio.details}` : studio.error || "Impossible de charger le studio.");
       }
@@ -157,13 +160,20 @@ export default function DebriefStudioPage() {
         setReport(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Le studio n'a pas pu être chargé.");
+      if (version === requestVersion.current) setError(err instanceof Error ? err.message : "Le studio n'a pas pu être chargé.");
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [date]);
 
   useEffect(() => { void loadStudio(); }, [loadStudio]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warnOnClose = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warnOnClose);
+    return () => window.removeEventListener("beforeunload", warnOnClose);
+  }, [dirty]);
 
   useEffect(() => {
     if (!presenting) return;
@@ -297,7 +307,7 @@ export default function DebriefStudioPage() {
             <label className="text-xs text-gray-400">Soirée
               <input type="date" value={date} onChange={(event) => {
                 if (dirty && !window.confirm("Changer de soirée sans enregistrer tes modifications ?")) return;
-                setDate(event.target.value);
+                if (isEveningDate(event.target.value)) setDate(event.target.value);
               }} className="mt-1 block rounded-xl border border-white/10 bg-[#020913] px-3 py-2 text-sm text-white" />
             </label>
             <button type="button" onClick={() => void copyDiscord()} className="flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-300"><Copy size={16}/> Copier Discord</button>
