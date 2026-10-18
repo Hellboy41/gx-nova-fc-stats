@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, Copy,
-  ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon,
+  ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
+  ExternalLink, FileText, Link as LinkIcon,
   MonitorPlay, Plus, Save, Trash2, Video, X,
 } from "lucide-react";
 import {
