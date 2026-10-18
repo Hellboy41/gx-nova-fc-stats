@@ -2243,7 +2243,7 @@ export default function Home() {
 
               <a
                 href="/match-center"
-                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
+                className="flex items-center justify-center border-b-2 border-transparent py-4 text-center text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
               >
                 MATCH CENTER
               </a>
@@ -2263,7 +2263,7 @@ export default function Home() {
 
               <a
                 href="/programme"
-                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
+                className="flex items-center justify-center border-b-2 border-transparent py-4 text-center text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
               >
                 PROGRAMME
               </a>
