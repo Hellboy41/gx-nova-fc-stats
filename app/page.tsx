@@ -2200,7 +2200,7 @@ export default function Home() {
 
           <div className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7">
 
-            <div className="grid min-w-[1320px] grid-cols-10 gap-2">
+            <div className="grid min-w-[1188px] grid-cols-9 gap-2">
 
               <TopTab
                 label="APERÇU"
@@ -2247,19 +2247,6 @@ export default function Home() {
               >
                 MATCH CENTER
               </a>
-
-              <TopTab
-                label="COMPÉTITIONS"
-                active={
-                  activeTab ===
-                  "competitions"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "competitions"
-                  )
-                }
-              />
 
               <a
                 href="/programme"
