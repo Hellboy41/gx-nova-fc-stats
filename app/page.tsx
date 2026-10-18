@@ -2198,9 +2198,9 @@ export default function Home() {
 
           {/* ONGLETS */}
 
-          <div className="border-b border-white/5 bg-[#071321] px-7">
+          <div className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7">
 
-            <div className="flex gap-9 overflow-x-auto">
+            <div className="flex w-full min-w-max items-stretch justify-between gap-4">
 
               <TopTab
                 label="APERÇU"
@@ -2243,27 +2243,14 @@ export default function Home() {
 
               <a
                 href="/match-center"
-                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
               >
                 MATCH CENTER
               </a>
 
-              <TopTab
-                label="COMPÉTITIONS"
-                active={
-                  activeTab ===
-                  "competitions"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "competitions"
-                  )
-                }
-              />
-
               <a
                 href="/programme"
-                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-yellow-400/40 hover:text-yellow-400"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
               >
                 PROGRAMME
               </a>
@@ -20764,7 +20751,7 @@ function TopTab({
       onClick={
         onClick
       }
-      className={`border-b-2 py-4 text-sm font-bold ${
+      className={`flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 px-2 text-center text-sm font-bold transition ${
         active
           ? "border-yellow-400 text-yellow-400"
           : "border-transparent text-gray-500"
