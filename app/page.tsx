@@ -14,6 +14,7 @@ import type {
 import {
   Activity,
   BarChart3,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   Copy,
@@ -16178,6 +16179,14 @@ function EveningReportDashboard({
                   ? "Export..."
                   : "Exporter PNG"}
               </button>
+
+              <a
+                href={`/debrief-studio?date=${encodeURIComponent(selectedDate)}`}
+                className="flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400/15"
+              >
+                <BookOpen size={17}/>
+                Ouvrir Débrief Studio
+              </a>
 
             </>
 
