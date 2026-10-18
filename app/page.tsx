@@ -2198,9 +2198,9 @@ export default function Home() {
 
           {/* ONGLETS */}
 
-          <div className="border-b border-white/5 bg-[#071321] px-7">
+          <div className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7">
 
-            <div className="flex gap-9 overflow-x-auto">
+            <div className="grid min-w-[1320px] grid-cols-10 gap-2">
 
               <TopTab
                 label="APERÇU"
@@ -2243,7 +2243,7 @@ export default function Home() {
 
               <a
                 href="/match-center"
-                className="flex items-center justify-center border-b-2 border-transparent py-4 text-center text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
+                className="flex min-h-[88px] w-full items-center justify-center border-b-2 border-transparent px-2 text-center text-sm font-bold leading-tight text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
               >
                 MATCH CENTER
               </a>
@@ -2263,7 +2263,7 @@ export default function Home() {
 
               <a
                 href="/programme"
-                className="flex items-center justify-center border-b-2 border-transparent py-4 text-center text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
+                className="flex min-h-[88px] w-full items-center justify-center border-b-2 border-transparent px-2 text-center text-sm font-bold leading-tight text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
               >
                 PROGRAMME
               </a>
@@ -20764,7 +20764,7 @@ function TopTab({
       onClick={
         onClick
       }
-      className={`border-b-2 py-4 text-sm font-bold ${
+      className={`flex min-h-[88px] w-full items-center justify-center border-b-2 px-2 text-center text-sm font-bold leading-tight transition ${
         active
           ? "border-yellow-400 text-yellow-400"
           : "border-transparent text-gray-500"
