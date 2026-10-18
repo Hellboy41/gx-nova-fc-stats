@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
+import {
+  type DebriefPerformancesResponse, performancesDiscordText, sumPlayerPerformances,
+} from "@/lib/debrief-performances";
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
   ExternalLink, FileText, Link as LinkIcon,
@@ -110,6 +114,8 @@ export default function DebriefStudioPage() {
   const [activeId, setActiveId] = useState("");
   const [role, setRole] = useState<"admin" | "staff" | "viewer">("viewer");
   const [report, setReport] = useState<EveningReport | null>(null);
+  const [performances, setPerformances] = useState<DebriefPerformancesResponse | null>(null);
+  const [performanceError, setPerformanceError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -138,9 +144,10 @@ export default function DebriefStudioPage() {
     setError("");
     setMessage("");
     try {
-      const [studioResponse, reportResponse] = await Promise.all([
+      const [studioResponse, reportResponse, performancesResponse] = await Promise.all([
         fetch(`/api/debrief-studio?date=${encodeURIComponent(date)}`, { cache: "no-store" }),
         fetch(`/api/evening-report?date=${encodeURIComponent(date)}`, { cache: "no-store" }),
+        fetch(`/api/debrief-studio/performances?date=${encodeURIComponent(date)}`, { cache: "no-store" }),
       ]);
       const studio = (await studioResponse.json()) as StudioResponse;
       if (version !== requestVersion.current) return;
@@ -155,9 +162,21 @@ export default function DebriefStudioPage() {
       setDirty(false);
       if (reportResponse.ok) {
         const data = (await reportResponse.json()) as EveningReport;
+        if (version !== requestVersion.current) return;
         setReport(data);
       } else {
         setReport(null);
+      }
+      if (performancesResponse.ok) {
+        const data = (await performancesResponse.json()) as DebriefPerformancesResponse;
+        if (version !== requestVersion.current) return;
+        setPerformances(data);
+        setPerformanceError("");
+      } else {
+        const data = (await performancesResponse.json().catch(() => ({}))) as { error?: string; details?: string };
+        if (version !== requestVersion.current) return;
+        setPerformances(null);
+        setPerformanceError(data.details ? `${data.error} : ${data.details}` : data.error || "Performances individuelles indisponibles.");
       }
     } catch (err) {
       if (version === requestVersion.current) setError(err instanceof Error ? err.message : "Le studio n'a pas pu être chargé.");
@@ -195,6 +214,7 @@ export default function DebriefStudioPage() {
 
   const chapterCount = chapters.length;
   const mediaCount = useMemo(() => chapters.reduce((count, chapter) => count + chapter.media.length, 0), [chapters]);
+  const individualTotals = useMemo(() => sumPlayerPerformances(performances?.matches ?? []), [performances]);
 
   function changeChapter(id: string, patch: Partial<DebriefChapter>) {
     if (!canEdit) return;
@@ -273,6 +293,7 @@ export default function DebriefStudioPage() {
     const output = [
       `📋 **GX NØVA — DÉBRIEF DU ${formatDate(date).toUpperCase()}**`,
       "",
+      ...(performances ? performancesDiscordText(performances.matches) : []),
       ...chapters.flatMap((chapter, index) => [
         `**${String(index + 1).padStart(2, "0")} — ${chapter.title.toUpperCase()}**`,
         chapter.analysis.trim() || "À compléter",
@@ -311,6 +332,7 @@ export default function DebriefStudioPage() {
               }} className="mt-1 block rounded-xl border border-white/10 bg-[#020913] px-3 py-2 text-sm text-white" />
             </label>
             <button type="button" onClick={() => void copyDiscord()} className="flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-300"><Copy size={16}/> Copier Discord</button>
+            <a href="#performances" className="flex items-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-2.5 text-sm font-bold text-yellow-300">Corriger les stats EA</a>
             <button type="button" onClick={() => setPresenting(true)} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold"><MonitorPlay size={16}/> Mode live</button>
             {canEdit && <button type="button" disabled={!dirty || saving} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-black disabled:opacity-40"><Save size={16}/>{saving ? "Enregistrement..." : "Enregistrer"}</button>}
           </div>
@@ -393,6 +415,8 @@ export default function DebriefStudioPage() {
             </div>
           </section>
         </div>}
+        {performanceError && <p role="alert" className="mt-6 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200">{performanceError}</p>}
+        {performances && <PlayerStatsEditor data={performances} canEdit={canEdit} onSaved={setPerformances}/>}
       </div>
 
       {presenting && active && (
@@ -413,6 +437,20 @@ export default function DebriefStudioPage() {
             <p className="text-sm font-black uppercase tracking-[0.2em] text-yellow-300">Chapitre {String(activeIndex + 1).padStart(2, "0")}</p>
             <h2 className="mb-8 mt-2 text-4xl font-black lg:text-6xl">{active.title}</h2>
             <ChapterBody chapter={active} presentation/>
+            {activeIndex === 2 && individualTotals.length > 0 && (
+              <section className="mt-8 rounded-2xl border border-yellow-400/20 bg-[#091626] p-5">
+                <p className="mb-3 text-sm font-black uppercase tracking-[0.15em] text-yellow-300">Statistiques individuelles corrigées</p>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {individualTotals.map((player) => (
+                    <div key={player.playerName} className="rounded-xl border border-white/10 p-4">
+                      <p className="text-lg font-black">{player.playerName}</p>
+                      <p className="mt-2 text-sm text-cyan-300">{player.goals} but(s) • {player.assists} passes D • {player.shots} tirs</p>
+                      <p className="mt-1 text-xs text-gray-400">{player.matches} match(s) • Note : {player.ratingCount ? (player.ratingSum / player.ratingCount).toFixed(2) : "N/D"}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       )}
