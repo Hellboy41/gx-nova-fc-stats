@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardList, Goal, ShieldCheck, Trophy, Users } from "lucide-react";
+import { ClipboardList, Trophy, Users } from "lucide-react";
 import {
   type DebriefPerformancesResponse,
   sumPlayerPerformances,
