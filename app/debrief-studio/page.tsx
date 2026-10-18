@@ -123,6 +123,7 @@ export default function DebriefStudioPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [presenting, setPresenting] = useState(false);
+  const [showLiveStats, setShowLiveStats] = useState(false);
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "image">("video");
   const [mediaCaption, setMediaCaption] = useState("");
@@ -333,7 +334,7 @@ export default function DebriefStudioPage() {
             </label>
             <button type="button" onClick={() => void copyDiscord()} className="flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-300"><Copy size={16}/> Copier Discord</button>
             <a href="#performances" className="flex items-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-2.5 text-sm font-bold text-yellow-300">Corriger les stats EA</a>
-            <button type="button" onClick={() => setPresenting(true)} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold"><MonitorPlay size={16}/> Mode live</button>
+            <button type="button" onClick={() => { setShowLiveStats(false); setPresenting(true); }} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold"><MonitorPlay size={16}/> Mode live</button>
             {canEdit && <button type="button" disabled={!dirty || saving} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-black disabled:opacity-40"><Save size={16}/>{saving ? "Enregistrement..." : "Enregistrer"}</button>}
           </div>
         </div>
@@ -427,6 +428,10 @@ export default function DebriefStudioPage() {
               <button type="button" onClick={() => setActiveId(chapters[Math.max(0, activeIndex - 1)].id)} disabled={activeIndex === 0} className="rounded-lg border border-white/15 p-2 disabled:opacity-30"><ArrowLeft size={18}/></button>
               <span className="w-12 text-center text-sm font-black text-yellow-300">{activeIndex + 1}/{chapters.length}</span>
               <button type="button" onClick={() => setActiveId(chapters[Math.min(chapters.length - 1, activeIndex + 1)].id)} disabled={activeIndex === chapters.length - 1} className="rounded-lg border border-white/15 p-2 disabled:opacity-30"><ArrowRight size={18}/></button>
+              <button type="button" onClick={() => setShowLiveStats((current) => !current)}
+                className={`rounded-lg border px-3 py-2 text-sm font-bold ${showLiveStats ? "border-yellow-400 text-yellow-300" : "border-white/15 text-gray-300"}`}>
+                {showLiveStats ? "Retour au chapitre" : "Stats joueurs"}
+              </button>
               <button type="button" onClick={() => setPresenting(false)} className="ml-3 flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm"><X size={17}/> Quitter</button>
             </div>
           </div>
@@ -434,10 +439,10 @@ export default function DebriefStudioPage() {
             <div className="mb-6 flex flex-wrap gap-2">
               {chapters.map((chapter, index) => <button type="button" key={chapter.id} onClick={() => setActiveId(chapter.id)} className={`rounded-lg border px-3 py-2 text-sm font-bold ${chapter.id === active.id ? "border-yellow-400 text-yellow-300" : "border-white/10 text-gray-500"}`}>{String(index + 1).padStart(2, "0")}</button>)}
             </div>
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-yellow-300">Chapitre {String(activeIndex + 1).padStart(2, "0")}</p>
-            <h2 className="mb-8 mt-2 text-4xl font-black lg:text-6xl">{active.title}</h2>
-            <ChapterBody chapter={active} presentation/>
-            {activeIndex === 2 && individualTotals.length > 0 && (
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-yellow-300">{showLiveStats ? "STATISTIQUES EA CORRIGÉES" : `Chapitre ${String(activeIndex + 1).padStart(2, "0")}`}</p>
+            <h2 className="mb-8 mt-2 text-4xl font-black lg:text-6xl">{showLiveStats ? "Performances individuelles" : active.title}</h2>
+            {!showLiveStats && <ChapterBody chapter={active} presentation/>}
+            {showLiveStats && individualTotals.length > 0 && (
               <section className="mt-8 rounded-2xl border border-yellow-400/20 bg-[#091626] p-5">
                 <p className="mb-3 text-sm font-black uppercase tracking-[0.15em] text-yellow-300">Statistiques individuelles corrigées</p>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
