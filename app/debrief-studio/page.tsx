@@ -104,7 +104,7 @@ export default function DebriefStudioPage() {
   const [chapters, setChapters] = useState<DebriefChapter[]>(makeDefaultChapters);
   const [activeId, setActiveId] = useState("");
   const [role, setRole] = useState<"admin" | "staff" | "viewer">("viewer");
-  const [report, setReport] = useState<EveningReport | null>(null);
+  const [report, setReport] = useState<LiveEveningReport | null>(null);
   const [performances, setPerformances] = useState<DebriefPerformancesResponse | null>(null);
   const [performanceError, setPerformanceError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -153,7 +153,7 @@ export default function DebriefStudioPage() {
       setSavedAt(studio.updatedAt);
       setDirty(false);
       if (reportResponse.ok) {
-        const data = (await reportResponse.json()) as EveningReport;
+        const data = (await reportResponse.json()) as LiveEveningReport;
         if (version !== requestVersion.current) return;
         setReport(data);
       } else {
