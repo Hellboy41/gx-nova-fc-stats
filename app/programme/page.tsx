@@ -431,6 +431,8 @@ export default function ProgrammePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [discordExportText, setDiscordExportText] = useState("");
+  const [discordCopyStatus, setDiscordCopyStatus] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -1009,12 +1011,60 @@ export default function ProgrammePage() {
     }
   }
 
+  function buildDiscordProgrammeText() {
+    const lines = [
+      "📅 **PROGRAMME DE LA SEMAINE — GX NØVA FC27**",
+      `🗓️ ${weekLabel}`,
+      "",
+    ];
+
+    let totalMatches = 0;
+    for (const day of days) {
+      const items = [...(schedule[day.key] ?? [])].sort((a, b) =>
+        (a.time || "").localeCompare(b.time || "")
+      );
+      if (items.length === 0) continue;
+
+      lines.push(`**${day.name.toUpperCase()} ${formatDayDate(day.date)}**`);
+      for (const item of items) {
+        const time = item.time.trim() || "Horaire à définir";
+        const competition = competitionLabel(item, competitions);
+        const opponent = item.opponentName.trim();
+        const matchLabel = opponent
+          ? `GX NØVA vs ${opponent}`
+          : item.type === "competition"
+            ? "Adversaire à définir"
+            : "Participants à définir";
+        lines.push(`• ${time} — ${competition} | ${matchLabel}`);
+        totalMatches += 1;
+      }
+      lines.push("");
+    }
+
+    if (totalMatches === 0) {
+      lines.push("Aucun match programmé pour cette semaine.", "");
+    }
+    lines.push("💙💛 **ENSEMBLE POUR GX NØVA !**");
+    return lines.join("\\n");
+  }
+
+  async function copyDiscordProgrammeText() {
+    try {
+      await navigator.clipboard.writeText(discordExportText);
+      setDiscordCopyStatus("Texte copié ! Prêt à coller sur Discord.");
+    } catch {
+      setDiscordCopyStatus("Copie automatique indisponible : sélectionne le texte ci-dessous pour le copier.");
+    }
+  }
+
   async function exportDiscordPoster() {
     if (!canEdit) return;
 
     try {
       setExporting(true);
       setError("");
+      setDiscordCopyStatus("");
+      setDiscordExportText(buildDiscordProgrammeText());
 
       const posterWidth = 1920;
       const pagePadding = 52;
@@ -1860,7 +1910,7 @@ export default function ProgrammePage() {
                   className="ml-0 flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-sm font-black text-blue-300 transition hover:bg-blue-400/15 disabled:opacity-50 xl:ml-3"
                 >
                   <Download size={17} />
-                  {exporting ? "Création des 2 affiches..." : "Exporter Discord (2 affiches)"}
+                  {exporting ? "Création des 2 affiches..." : "Exporter Discord (2 affiches + texte)"}
                 </button>
               )}
 
@@ -1878,6 +1928,33 @@ export default function ProgrammePage() {
             </div>
           </div>
         </section>
+
+        {discordExportText && (
+          <section className="mb-5 rounded-2xl border border-cyan-400/20 bg-[#091626] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-black text-white">Message Discord prêt à publier</h2>
+                <p className="mt-1 text-xs text-gray-400">Le texte correspond à la semaine sélectionnée lors du dernier export. Les changements non enregistrés sont inclus.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyDiscordProgrammeText()}
+                className="flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-xs font-black text-[#06111f] hover:bg-cyan-300"
+              >
+                <Copy size={15} /> Copier le texte Discord
+              </button>
+            </div>
+            <textarea
+              readOnly
+              aria-label="Programme de la semaine pour Discord"
+              value={discordExportText}
+              onFocus={(event) => event.currentTarget.select()}
+              rows={12}
+              className="mt-4 w-full rounded-xl border border-white/10 bg-[#030914] p-4 font-mono text-xs leading-relaxed text-gray-200"
+            />
+            {discordCopyStatus && <p role="status" className="mt-2 text-xs text-cyan-300">{discordCopyStatus}</p>}
+          </section>
+        )}
 
         {loading ? (
           <div className="rounded-3xl border border-white/10 bg-[#091626] p-20 text-center text-gray-500">
