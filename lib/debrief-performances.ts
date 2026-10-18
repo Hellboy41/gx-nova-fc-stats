@@ -55,7 +55,7 @@ export function sanitizePerformanceOverrides(input: unknown): PerformanceOverrid
     const value = source[field];
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
     if (field === "rating") {
-      if (value > 10 || Math.round(value * 100) !== value * 100) return null;
+      if (value > 10 || Math.abs(Math.round(value * 100) - value * 100) > 0.000001) return null;
     } else if (!Number.isInteger(value) || value > 10000) return null;
     overrides[field] = value;
   }
