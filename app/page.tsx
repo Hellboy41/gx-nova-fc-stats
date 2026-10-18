@@ -2263,7 +2263,7 @@ export default function Home() {
 
               <a
                 href="/programme"
-                className="border-b-2 border-transparent py-4 text-sm font-bold text-gray-500 transition hover:border-yellow-400/40 hover:text-yellow-400"
+                className="border-b-2 border-yellow-400/60 bg-yellow-400/[0.04] px-3 py-4 text-sm font-black text-white transition hover:border-yellow-400 hover:bg-yellow-400/10 hover:text-yellow-300"
               >
                 PROGRAMME
               </a>
