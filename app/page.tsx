@@ -2200,7 +2200,7 @@ export default function Home() {
 
           <div className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7">
 
-            <div className="grid min-w-[1188px] grid-cols-9 gap-2">
+            <div className="flex w-full min-w-max items-stretch justify-between gap-4">
 
               <TopTab
                 label="APERÇU"
@@ -2243,14 +2243,14 @@ export default function Home() {
 
               <a
                 href="/match-center"
-                className="flex min-h-[88px] w-full items-center justify-center border-b-2 border-transparent px-2 text-center text-sm font-bold leading-tight text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
               >
                 MATCH CENTER
               </a>
 
               <a
                 href="/programme"
-                className="flex min-h-[88px] w-full items-center justify-center border-b-2 border-transparent px-2 text-center text-sm font-bold leading-tight text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
               >
                 PROGRAMME
               </a>
@@ -20751,7 +20751,7 @@ function TopTab({
       onClick={
         onClick
       }
-      className={`flex min-h-[88px] w-full items-center justify-center border-b-2 px-2 text-center text-sm font-bold leading-tight transition ${
+      className={`flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 px-2 text-center text-sm font-bold transition ${
         active
           ? "border-yellow-400 text-yellow-400"
           : "border-transparent text-gray-500"
