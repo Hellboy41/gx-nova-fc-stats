@@ -1045,7 +1045,7 @@ export default function ProgrammePage() {
       lines.push("Aucun match programmé pour cette semaine.", "");
     }
     lines.push("💙💛 **ENSEMBLE POUR GX NØVA !**");
-    return lines.join("\\n");
+    return lines.join("\n");
   }
 
   async function copyDiscordProgrammeText() {
