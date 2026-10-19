@@ -451,7 +451,7 @@ export default function ProgrammePage() {
         return {
           date,
           key: toDateKey(date),
-          name: DAY_NAMES[index],
+          name: DAY_NAMES[date.getDay()],
         };
       }),
     [periodStart]
