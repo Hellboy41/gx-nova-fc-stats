@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { sortProgrammeItemsByTime, sortProgrammeSchedule } from "@/lib/programme-sort";
 import {
   ArrowLeft,
   CalendarDays,
@@ -551,7 +552,7 @@ export default function ProgrammePage() {
         throw new Error(plansData.error ?? "Impossible de charger les disponibilités.");
       }
 
-      setSchedule(data.schedule ?? {});
+      setSchedule(sortProgrammeSchedule(data.schedule ?? {}));
       setCompetitions(data.competitions ?? []);
       setAliases(data.aliases ?? []);
       setPlansByEventId(
@@ -637,7 +638,7 @@ export default function ProgrammePage() {
   function updateDay(dateKey: string, items: ProgrammeItem[]) {
     setSchedule((current) => ({
       ...current,
-      [dateKey]: items,
+      [dateKey]: sortProgrammeItemsByTime(items),
     }));
   }
 
@@ -876,7 +877,7 @@ export default function ProgrammePage() {
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de rechercher les matchs EA.");
       }
-      setSchedule(data.schedule ?? schedule);
+      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
       setLinkCandidates(data.suggestions ?? {});
       const autoLinked = Number(data.autoLinked ?? 0);
       const probable = Number(data.probable ?? 0);
@@ -914,7 +915,7 @@ export default function ProgrammePage() {
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de confirmer ce match EA.");
       }
-      setSchedule(data.schedule ?? schedule);
+      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
       setLinkCandidates((current) => {
         const next: Record<string, LinkCandidate[]> = {};
         for (const [candidateKey, values] of Object.entries(current) as Array<[string, LinkCandidate[]]>) {
@@ -948,7 +949,7 @@ export default function ProgrammePage() {
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de délier ce match.");
       }
-      setSchedule(data.schedule ?? schedule);
+      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
       setMessage("Liaison EA retirée du programme.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de suppression de liaison.");
@@ -1000,7 +1001,7 @@ export default function ProgrammePage() {
         );
       }
 
-      setSchedule(data.schedule ?? schedule);
+      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
       setMessage("Programme de la semaine enregistré.");
     } catch (err) {
       setError(
@@ -1020,9 +1021,7 @@ export default function ProgrammePage() {
 
     let totalMatches = 0;
     for (const day of days) {
-      const items = [...(schedule[day.key] ?? [])].sort((a, b) =>
-        (a.time || "").localeCompare(b.time || "")
-      );
+      const items = sortProgrammeItemsByTime(schedule[day.key] ?? []);
       if (items.length === 0) continue;
 
       lines.push(`**${day.name.toUpperCase()} ${formatDayDate(day.date)}**`);
@@ -1511,7 +1510,7 @@ export default function ProgrammePage() {
         width: number,
         height: number
       ) => {
-        const items = schedule[day.key] ?? [];
+        const items = sortProgrammeItemsByTime(schedule[day.key] ?? []);
 
         drawGlowRect(ctx, x, y, width, height, "#0ed4ff", 0.05, 30);
         roundedRect(ctx, x, y, width, height, 30);
@@ -1982,7 +1981,7 @@ export default function ProgrammePage() {
             ) : (
               <div className="grid items-start gap-4 xl:grid-cols-2">
             {visibleDays.map((day) => {
-              const items = schedule[day.key] ?? [];
+              const items = sortProgrammeItemsByTime(schedule[day.key] ?? []);
               const playedItems = items.filter((item) => Boolean(item.linkedMatchId));
               const upcomingItems = items.filter((item) => !item.linkedMatchId);
               const displayedItems =
