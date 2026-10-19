@@ -873,30 +873,47 @@ export default function ProgrammePage() {
       setMatching(true);
       setError("");
       setMessage("");
-      const response = await fetch("/api/programme/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "scan",
-          weekStart,
-          schedule,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.details ?? data.error ?? "Impossible de rechercher les matchs EA.");
+      const working = { ...schedule };
+      const collectedSuggestions: Record<string, LinkCandidate[]> = {};
+      let autoLinked = 0;
+      let probable = 0;
+      // Une période libre peut traverser deux semaines de stockage.
+      for (const storageWeek of programmePeriodWeeks(weekStart)) {
+        const affectedDays = days
+          .filter((day) => programmeCanonicalWeek(day.key) === storageWeek)
+          .map((day) => day.key);
+        const partialSchedule = Object.fromEntries(
+          affectedDays.map((date) => [date, working[date] ?? []])
+        );
+        const response = await fetch("/api/programme/link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "scan",
+            weekStart: storageWeek,
+            schedule: partialSchedule,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.details ?? data.error ?? "Impossible de rechercher les matchs EA.");
+        }
+        for (const date of affectedDays) {
+          working[date] = data.schedule?.[date] ?? working[date] ?? [];
+        }
+        Object.assign(collectedSuggestions, data.suggestions ?? {});
+        autoLinked += Number(data.autoLinked ?? 0);
+        probable += Number(data.probable ?? 0);
       }
-      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
-      setLinkCandidates(data.suggestions ?? {});
-      const autoLinked = Number(data.autoLinked ?? 0);
-      const probable = Number(data.probable ?? 0);
+      setSchedule(sortProgrammeSchedule(working));
+      setLinkCandidates(collectedSuggestions);
       setMessage(
         autoLinked > 0 || probable > 0
-          ? `${autoLinked} match(s) lié(s) automatiquement • ${probable} correspondance(s) à confirmer.`
-          : "Recherche EA terminée : aucune nouvelle correspondance fiable pour cette semaine."
+          ? autoLinked + " match(s) lié(s) automatiquement • " + probable + " correspondance(s) à confirmer."
+          : "Recherche EA terminée : aucune nouvelle correspondance fiable pour cette période."
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de recherche EA.");
+      setError(err instanceof Error ? err.message : "Erreur de recherche EA. Recharge la période avant de réessayer.");
     } finally {
       setMatching(false);
     }
@@ -913,7 +930,7 @@ export default function ProgrammePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "confirm",
-          weekStart,
+          weekStart: programmeCanonicalWeek(dateKey),
           dateKey,
           itemId,
           matchId,
@@ -924,7 +941,10 @@ export default function ProgrammePage() {
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de confirmer ce match EA.");
       }
-      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
+      setSchedule((current) => sortProgrammeSchedule({
+        ...current,
+        [dateKey]: data.schedule?.[dateKey] ?? current[dateKey] ?? [],
+      }));
       setLinkCandidates((current) => {
         const next: Record<string, LinkCandidate[]> = {};
         for (const [candidateKey, values] of Object.entries(current) as Array<[string, LinkCandidate[]]>) {
@@ -952,13 +972,16 @@ export default function ProgrammePage() {
       const response = await fetch("/api/programme/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "unlink", weekStart, dateKey, itemId }),
+        body: JSON.stringify({ action: "unlink", weekStart: programmeCanonicalWeek(dateKey), dateKey, itemId }),
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de délier ce match.");
       }
-      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
+      setSchedule((current) => sortProgrammeSchedule({
+        ...current,
+        [dateKey]: data.schedule?.[dateKey] ?? current[dateKey] ?? [],
+      }));
       setMessage("Liaison EA retirée du programme.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de suppression de liaison.");
