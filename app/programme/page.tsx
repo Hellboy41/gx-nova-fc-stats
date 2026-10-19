@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { isProgrammeDateKey, programmeCanonicalWeek, programmePeriodWeeks } from "@/lib/programme-period";
 import { sortProgrammeItemsByTime, sortProgrammeSchedule } from "@/lib/programme-sort";
 import {
   ArrowLeft,
@@ -442,24 +443,24 @@ export default function ProgrammePage() {
 
   const canEdit = role === "admin" || role === "staff";
   const todayKey = toDateKey(new Date());
-  const sunday = useMemo(() => parseDateKey(weekStart), [weekStart]);
+  const periodStart = useMemo(() => parseDateKey(weekStart), [weekStart]);
   const days = useMemo(
     () =>
       Array.from({ length: 7 }, (_, index) => {
-        const date = addDays(sunday, index);
+        const date = addDays(periodStart, index);
         return {
           date,
           key: toDateKey(date),
           name: DAY_NAMES[index],
         };
       }),
-    [sunday]
+    [periodStart]
   );
 
   const weekLabel = useMemo(() => {
-    const saturday = addDays(sunday, 6);
-    return `Du ${formatShortDate(sunday)} au ${formatShortDate(saturday)}`;
-  }, [sunday]);
+    const periodEnd = addDays(periodStart, 6);
+    return `Du ${formatShortDate(periodStart)} au ${formatShortDate(periodEnd)}`;
+  }, [periodStart]);
 
   const totalUpcomingCount = useMemo(
     () =>
@@ -628,7 +629,7 @@ export default function ProgrammePage() {
   ]);
 
   function changeWeek(offset: number) {
-    setWeekStart(toDateKey(addDays(sunday, offset * 7)));
+    setWeekStart(toDateKey(addDays(periodStart, offset * 7)));
   }
 
   function goCurrentWeek() {
@@ -989,7 +990,7 @@ export default function ProgrammePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          weekStart,
+          startDate: weekStart,
           schedule,
         }),
       });
@@ -1785,12 +1786,12 @@ export default function ProgrammePage() {
               <div className="flex items-center gap-2 text-yellow-400">
                 <CalendarDays size={19} />
                 <p className="text-xs font-black uppercase tracking-[0.2em]">
-                  Semaine sélectionnée
+                  Période sélectionnée
                 </p>
               </div>
               <p className="mt-2 text-2xl font-black">{weekLabel}</p>
               <p className="mt-2 text-sm text-gray-500">
-                Planifie les compétitions et tournois, puis exporte une affiche PNG premium en 2 affiches, prêtes pour Discord.
+                Planifie les compétitions et tournois sur 7 jours consécutifs, puis exporte les 2 affiches PNG et le texte pour Discord.
               </p>
               <p className="mt-2 text-xs font-bold text-cyan-300/70">
                 Le mode « À préparer » masque automatiquement les matchs déjà joués pour garder uniquement les actions à venir.
@@ -1798,6 +1799,20 @@ export default function ProgrammePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <label className="flex flex-col gap-1 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.05] px-3 py-1.5 text-xs font-bold text-yellow-200">
+                Début des 7 jours
+                <input
+                  type="date"
+                  value={weekStart}
+                  onChange={(event) => {
+                    if (isProgrammeDateKey(event.target.value)) {
+                      setWeekStart(event.target.value);
+                    }
+                  }}
+                  aria-label="Choisir le premier jour de la période de 7 jours"
+                  className="min-w-[142px] bg-transparent text-sm font-black text-white outline-none [color-scheme:dark]"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => changeWeek(-1)}
@@ -2256,7 +2271,7 @@ export default function ProgrammePage() {
 
       {planningEvent && (
         <EventPlanModal
-          weekStart={weekStart}
+          weekStart={programmeCanonicalWeek(planningEvent.dateKey)}
           eventDate={planningEvent.dateKey}
           item={planningEvent.item}
           competitionName={competitionLabel(planningEvent.item, competitions)}
