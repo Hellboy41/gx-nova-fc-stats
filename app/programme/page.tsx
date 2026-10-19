@@ -433,6 +433,8 @@ export default function ProgrammePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingSingleDay, setExportingSingleDay] = useState(false);
+  const [selectedExportDay, setSelectedExportDay] = useState("");
   const [discordExportText, setDiscordExportText] = useState("");
   const [discordCopyStatus, setDiscordCopyStatus] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -456,6 +458,10 @@ export default function ProgrammePage() {
       }),
     [periodStart]
   );
+
+  const exportDayKey = days.some((day) => day.key === selectedExportDay)
+    ? selectedExportDay
+    : days.find((day) => (schedule[day.key] ?? []).length > 0)?.key ?? days[0]?.key ?? "";
 
   const weekLabel = useMemo(() => {
     const periodEnd = addDays(periodStart, 6);
@@ -1044,15 +1050,18 @@ export default function ProgrammePage() {
     }
   }
 
-  function buildDiscordProgrammeText() {
+  function buildDiscordProgrammeText(dayKey?: string) {
+    const selectedDay = dayKey ? days.find((day) => day.key === dayKey) : null;
     const lines = [
-      "📅 **PROGRAMME DE LA SEMAINE — GX NØVA FC27**",
-      `🗓️ ${weekLabel}`,
+      selectedDay
+        ? "📅 **PROGRAMME DU JOUR — GX NØVA FC27**"
+        : "📅 **PROGRAMME DE LA SEMAINE — GX NØVA FC27**",
+      `🗓️ ${selectedDay ? formatLongDate(selectedDay.date) : weekLabel}`,
       "",
     ];
 
     let totalMatches = 0;
-    for (const day of days) {
+    for (const day of selectedDay ? [selectedDay] : days) {
       const items = sortProgrammeItemsByTime(schedule[day.key] ?? []);
       if (items.length === 0) continue;
 
@@ -1073,7 +1082,7 @@ export default function ProgrammePage() {
     }
 
     if (totalMatches === 0) {
-      lines.push("Aucun match programmé pour cette semaine.", "");
+      lines.push(selectedDay ? "Aucun match programmé pour cette journée." : "Aucun match programmé pour cette semaine.", "");
     }
     lines.push("💙💛 **ENSEMBLE POUR GX NØVA !**");
     return lines.join("\n");
@@ -1088,14 +1097,18 @@ export default function ProgrammePage() {
     }
   }
 
-  async function exportDiscordPoster() {
+  async function exportDiscordPoster(dayKey?: string) {
     if (!canEdit) return;
 
     try {
-      setExporting(true);
+      if (dayKey && !days.some((day) => day.key === dayKey)) {
+        throw new Error("La journée choisie ne fait pas partie de la période affichée.");
+      }
+      if (dayKey) setExportingSingleDay(true);
+      else setExporting(true);
       setError("");
       setDiscordCopyStatus("");
-      setDiscordExportText(buildDiscordProgrammeText());
+      setDiscordExportText(buildDiscordProgrammeText(dayKey));
 
       const posterWidth = 1920;
       const pagePadding = 52;
@@ -1361,7 +1374,7 @@ export default function ProgrammePage() {
 
         ctx.fillStyle = "#39d7ff";
         ctx.font = "900 14px Arial, sans-serif";
-        ctx.fillText("WEEKLY MATCH PLAN / 週間プログラム", 1358, 82);
+        ctx.fillText(pageCount === 1 ? "MATCH DAY / 1 JOUR" : "WEEKLY MATCH PLAN / 週間プログラム", 1358, 82);
         ctx.fillStyle = "#ffffff";
         ctx.font = "900 32px Arial, sans-serif";
         ctx.fillText(partTitle, 1358, 124);
@@ -1737,11 +1750,74 @@ export default function ProgrammePage() {
         await downloadCanvas(canvas, `GX-NOVA-programme-${fileSuffix}-${weekStart}.png`);
       };
 
+      if (dayKey) {
+        const selectedDay = days.find((day) => day.key === dayKey);
+        if (!selectedDay) throw new Error("Journée invalide.");
+
+        const items = sortProgrammeItemsByTime(schedule[dayKey] ?? []);
+        const columns = items.length <= 3 ? 1 : 2;
+        const rows = Math.max(1, Math.ceil(items.length / columns));
+        const rowHeight = items.length === 1 ? 264
+          : items.length <= 3 ? 192
+          : items.length <= 4 ? 240
+          : items.length <= 6 ? 190
+          : 160;
+        const rowGap = 22;
+        const contentHeight = rows * rowHeight + (rows - 1) * rowGap;
+        const height = Math.max(
+          1080,
+          headerHeight + contentHeight + footerHeight + 100
+        );
+        const { canvas, ctx } = createPosterCanvas(height);
+        drawPosterBackground(ctx, posterWidth, height);
+        drawHeader(
+          ctx,
+          "PROGRAMME DU JOUR",
+          "MATCH DAY",
+          formatLongDate(selectedDay.date),
+          1,
+          1
+        );
+
+        const cardWidth = (posterWidth - pagePadding * 2 - (columns - 1) * cardGap) / columns;
+        const freeHeight = height - headerHeight - footerHeight - contentHeight;
+        const startY = headerHeight + Math.max(10, freeHeight / 2);
+        if (!items.length) {
+          roundedRect(ctx, pagePadding, startY, posterWidth - pagePadding * 2, 250, 28);
+          ctx.fillStyle = "rgba(8, 28, 47, 0.90)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(17, 216, 255, 0.24)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = "#a7b8cd";
+          ctx.font = "900 34px Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("AUCUN MATCH PROGRAMMÉ", posterWidth / 2, startY + 143);
+          ctx.textAlign = "left";
+        } else {
+          for (const [index, item] of items.entries()) {
+            const column = index % columns;
+            const row = Math.floor(index / columns);
+            await drawEventRow(
+              ctx,
+              item,
+              pagePadding + column * (cardWidth + cardGap),
+              startY + row * (rowHeight + rowGap),
+              cardWidth,
+              rowHeight
+            );
+          }
+        }
+        await downloadCanvas(canvas, `GX-NOVA-programme-${dayKey}.png`);
+        setMessage("Affiche du " + formatLongDate(selectedDay.date) + " générée avec le texte Discord.");
+        return;
+      }
+
       await drawPosterPage(
         days.slice(0, 4),
         1,
         "MATCH DAYS 01",
-        "Partie 1 • Dimanche → Mercredi",
+        `Partie 1 • ${days[0].name} → ${days[3].name}`,
         "partie-1",
         2
       );
@@ -1750,7 +1826,7 @@ export default function ProgrammePage() {
         days.slice(4, 7),
         2,
         "MATCH DAYS 02",
-        "Partie 2 • Jeudi → Samedi",
+        `Partie 2 • ${days[4].name} → ${days[6].name}`,
         "partie-2",
         3
       );
@@ -1760,6 +1836,7 @@ export default function ProgrammePage() {
       );
     } finally {
       setExporting(false);
+      setExportingSingleDay(false);
     }
   }
   return (
@@ -1948,10 +2025,40 @@ export default function ProgrammePage() {
               )}
 
               {canEdit && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.04] p-1.5">
+                  <label className="flex items-center gap-2 text-xs font-bold text-yellow-200">
+                    Journée
+                    <select
+                      value={exportDayKey}
+                      onChange={(event) => setSelectedExportDay(event.target.value)}
+                      disabled={loading || exporting || exportingSingleDay}
+                      aria-label="Choisir la journée à exporter"
+                      className="max-w-[180px] rounded-lg border border-white/10 bg-[#071321] px-3 py-2 text-xs font-bold text-white outline-none focus:border-yellow-400/50"
+                    >
+                      {days.map((day) => (
+                        <option key={day.key} value={day.key}>
+                          {day.name} {formatDayDate(day.date)} ({(schedule[day.key] ?? []).length})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void exportDiscordPoster(exportDayKey)}
+                    disabled={exporting || exportingSingleDay || loading || !exportDayKey}
+                    className="flex items-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2.5 text-xs font-black text-yellow-200 transition hover:bg-yellow-400/20 disabled:opacity-50"
+                  >
+                    <Download size={16}/>
+                    {exportingSingleDay ? "Création de l'affiche..." : "Exporter la journée (PNG + texte)"}
+                  </button>
+                </div>
+              )}
+
+              {canEdit && (
                 <button
                   type="button"
                   onClick={() => void exportDiscordPoster()}
-                  disabled={exporting || loading}
+                  disabled={exporting || exportingSingleDay || loading}
                   className="ml-0 flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-sm font-black text-blue-300 transition hover:bg-blue-400/15 disabled:opacity-50 xl:ml-3"
                 >
                   <Download size={17} />
