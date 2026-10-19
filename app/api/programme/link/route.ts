@@ -394,7 +394,19 @@ export async function POST(request: Request) {
     const activeSeasonId = season?.id ? Number(season.id) : null;
 
     if (action === "scan") {
-      const schedule = sanitizeSchedule(body.schedule);
+      const submittedSchedule = sanitizeSchedule(body.schedule);
+      const { data: existingRow, error: existingError } = await admin
+        .from("weekly_programs")
+        .select("schedule")
+        .eq("club_id", CLUB_ID)
+        .eq("week_start", weekStart)
+        .maybeSingle();
+      if (existingError) throw new Error(existingError.message);
+      // Conserver les journées non incluses dans la période personnalisée.
+      const schedule = {
+        ...sanitizeSchedule(existingRow?.schedule ?? {}),
+        ...submittedSchedule,
+      };
       const rangeStart = new Date(zonedDateTimeToUtc(weekStart, "00:00").getTime() - 2 * 60 * 60 * 1000);
       const rangeEnd = new Date(
         zonedDateTimeToUtc(addDateKey(weekStart, 7), "03:00").getTime() + 2 * 60 * 60 * 1000
@@ -438,7 +450,7 @@ export async function POST(request: Request) {
       let autoLinked = 0;
       let probable = 0;
 
-      const refs = Object.entries(schedule)
+      const refs = Object.entries(submittedSchedule)
         .flatMap(([dateKey, items]) => items.map((item) => ({ dateKey, item })))
         .sort((a, b) => {
           const da = a.item.time ? zonedDateTimeToUtc(a.dateKey, a.item.time).getTime() : 0;
