@@ -533,34 +533,42 @@ export default function ProgrammePage() {
       setError("");
       setMessage("");
 
-      const [response, plansResponse] = await Promise.all([
-        fetch(`/api/programme?weekStart=${encodeURIComponent(weekStart)}`, { cache: "no-store" }),
-        fetch(`/api/programme/plans?weekStart=${encodeURIComponent(weekStart)}`, { cache: "no-store" }),
+      const storageWeeks = programmePeriodWeeks(weekStart);
+      const responses = await Promise.all([
+        fetch(`/api/programme?startDate=${encodeURIComponent(weekStart)}`, { cache: "no-store" }),
+        ...storageWeeks.map((storageWeek) =>
+          fetch(`/api/programme/plans?weekStart=${encodeURIComponent(storageWeek)}`, { cache: "no-store" })
+        ),
       ]);
+      const programmeResponse = responses[0];
+      const plansResponses = responses.slice(1);
+      const data = (await programmeResponse.json()) as ProgrammeResponse & { error?: string };
+      const allPlans = await Promise.all(plansResponses.map(async (response) => ({
+        ok: response.ok,
+        data: (await response.json()) as {
+          plans?: EventPlan[];
+          roster?: RosterPlayer[];
+          currentLineup?: CurrentLineup;
+          error?: string;
+        },
+      })));
 
-      const data = (await response.json()) as ProgrammeResponse & { error?: string };
-      const plansData = (await plansResponse.json()) as {
-        plans?: EventPlan[];
-        roster?: RosterPlayer[];
-        currentLineup?: CurrentLineup;
-        error?: string;
-      };
-
-      if (!response.ok) {
+      if (!programmeResponse.ok) {
         throw new Error(data.error ?? "Impossible de charger le programme.");
       }
-      if (!plansResponse.ok) {
-        throw new Error(plansData.error ?? "Impossible de charger les disponibilités.");
+      const failedPlans = allPlans.find((result) => !result.ok);
+      if (failedPlans) {
+        throw new Error(failedPlans.data.error ?? "Impossible de charger les disponibilités.");
       }
 
       setSchedule(sortProgrammeSchedule(data.schedule ?? {}));
       setCompetitions(data.competitions ?? []);
       setAliases(data.aliases ?? []);
-      setPlansByEventId(
-        Object.fromEntries((plansData.plans ?? []).map((plan) => [plan.eventId, plan]))
-      );
-      setRoster(plansData.roster ?? []);
-      setCurrentLineup(plansData.currentLineup ?? { formation: "3-1-4-2", lineup: [], bench: [] });
+      setPlansByEventId(Object.fromEntries(
+        allPlans.flatMap((result) => result.data.plans ?? []).map((plan) => [plan.eventId, plan])
+      ));
+      setRoster(allPlans[0]?.data.roster ?? []);
+      setCurrentLineup(allPlans[0]?.data.currentLineup ?? { formation: "3-1-4-2", lineup: [], bench: [] });
       setLinkCandidates({});
       setRole(data.currentUser?.role ?? "viewer");
     } catch (err) {
