@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { isProgrammeDateKey, programmeCanonicalWeek, programmePeriodWeeks } from "@/lib/programme-period";
 import { sortProgrammeItemsByTime, sortProgrammeSchedule } from "@/lib/programme-sort";
 import {
   ArrowLeft,
@@ -442,24 +443,24 @@ export default function ProgrammePage() {
 
   const canEdit = role === "admin" || role === "staff";
   const todayKey = toDateKey(new Date());
-  const sunday = useMemo(() => parseDateKey(weekStart), [weekStart]);
+  const periodStart = useMemo(() => parseDateKey(weekStart), [weekStart]);
   const days = useMemo(
     () =>
       Array.from({ length: 7 }, (_, index) => {
-        const date = addDays(sunday, index);
+        const date = addDays(periodStart, index);
         return {
           date,
           key: toDateKey(date),
-          name: DAY_NAMES[index],
+          name: DAY_NAMES[date.getDay()],
         };
       }),
-    [sunday]
+    [periodStart]
   );
 
   const weekLabel = useMemo(() => {
-    const saturday = addDays(sunday, 6);
-    return `Du ${formatShortDate(sunday)} au ${formatShortDate(saturday)}`;
-  }, [sunday]);
+    const periodEnd = addDays(periodStart, 6);
+    return `Du ${formatShortDate(periodStart)} au ${formatShortDate(periodEnd)}`;
+  }, [periodStart]);
 
   const totalUpcomingCount = useMemo(
     () =>
@@ -532,34 +533,42 @@ export default function ProgrammePage() {
       setError("");
       setMessage("");
 
-      const [response, plansResponse] = await Promise.all([
-        fetch(`/api/programme?weekStart=${encodeURIComponent(weekStart)}`, { cache: "no-store" }),
-        fetch(`/api/programme/plans?weekStart=${encodeURIComponent(weekStart)}`, { cache: "no-store" }),
+      const storageWeeks = programmePeriodWeeks(weekStart);
+      const responses = await Promise.all([
+        fetch(`/api/programme?startDate=${encodeURIComponent(weekStart)}`, { cache: "no-store" }),
+        ...storageWeeks.map((storageWeek) =>
+          fetch(`/api/programme/plans?weekStart=${encodeURIComponent(storageWeek)}`, { cache: "no-store" })
+        ),
       ]);
+      const programmeResponse = responses[0];
+      const plansResponses = responses.slice(1);
+      const data = (await programmeResponse.json()) as ProgrammeResponse & { error?: string };
+      const allPlans = await Promise.all(plansResponses.map(async (response) => ({
+        ok: response.ok,
+        data: (await response.json()) as {
+          plans?: EventPlan[];
+          roster?: RosterPlayer[];
+          currentLineup?: CurrentLineup;
+          error?: string;
+        },
+      })));
 
-      const data = (await response.json()) as ProgrammeResponse & { error?: string };
-      const plansData = (await plansResponse.json()) as {
-        plans?: EventPlan[];
-        roster?: RosterPlayer[];
-        currentLineup?: CurrentLineup;
-        error?: string;
-      };
-
-      if (!response.ok) {
+      if (!programmeResponse.ok) {
         throw new Error(data.error ?? "Impossible de charger le programme.");
       }
-      if (!plansResponse.ok) {
-        throw new Error(plansData.error ?? "Impossible de charger les disponibilités.");
+      const failedPlans = allPlans.find((result) => !result.ok);
+      if (failedPlans) {
+        throw new Error(failedPlans.data.error ?? "Impossible de charger les disponibilités.");
       }
 
       setSchedule(sortProgrammeSchedule(data.schedule ?? {}));
       setCompetitions(data.competitions ?? []);
       setAliases(data.aliases ?? []);
-      setPlansByEventId(
-        Object.fromEntries((plansData.plans ?? []).map((plan) => [plan.eventId, plan]))
-      );
-      setRoster(plansData.roster ?? []);
-      setCurrentLineup(plansData.currentLineup ?? { formation: "3-1-4-2", lineup: [], bench: [] });
+      setPlansByEventId(Object.fromEntries(
+        allPlans.flatMap((result) => result.data.plans ?? []).map((plan) => [plan.eventId, plan])
+      ));
+      setRoster(allPlans[0]?.data.roster ?? []);
+      setCurrentLineup(allPlans[0]?.data.currentLineup ?? { formation: "3-1-4-2", lineup: [], bench: [] });
       setLinkCandidates({});
       setRole(data.currentUser?.role ?? "viewer");
     } catch (err) {
@@ -628,7 +637,7 @@ export default function ProgrammePage() {
   ]);
 
   function changeWeek(offset: number) {
-    setWeekStart(toDateKey(addDays(sunday, offset * 7)));
+    setWeekStart(toDateKey(addDays(periodStart, offset * 7)));
   }
 
   function goCurrentWeek() {
@@ -864,30 +873,47 @@ export default function ProgrammePage() {
       setMatching(true);
       setError("");
       setMessage("");
-      const response = await fetch("/api/programme/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "scan",
-          weekStart,
-          schedule,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.details ?? data.error ?? "Impossible de rechercher les matchs EA.");
+      const working = { ...schedule };
+      const collectedSuggestions: Record<string, LinkCandidate[]> = {};
+      let autoLinked = 0;
+      let probable = 0;
+      // Une période libre peut traverser deux semaines de stockage.
+      for (const storageWeek of programmePeriodWeeks(weekStart)) {
+        const affectedDays = days
+          .filter((day) => programmeCanonicalWeek(day.key) === storageWeek)
+          .map((day) => day.key);
+        const partialSchedule = Object.fromEntries(
+          affectedDays.map((date) => [date, working[date] ?? []])
+        );
+        const response = await fetch("/api/programme/link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "scan",
+            weekStart: storageWeek,
+            schedule: partialSchedule,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.details ?? data.error ?? "Impossible de rechercher les matchs EA.");
+        }
+        for (const date of affectedDays) {
+          working[date] = data.schedule?.[date] ?? working[date] ?? [];
+        }
+        Object.assign(collectedSuggestions, data.suggestions ?? {});
+        autoLinked += Number(data.autoLinked ?? 0);
+        probable += Number(data.probable ?? 0);
       }
-      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
-      setLinkCandidates(data.suggestions ?? {});
-      const autoLinked = Number(data.autoLinked ?? 0);
-      const probable = Number(data.probable ?? 0);
+      setSchedule(sortProgrammeSchedule(working));
+      setLinkCandidates(collectedSuggestions);
       setMessage(
         autoLinked > 0 || probable > 0
-          ? `${autoLinked} match(s) lié(s) automatiquement • ${probable} correspondance(s) à confirmer.`
-          : "Recherche EA terminée : aucune nouvelle correspondance fiable pour cette semaine."
+          ? autoLinked + " match(s) lié(s) automatiquement • " + probable + " correspondance(s) à confirmer."
+          : "Recherche EA terminée : aucune nouvelle correspondance fiable pour cette période."
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de recherche EA.");
+      setError(err instanceof Error ? err.message : "Erreur de recherche EA. Recharge la période avant de réessayer.");
     } finally {
       setMatching(false);
     }
@@ -904,7 +930,7 @@ export default function ProgrammePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "confirm",
-          weekStart,
+          weekStart: programmeCanonicalWeek(dateKey),
           dateKey,
           itemId,
           matchId,
@@ -915,7 +941,10 @@ export default function ProgrammePage() {
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de confirmer ce match EA.");
       }
-      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
+      setSchedule((current) => sortProgrammeSchedule({
+        ...current,
+        [dateKey]: data.schedule?.[dateKey] ?? current[dateKey] ?? [],
+      }));
       setLinkCandidates((current) => {
         const next: Record<string, LinkCandidate[]> = {};
         for (const [candidateKey, values] of Object.entries(current) as Array<[string, LinkCandidate[]]>) {
@@ -943,13 +972,16 @@ export default function ProgrammePage() {
       const response = await fetch("/api/programme/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "unlink", weekStart, dateKey, itemId }),
+        body: JSON.stringify({ action: "unlink", weekStart: programmeCanonicalWeek(dateKey), dateKey, itemId }),
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.details ?? data.error ?? "Impossible de délier ce match.");
       }
-      setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
+      setSchedule((current) => sortProgrammeSchedule({
+        ...current,
+        [dateKey]: data.schedule?.[dateKey] ?? current[dateKey] ?? [],
+      }));
       setMessage("Liaison EA retirée du programme.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de suppression de liaison.");
@@ -989,7 +1021,7 @@ export default function ProgrammePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          weekStart,
+          startDate: weekStart,
           schedule,
         }),
       });
@@ -1785,12 +1817,12 @@ export default function ProgrammePage() {
               <div className="flex items-center gap-2 text-yellow-400">
                 <CalendarDays size={19} />
                 <p className="text-xs font-black uppercase tracking-[0.2em]">
-                  Semaine sélectionnée
+                  Période sélectionnée
                 </p>
               </div>
               <p className="mt-2 text-2xl font-black">{weekLabel}</p>
               <p className="mt-2 text-sm text-gray-500">
-                Planifie les compétitions et tournois, puis exporte une affiche PNG premium en 2 affiches, prêtes pour Discord.
+                Planifie les compétitions et tournois sur 7 jours consécutifs, puis exporte les 2 affiches PNG et le texte pour Discord.
               </p>
               <p className="mt-2 text-xs font-bold text-cyan-300/70">
                 Le mode « À préparer » masque automatiquement les matchs déjà joués pour garder uniquement les actions à venir.
@@ -1798,6 +1830,20 @@ export default function ProgrammePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <label className="flex flex-col gap-1 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.05] px-3 py-1.5 text-xs font-bold text-yellow-200">
+                Début des 7 jours
+                <input
+                  type="date"
+                  value={weekStart}
+                  onChange={(event) => {
+                    if (isProgrammeDateKey(event.target.value)) {
+                      setWeekStart(event.target.value);
+                    }
+                  }}
+                  aria-label="Choisir le premier jour de la période de 7 jours"
+                  className="min-w-[142px] bg-transparent text-sm font-black text-white outline-none [color-scheme:dark]"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => changeWeek(-1)}
@@ -2256,7 +2302,7 @@ export default function ProgrammePage() {
 
       {planningEvent && (
         <EventPlanModal
-          weekStart={weekStart}
+          weekStart={programmeCanonicalWeek(planningEvent.dateKey)}
           eventDate={planningEvent.dateKey}
           item={planningEvent.item}
           competitionName={competitionLabel(planningEvent.item, competitions)}

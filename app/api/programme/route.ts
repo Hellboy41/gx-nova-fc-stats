@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
+import { isProgrammeDateKey, programmeCanonicalWeek, programmePeriodDates, programmePeriodWeeks } from "@/lib/programme-period";
 import { sortProgrammeItemsByTime } from "@/lib/programme-sort";
 
 const CLUB_ID = "1663";
@@ -124,70 +125,72 @@ export async function GET(request: Request) {
   if (authorization.error) return authorization.error;
 
   const { searchParams } = new URL(request.url);
+  const requestedStart = searchParams.get("startDate");
   const weekStart = searchParams.get("weekStart") ?? "";
-
-  if (!DATE_RE.test(weekStart)) {
-    return NextResponse.json(
-      { error: "La date de début de semaine est invalide." },
-      { status: 400 }
-    );
+  const selectedStart = requestedStart ?? weekStart;
+  if (!isProgrammeDateKey(selectedStart)) {
+    return NextResponse.json({ error: "La date de début de période est invalide." }, { status: 400 });
   }
 
+  const periodDates = requestedStart ? programmePeriodDates(selectedStart) : null;
+  const storageWeeks = requestedStart ? programmePeriodWeeks(selectedStart) : [weekStart];
   const admin = createAdminClient();
 
   const [programmeResult, competitionsResult, aliasesResult] = await Promise.all([
-    admin
-      .from("weekly_programs")
-      .select("schedule, updated_at")
+    admin.from("weekly_programs")
+      .select("week_start, schedule, updated_at")
       .eq("club_id", CLUB_ID)
-      .eq("week_start", weekStart)
-      .maybeSingle(),
-    admin
-      .from("competitions")
+      .in("week_start", storageWeeks),
+    admin.from("competitions")
       .select("id, name, short_name, competition_type")
       .eq("club_id", CLUB_ID)
       .order("id", { ascending: true }),
-    admin
-      .from("opponent_aliases")
+    admin.from("opponent_aliases")
       .select("id, programme_name, ea_name, ea_club_id, updated_at")
       .eq("club_id", CLUB_ID)
       .order("programme_name", { ascending: true }),
   ]);
 
   if (programmeResult.error) {
-    return NextResponse.json(
-      {
-        error: "Impossible de récupérer le programme de la semaine.",
-        details: programmeResult.error.message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      error: "Impossible de récupérer le programme de la période.",
+      details: programmeResult.error.message,
+    }, { status: 500 });
   }
-
   if (competitionsResult.error) {
-    return NextResponse.json(
-      {
-        error: "Impossible de récupérer les compétitions.",
-        details: competitionsResult.error.message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      error: "Impossible de récupérer les compétitions.",
+      details: competitionsResult.error.message,
+    }, { status: 500 });
+  }
+  if (aliasesResult.error) {
+    return NextResponse.json({
+      error: "Impossible de récupérer les correspondances adversaires.",
+      details: aliasesResult.error.message,
+    }, { status: 500 });
   }
 
-  if (aliasesResult.error) {
-    return NextResponse.json(
-      {
-        error: "Impossible de récupérer les correspondances adversaires.",
-        details: aliasesResult.error.message,
-      },
-      { status: 500 }
-    );
-  }
+  const rows = new Map(
+    (programmeResult.data ?? []).map((row) => [row.week_start, {
+      schedule: sanitizeSchedule(row.schedule),
+      updatedAt: row.updated_at as string | null,
+    }])
+  );
+  const schedule = periodDates
+    ? Object.fromEntries(periodDates.map((date) => [
+        date,
+        rows.get(programmeCanonicalWeek(date))?.schedule[date] ?? [],
+      ]))
+    : rows.get(weekStart)?.schedule ?? {};
 
   return NextResponse.json({
-    weekStart,
-    schedule: sanitizeSchedule(programmeResult.data?.schedule ?? {}),
-    updatedAt: programmeResult.data?.updated_at ?? null,
+    weekStart: selectedStart,
+    schedule,
+    updatedAt: (programmeResult.data ?? [])
+      .map((row) => row.updated_at as string | null)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null,
     competitions: competitionsResult.data ?? [],
     aliases: aliasesResult.data ?? [],
     currentUser: authorization.profile,
@@ -199,11 +202,13 @@ export async function PUT(request: Request) {
   if (authorization.error) return authorization.error;
 
   const body = await request.json().catch(() => ({}));
+  const requestedStart = cleanText(body.startDate, 10);
   const weekStart = cleanText(body.weekStart, 10);
+  const selectedStart = requestedStart || weekStart;
 
-  if (!DATE_RE.test(weekStart)) {
+  if (!isProgrammeDateKey(selectedStart)) {
     return NextResponse.json(
-      { error: "La date de début de semaine est invalide." },
+      { error: "La date de début de période est invalide." },
       { status: 400 }
     );
   }
@@ -211,6 +216,61 @@ export async function PUT(request: Request) {
   const schedule = sanitizeSchedule(body.schedule);
   const admin = createAdminClient();
   const now = new Date().toISOString();
+
+  if (requestedStart) {
+    const periodDates = programmePeriodDates(selectedStart);
+    const storageWeeks = programmePeriodWeeks(selectedStart);
+    const { data: originalRows, error: originalError } = await admin
+      .from("weekly_programs")
+      .select("week_start, schedule")
+      .eq("club_id", CLUB_ID)
+      .in("week_start", storageWeeks);
+
+    if (originalError) {
+      return NextResponse.json({
+        error: "Impossible de récupérer les semaines existantes.",
+        details: originalError.message,
+      }, { status: 500 });
+    }
+
+    const originals = new Map(
+      (originalRows ?? []).map((row) => [row.week_start, sanitizeSchedule(row.schedule)])
+    );
+    const combined: ProgrammeSchedule = {};
+
+    // Modifier uniquement les dates affichées : les autres jours des semaines
+    // traversées conservent leurs matchs, même si la fenêtre commence un mercredi.
+    for (const storageWeek of storageWeeks) {
+      const merged = { ...(originals.get(storageWeek) ?? {}) };
+      for (const date of periodDates) {
+        if (programmeCanonicalWeek(date) === storageWeek) {
+          merged[date] = schedule[date] ?? [];
+          combined[date] = merged[date];
+        }
+      }
+      const { error: writeError } = await admin
+        .from("weekly_programs")
+        .upsert({
+          club_id: CLUB_ID,
+          week_start: storageWeek,
+          schedule: merged,
+          updated_by: authorization.profile?.userId ?? null,
+          updated_at: now,
+        }, { onConflict: "club_id,week_start" });
+      if (writeError) {
+        return NextResponse.json({
+          error: "Impossible d'enregistrer toute la période. Recharge la page avant de réessayer.",
+          details: writeError.message,
+        }, { status: 500 });
+      }
+    }
+    return NextResponse.json({
+      success: true,
+      weekStart: selectedStart,
+      schedule: combined,
+      updatedAt: now,
+    });
+  }
 
   const { data, error } = await admin
     .from("weekly_programs")
