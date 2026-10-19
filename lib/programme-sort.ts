@@ -1,7 +1,7 @@
 // Ordre chronologique commun au formulaire, à l'API et aux exports.
 // Les horaires manquants/invalides restent à la fin ; à horaire égal,
 // on conserve l'ordre de saisie et les identifiants des événements.
-const VALID_TIME = /^([01]\\d|2[0-3]):[0-5]\\d$/;
+const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function sortProgrammeItemsByTime<T extends { time: string }>(
   items: readonly T[]
