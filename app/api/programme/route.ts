@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
+import { sortProgrammeItemsByTime } from "@/lib/programme-sort";
 
 const CLUB_ID = "1663";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -107,10 +108,12 @@ function sanitizeSchedule(value: unknown): ProgrammeSchedule {
 
   for (const [date, items] of Object.entries(source)) {
     if (!DATE_RE.test(date) || !Array.isArray(items)) continue;
-    result[date] = items
-      .slice(0, 12)
-      .map(sanitizeItem)
-      .filter((item): item is ProgrammeItem => Boolean(item));
+    result[date] = sortProgrammeItemsByTime(
+      items
+        .slice(0, 12)
+        .map(sanitizeItem)
+        .filter((item): item is ProgrammeItem => Boolean(item))
+    );
   }
 
   return result;
