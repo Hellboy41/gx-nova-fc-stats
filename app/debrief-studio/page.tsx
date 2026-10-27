@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
 import { DataQualityPanel } from "@/components/debrief/DataQualityPanel";
+import { TacticalImage, TacticalImageEditor } from "@/components/debrief/TacticalImageEditor";
+import { OBJECTIVE_LABELS, TacticalObjectives, TacticalObjectivesLive } from "@/components/debrief/TacticalObjectives";
 import {
   type LiveEveningReport,
   LiveEveningSummary, LiveMatchResults, LivePlayerStats,
@@ -64,7 +66,7 @@ function MediaPreview({ media, presentation = false }: {
         ) : media.kind === "image" && safeHttpsUrl(media.url) ? (
           // Images saisies par le staff ; hôtes externes non listés dans next/image.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={media.url} alt={media.caption || "Capture d'écran de match"} className="h-full w-full object-contain"/>
+          <TacticalImage media={media}/>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-gray-500">Média indisponible.</div>
         )}
@@ -90,11 +92,14 @@ function ChapterBody({ chapter, presentation = false }: {
           {chapter.media.map((media) => <MediaPreview key={media.id} media={media} presentation={presentation}/>)}
         </div>
       )}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
-        <p className="mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-cyan-300">L&apos;analyse du staff</p>
-        <p className="whitespace-pre-wrap text-base leading-8 text-gray-200">
-          {chapter.analysis.trim() || "Aucune analyse rédigée pour ce chapitre."}
-        </p>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
+          <p className="mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-cyan-300">L&apos;analyse du staff</p>
+          <p className="whitespace-pre-wrap text-base leading-8 text-gray-200">
+            {chapter.analysis.trim() || "Aucune analyse rédigée pour ce chapitre."}
+          </p>
+        </div>
+        <TacticalObjectivesLive objectives={chapter.objectives ?? []}/>
       </div>
     </div>
   );
@@ -119,6 +124,7 @@ export default function DebriefStudioPage() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "image">("video");
   const [mediaCaption, setMediaCaption] = useState("");
+  const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
   const requestVersion = useRef(0);
 
   const canEdit = role === "admin" || role === "staff";
@@ -149,6 +155,7 @@ export default function DebriefStudioPage() {
       }
       const fetchedChapters = studio.chapters.length ? studio.chapters : makeDefaultChapters();
       setChapters(fetchedChapters);
+      setEditingMediaId(null);
       setActiveId(fetchedChapters[0]?.id ?? "");
       setRole(studio.currentUser.role);
       setSavedAt(studio.updatedAt);
@@ -213,8 +220,9 @@ export default function DebriefStudioPage() {
 
   const chapterCount = chapters.length;
   const mediaCount = useMemo(() => chapters.reduce((count, chapter) => count + chapter.media.length, 0), [chapters]);
+  const tacticalObjectives = useMemo(() => chapters.flatMap((chapter) => chapter.objectives ?? []), [chapters]);
   const livePanel = liveView !== "chapter" ? liveView : activeIndex === 0 ? "bilan" : activeIndex === 1 ? "resultats" : activeIndex === 2 ? "joueurs" : null;
-  const showChapterAnalysis = liveView === "chapter" && (active.analysis.trim().length > 0 || active.media.length > 0 || livePanel === null);
+  const showChapterAnalysis = liveView === "chapter" && (active.analysis.trim().length > 0 || active.media.length > 0 || (active.objectives?.length ?? 0) > 0 || livePanel === null);
 
   function changeChapter(id: string, patch: Partial<DebriefChapter>) {
     if (!canEdit) return;
@@ -225,7 +233,7 @@ export default function DebriefStudioPage() {
 
   function addChapter() {
     if (!canEdit || chapters.length >= 12) return;
-    const chapter = { id: crypto.randomUUID(), title: "Nouveau chapitre", analysis: "", media: [] };
+    const chapter = { id: crypto.randomUUID(), title: "Nouveau chapitre", analysis: "", media: [], objectives: [] };
     setChapters((current) => [...current, chapter]);
     setActiveId(chapter.id);
     setDirty(true);
