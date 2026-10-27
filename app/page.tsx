@@ -37,6 +37,7 @@ import {
   Swords,
   Trash2,
   Trophy,
+  TrendingUp,
   UserCircle2,
   UserPlus,
   Users,
@@ -2048,6 +2049,14 @@ export default function Home() {
               }
             />
 
+            <a
+              href="/intelligence-sportive"
+              className="flex w-full items-center gap-4 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.035] px-4 py-3 text-left text-sm font-semibold text-cyan-300 transition hover:bg-cyan-400/10 hover:text-white"
+            >
+              <TrendingUp size={19} />
+              Intelligence sportive
+            </a>
+
             <SidebarItem
               icon={
                 <FileText
@@ -2311,6 +2320,13 @@ export default function Home() {
                   )
                 }
               />
+
+              <a
+                href="/intelligence-sportive"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-cyan-300 transition hover:border-cyan-400/60 hover:text-white"
+              >
+                INTELLIGENCE SPORTIVE
+              </a>
 
               <TopTab
                 label="RAPPORT SOIRÉE"
