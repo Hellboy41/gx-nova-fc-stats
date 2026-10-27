@@ -6,6 +6,8 @@ import { DataQualityPanel } from "@/components/debrief/DataQualityPanel";
 import { createClient } from "@/lib/supabase/client";
 import { DEBRIEF_MAX_UPLOAD_BYTES, DEBRIEF_MEDIA_BUCKET } from "@/lib/debrief-media";
 import { TacticalImage, TacticalImageEditor } from "@/components/debrief/TacticalImageEditor";
+import { downloadTacticalPng } from "@/lib/debrief-export-png";
+import { ObjectiveContinuity, type HistoricalObjective } from "@/components/debrief/ObjectiveContinuity";
 import { OBJECTIVE_LABELS, TacticalObjectives, TacticalObjectivesLive } from "@/components/debrief/TacticalObjectives";
 import {
   type LiveEveningReport,
@@ -15,7 +17,7 @@ import {
   type DebriefPerformancesResponse, performancesDiscordText,
 } from "@/lib/debrief-performances";
 import {
-  ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
+  ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy, Download,
   ExternalLink, FileText, Link as LinkIcon,
   MonitorPlay, Plus, Save, Trash2, Upload, Video, X,
 } from "lucide-react";
@@ -120,6 +122,10 @@ export default function DebriefStudioPage() {
   const [report, setReport] = useState<LiveEveningReport | null>(null);
   const [performances, setPerformances] = useState<DebriefPerformancesResponse | null>(null);
   const [performanceError, setPerformanceError] = useState("");
+  const [objectiveHistory, setObjectiveHistory] = useState<HistoricalObjective[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [exportingId, setExportingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -196,6 +202,28 @@ export default function DebriefStudioPage() {
   useEffect(() => { void loadStudio(); }, [loadStudio]);
 
   useEffect(() => {
+    if (!isEveningDate(date)) return;
+    const controller = new AbortController();
+    setHistoryLoading(true);
+    setObjectiveHistory([]);
+    setHistoryError("");
+    async function loadHistory() {
+      try {
+        const response = await fetch(`/api/debrief-studio/objective-history?date=${encodeURIComponent(date)}`, { cache: "no-store", signal: controller.signal });
+        const payload = await response.json() as { history?: HistoricalObjective[]; error?: string; details?: string };
+        if (!response.ok) throw new Error(payload.details ?? payload.error ?? "Historique indisponible.");
+        if (!controller.signal.aborted) setObjectiveHistory(payload.history ?? []);
+      } catch (e) {
+        if (!controller.signal.aborted) setHistoryError(e instanceof Error ? e.message : "Lecture de l'historique impossible.");
+      } finally {
+        if (!controller.signal.aborted) setHistoryLoading(false);
+      }
+    }
+    void loadHistory();
+    return () => controller.abort();
+  }, [date]);
+
+  useEffect(() => {
     if (!dirty) return;
     const warnOnClose = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     window.addEventListener("beforeunload", warnOnClose);
@@ -229,6 +257,7 @@ export default function DebriefStudioPage() {
   const chapterCount = chapters.length;
   const mediaCount = useMemo(() => chapters.reduce((count, chapter) => count + chapter.media.length, 0), [chapters]);
   const tacticalObjectives = useMemo(() => chapters.flatMap((chapter) => chapter.objectives ?? []), [chapters]);
+  const allCurrentTrackingIds = useMemo(() => new Set(tacticalObjectives.map((goal) => goal.trackingId ?? goal.id)), [tacticalObjectives]);
   const livePanel = liveView !== "chapter" ? liveView : activeIndex === 0 ? "bilan" : activeIndex === 1 ? "resultats" : activeIndex === 2 ? "joueurs" : null;
   const showChapterAnalysis = liveView === "chapter" && (active.analysis.trim().length > 0 || active.media.length > 0 || (active.objectives?.length ?? 0) > 0 || livePanel === null);
 
@@ -237,6 +266,32 @@ export default function DebriefStudioPage() {
     setChapters((current) => current.map((chapter) => chapter.id === id ? { ...chapter, ...patch } : chapter));
     setDirty(true);
     setMessage("");
+  }
+
+  function resumePreviousObjective(entry: HistoricalObjective) {
+    if (!canEdit || !active) return;
+    if ((active.objectives?.length ?? 0) >= 8) {
+      setError("8 objectifs maximum dans ce chapitre.");
+      return;
+    }
+    if (allCurrentTrackingIds.has(entry.trackingId)) return;
+    const objective = { id: crypto.randomUUID(), trackingId: entry.trackingId, title: entry.title, status: entry.status };
+    changeChapter(active.id, { objectives: [...(active.objectives ?? []), objective] });
+    setMessage(`Objectif repris depuis le ${entry.date}. Tu peux changer son statut puis enregistrer.`);
+  }
+
+  async function downloadImage(media: DebriefMedia) {
+    if (exportingId) return;
+    setExportingId(media.id);
+    setError("");
+    try {
+      await downloadTacticalPng(media, date);
+      setMessage("Capture annotée exportée en PNG : prête à partager sur Discord.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Export PNG impossible.");
+    } finally {
+      setExportingId(null);
+    }
   }
 
   function addChapter() {
@@ -454,6 +509,11 @@ export default function DebriefStudioPage() {
             <p className="mt-2 text-right text-xs text-gray-600">{active.analysis.length}/6000</p>
             <div className="mt-5">
               <TacticalObjectives objectives={active.objectives ?? []} canEdit={canEdit} onChange={(objectives) => changeChapter(active.id, { objectives })}/>
+              <div className="mt-4">
+                <ObjectiveContinuity history={objectiveHistory} objectives={active.objectives ?? []}
+                  allCurrentTrackingIds={allCurrentTrackingIds} canEdit={canEdit} onResume={resumePreviousObjective}
+                  loading={historyLoading} error={historyError}/>
+              </div>
             </div>
             {activeIndex === 1 && report && (
               <div className="mt-4 rounded-xl border border-cyan-400/15 p-3">
@@ -502,7 +562,13 @@ export default function DebriefStudioPage() {
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   {active.media.map((media) => <div key={media.id}>
                     <MediaPreview media={media}/>
-                    {canEdit && <div className="mt-2 flex flex-wrap gap-3">
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {media.kind === "image" && <button type="button" disabled={!!exportingId}
+                        onClick={() => void downloadImage(media)}
+                        className="flex items-center gap-1 text-xs font-black text-cyan-300 hover:text-cyan-100 disabled:opacity-50">
+                        <Download size={13}/>{exportingId === media.id ? "Export PNG…" : "Exporter PNG pour Discord"}
+                      </button>}
+                      {canEdit && <>
                       {media.kind === "image" && <button type="button" onClick={() => setEditingMediaId((current) => current === media.id ? null : media.id)}
                         className="flex items-center gap-1 text-xs font-bold text-yellow-300 hover:text-yellow-200">
                         <FileText size={13}/> {editingMediaId === media.id ? "Fermer les annotations" : `Annoter la capture${(media.annotations?.length ?? 0) ? ` (${media.annotations?.length})` : ""}`}
@@ -512,7 +578,8 @@ export default function DebriefStudioPage() {
                         changeChapter(active.id, { media: active.media.filter((item) => item.id !== media.id) });
                         if (editingMediaId === media.id) setEditingMediaId(null);
                       }} className="flex items-center gap-1 text-xs text-red-300"><Trash2 size={13}/> Retirer</button>
-                    </div>}
+                      </>}
+                    </div>
                     {canEdit && media.kind === "image" && editingMediaId === media.id && <div className="mt-3">
                       <TacticalImageEditor media={media} onClose={() => setEditingMediaId(null)}
                         onChange={(next) => changeChapter(active.id, { media: active.media.map((item) => item.id === media.id ? next : item) })}/>
