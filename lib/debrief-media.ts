@@ -1,4 +1,8 @@
-import { isEveningDate } from "@/lib/debrief-studio";
+function isEveningDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 
 export const DEBRIEF_MEDIA_BUCKET = "gx-nova-debrief-media";
 export const DEBRIEF_MAX_UPLOAD_BYTES = 45 * 1024 * 1024;
