@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applyStaffPerformanceCorrections } from "@/lib/stats/apply-staff-corrections";
 import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
 const CLUB_ID = "1663";
@@ -293,11 +294,10 @@ export async function GET(
         CLUB_ID
       );
 
-    const performances =
-      (
-        playersData ??
-        []
-      ) as DatabasePlayer[];
+    const performances = await applyStaffPerformanceCorrections(
+      CLUB_ID,
+      (playersData ?? []) as DatabasePlayer[]
+    );
 
     performances.sort(
       (a, b) =>
