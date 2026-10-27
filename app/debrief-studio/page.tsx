@@ -305,7 +305,8 @@ export default function DebriefStudioPage() {
       ...chapters.flatMap((chapter, index) => [
         `**${String(index + 1).padStart(2, "0")} — ${chapter.title.toUpperCase()}**`,
         chapter.analysis.trim() || "À compléter",
-        ...chapter.media.map((media) => `🔗 ${media.caption || (media.kind === "image" ? "Capture" : "Clip")} : ${media.url}`),
+        ...chapter.media.map((media) => `🔗 ${media.caption || (media.kind === "image" ? "Capture" : "Clip")} : ${media.url}${media.kind === "image" && (media.annotations?.length ?? 0) > 0 ? " (annotations visibles dans le Débrief Studio)" : ""}`),
+        ...(chapter.objectives?.length ? ["**Objectifs tactiques :**", ...chapter.objectives.map((objective) => `• [${OBJECTIVE_LABELS[objective.status]}] ${objective.title}`)] : []),
         "",
       ]),
       "💙💛 GX NØVA — ENSEMBLE POUR PROGRESSER",
@@ -349,7 +350,7 @@ export default function DebriefStudioPage() {
 
       <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-400">
-          <span>{formatDate(date)} • {chapterCount} chapitres • {mediaCount} médias • {report?.totals.matches ?? 0} matchs EA</span>
+          <span>{formatDate(date)} • {chapterCount} chapitres • {mediaCount} médias • {tacticalObjectives.length} objectifs • {report?.totals.matches ?? 0} matchs EA</span>
           <span>{dirty ? "● Modifications non enregistrées" : savedAt ? `Enregistré le ${new Date(savedAt).toLocaleString("fr-FR")}` : "Nouveau débrief"}</span>
         </div>
         {error && <div role="alert" className="mb-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div>}
@@ -384,6 +385,9 @@ export default function DebriefStudioPage() {
               <textarea value={active.analysis} maxLength={6000} rows={13} disabled={!canEdit} onChange={(event) => changeChapter(active.id, { analysis: event.target.value })} placeholder="Déroulement de la soirée, points forts, erreurs de placement, consignes, axes d'amélioration..." className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#030914] px-3 py-3 text-sm leading-6 text-white outline-none focus:border-yellow-400/50 disabled:opacity-60" />
             </label>
             <p className="mt-2 text-right text-xs text-gray-600">{active.analysis.length}/6000</p>
+            <div className="mt-5">
+              <TacticalObjectives objectives={active.objectives ?? []} canEdit={canEdit} onChange={(objectives) => changeChapter(active.id, { objectives })}/>
+            </div>
             {activeIndex === 1 && report && (
               <div className="mt-4 rounded-xl border border-cyan-400/15 p-3">
                 <p className="mb-2 text-xs font-black text-cyan-300">Matchs importés depuis EA</p>
@@ -411,11 +415,25 @@ export default function DebriefStudioPage() {
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   {active.media.map((media) => <div key={media.id}>
                     <MediaPreview media={media}/>
-                    {canEdit && <button type="button" onClick={() => changeChapter(active.id, { media: active.media.filter((item) => item.id !== media.id) })} className="mt-2 flex items-center gap-1 text-xs text-red-300"><Trash2 size={13}/> Retirer</button>}
+                    {canEdit && <div className="mt-2 flex flex-wrap gap-3">
+                      {media.kind === "image" && <button type="button" onClick={() => setEditingMediaId((current) => current === media.id ? null : media.id)}
+                        className="flex items-center gap-1 text-xs font-bold text-yellow-300 hover:text-yellow-200">
+                        <FileText size={13}/> {editingMediaId === media.id ? "Fermer les annotations" : `Annoter la capture${(media.annotations?.length ?? 0) ? ` (${media.annotations?.length})` : ""}`}
+                      </button>}
+                      <button type="button" onClick={() => {
+                        if (!window.confirm("Retirer ce média du chapitre ?")) return;
+                        changeChapter(active.id, { media: active.media.filter((item) => item.id !== media.id) });
+                        if (editingMediaId === media.id) setEditingMediaId(null);
+                      }} className="flex items-center gap-1 text-xs text-red-300"><Trash2 size={13}/> Retirer</button>
+                    </div>}
+                    {canEdit && media.kind === "image" && editingMediaId === media.id && <div className="mt-3">
+                      <TacticalImageEditor media={media} onClose={() => setEditingMediaId(null)}
+                        onChange={(next) => changeChapter(active.id, { media: active.media.map((item) => item.id === media.id ? next : item) })}/>
+                    </div>}
                   </div>)}
                 </div>
               ) : <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-12 text-gray-500"><Video size={30}/><p className="mt-3 text-sm">Aucun média ajouté</p></div>}
-              <p className="mt-3 text-xs text-gray-500">V1 : liens externes. Import direct de fichiers et annotations tactiques prévus dans une version suivante.</p>
+              <p className="mt-3 text-xs text-gray-500">Clips intégrés par liens Twitch/YouTube. Les captures HTTPS peuvent être annotées et présentées en live. L'import direct d'images depuis l'ordinateur sera étudié ensuite.</p>
             </div>
             <div className="rounded-3xl border border-yellow-400/15 bg-[#091626] p-5">
               <h2 className="mb-3 text-base font-black"><FileText size={16} className="mr-2 inline text-yellow-300"/> Aperçu de la présentation</h2>
