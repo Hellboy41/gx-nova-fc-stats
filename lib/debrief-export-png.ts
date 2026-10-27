@@ -2,11 +2,6 @@
 
 import type { DebriefMedia, TacticAnnotation } from "@/lib/debrief-studio";
 
-function roundRectangle(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-}
-
 function drawAnnotation(ctx: CanvasRenderingContext2D, a: TacticAnnotation) {
   ctx.save();
   ctx.strokeStyle = a.color;
@@ -99,7 +94,7 @@ export async function downloadTacticalPng(media: DebriefMedia, date: string): Pr
   ctx.textAlign = "left";
   ctx.fillStyle = "#facc15";
   ctx.font = `900 ${font}px Arial, sans-serif`;
-  ctx.fillText("GX NØVA  •  ANALYSE TACTIQUE", padding, header * 0.35);
+  ctx.fillText("GX NØVA  •  ANALYSE TACTIQUE", padding, header * 0.35, width * 0.68);
   ctx.fillStyle = "#c5d4e1";
   ctx.font = `500 ${Math.round(font * 0.7)}px Arial, sans-serif`;
   const shortCaption = media.caption.trim().slice(0, 120) || "Capture analysée";
