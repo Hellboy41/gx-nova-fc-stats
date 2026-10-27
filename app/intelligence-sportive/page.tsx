@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowLeft, ArrowUpRight, BarChart3, CalendarDays, ChevronRight,
+  Activity, ArrowLeft, ArrowUpRight, CalendarDays, ChevronRight,
   CircleHelp, Filter, Goal, RefreshCw, Search, Shield, Target, TrendingDown,
   TrendingUp, Trophy, Users,
 } from "lucide-react";
@@ -195,6 +195,8 @@ export default function SportIntelligencePage() {
   const [role, setRole] = useState<Role | "all">("all");
   const [search, setSearch] = useState("");
   const [minSamples, setMinSamples] = useState(true);
+  const [pairMinimum, setPairMinimum] = useState(8);
+  const [pairLimit, setPairLimit] = useState(16);
   const [refreshId, setRefreshId] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -233,10 +235,12 @@ export default function SportIntelligencePage() {
     (!minSamples || player.matches >= 5)
   ).sort((a,b) => rolePrimary(b) - rolePrimary(a) || b.matches - a.matches), [data, role, normalizedSearch, minSamples]);
   const pairs = useMemo(() => (data?.pairs ?? []).filter((pair) =>
-    !normalizedSearch ||
-    pair.playerA.toLocaleLowerCase("fr-FR").includes(normalizedSearch) ||
-    pair.playerB.toLocaleLowerCase("fr-FR").includes(normalizedSearch)
-  ), [data, normalizedSearch]);
+    pair.games >= pairMinimum && (
+      !normalizedSearch ||
+      pair.playerA.toLocaleLowerCase("fr-FR").includes(normalizedSearch) ||
+      pair.playerB.toLocaleLowerCase("fr-FR").includes(normalizedSearch)
+    )
+  ), [data, normalizedSearch, pairMinimum]);
   const trendsUp = (data?.players ?? []).filter((p) => p.trend === "up").length;
   const trendsDown = (data?.players ?? []).filter((p) => p.trend === "down").length;
 
@@ -300,6 +304,12 @@ export default function SportIntelligencePage() {
                   <option value="all">Tous les postes</option>
                   {(["goalkeeper","defender","midfielder","forward"] as const).map((value) => <option key={value} value={value}>{ROLE_NAMES[value]}</option>)}
                 </select>}
+                {activeTab === "pairs" && <select value={pairMinimum} onChange={(e) => { setPairMinimum(Number(e.target.value)); setPairLimit(16); }} aria-label="Nombre minimum de matchs en commun" className="rounded-xl border border-white/10 bg-[#0a1929] px-3 py-2.5 text-xs font-bold text-white">
+                  <option value={8}>Au moins 8 matchs communs</option>
+                  <option value={15}>Au moins 15 matchs communs</option>
+                  <option value={25}>Au moins 25 matchs communs</option>
+                  <option value={40}>Au moins 40 matchs communs</option>
+                </select>}
                 {activeTab !== "pairs" && <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a1929] px-3 py-2.5 text-xs font-bold text-slate-300">
                   <input type="checkbox" checked={minSamples} onChange={(e) => setMinSamples(e.target.checked)} className="accent-yellow-400"/>
                   Échantillons suffisants
@@ -349,7 +359,11 @@ export default function SportIntelligencePage() {
                   </div>
                   <span className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-2 text-xs font-bold text-cyan-300">Taux global GX : {show(data.teamWinRate,1)} %</span>
                 </div>
-                {pairs.length ? <div className="grid gap-4 xl:grid-cols-2">{pairs.map((pair,index) => <PairCard key={pair.key} pair={pair} rank={index+1}/>)}</div>
+                {pairs.length ? <>
+                  <p className="mb-3 text-xs font-bold text-slate-400">{Math.min(pairLimit,pairs.length)} association(s) affichée(s) sur {pairs.length} répondant aux critères.</p>
+                  <div className="grid gap-4 xl:grid-cols-2">{pairs.slice(0,pairLimit).map((pair,index) => <PairCard key={pair.key} pair={pair} rank={index+1}/>)}</div>
+                  {pairs.length > pairLimit && <button type="button" onClick={() => setPairLimit((value) => value + 16)} className="mt-5 w-full rounded-xl border border-cyan-400/25 bg-cyan-400/[0.04] px-4 py-3 text-sm font-black text-cyan-300 hover:bg-cyan-400/10">Afficher 16 associations supplémentaires</button>}
+                </>
                   : <p className="rounded-xl border border-white/10 p-8 text-center text-sm text-slate-400">Aucune association répondant aux critères. Élargis la saison ou retire le filtre de recherche.</p>}
                 <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-500"><CircleHelp size={14} className="mt-0.5 shrink-0"/>Les co-présences sont établies à partir des feuilles EA, sans certifier que les joueurs sont restés simultanément sur le terrain pendant tout le match. Il faut comparer les contextes (adversaires, composition, compétition) avant d'en tirer une consigne.</p>
               </section>
