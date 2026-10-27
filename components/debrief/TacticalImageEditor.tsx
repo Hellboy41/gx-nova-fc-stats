@@ -112,7 +112,7 @@ export function TacticalImage({ media, editing = false, onDraw }: {
     setDraft(null);
   }
   return (
-    <div>
+    <div className={editing ? "" : "h-full"}>
       {editing && (
         <div className="mb-3 space-y-3 rounded-xl border border-cyan-400/20 bg-[#0c1e2b] p-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -138,11 +138,11 @@ export function TacticalImage({ media, editing = false, onDraw }: {
           </p>
         </div>
       )}
-      <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-xl bg-black/40">
+      <div className={`relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-xl bg-black/40 ${editing ? "" : "h-full"}`}>
         <div className="relative inline-block max-w-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={media.url} alt={media.caption || "Capture de match avec annotations tactiques"}
-            className="block h-auto max-h-[68vh] max-w-full select-none" draggable={false}/>
+            className={editing ? "block h-auto max-h-[68vh] max-w-full select-none" : "block h-auto max-h-full max-w-full select-none"} draggable={false}/>
           <svg viewBox="0 0 1000 1000" preserveAspectRatio="none"
             className={`absolute inset-0 h-full w-full ${editing ? "cursor-crosshair" : "pointer-events-none"}`}
             style={editing ? { touchAction: "none" } : undefined}
