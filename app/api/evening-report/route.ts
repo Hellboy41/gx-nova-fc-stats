@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applyStaffPerformanceCorrections } from "@/lib/stats/apply-staff-corrections";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
@@ -365,13 +366,12 @@ export async function GET(
         PlayerBucket
       >();
 
-    for (
-      const performance
-      of (
-        playerData ??
-        []
-      ) as PlayerRow[]
-    ) {
+    const correctedPerformances = await applyStaffPerformanceCorrections(
+      CLUB_ID,
+      (playerData ?? []) as PlayerRow[]
+    );
+
+    for (const performance of correctedPerformances) {
       const playerKey =
         getPlayerKey(
           performance.player_ea_id,
