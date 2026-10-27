@@ -13,6 +13,7 @@ export type TacticAnnotation = {
 
 export type TacticalObjective = {
   id: string;
+  trackingId?: string;
   title: string;
   status: "todo" | "working" | "done";
 };
@@ -150,7 +151,8 @@ function sanitizeObjectives(value: unknown): TacticalObjective[] {
     const status = o.status;
     if (!id || !title || seen.has(id) || !["todo", "working", "done"].includes(String(status))) return [];
     seen.add(id);
-    return [{ id, title, status: status as TacticalObjective["status"] }];
+    const trackingId = cleanText(o.trackingId, 80);
+    return [{ id, ...(trackingId ? { trackingId } : {}), title, status: status as TacticalObjective["status"] }];
   });
 }
 
