@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { isEveningDate, sanitizeDebriefChapters } from "@/lib/debrief-studio";
+import { DEBRIEF_MEDIA_BUCKET, DEBRIEF_MEDIA_URL_TTL, isValidDebriefMediaPath } from "@/lib/debrief-media";
 
 const CLUB_ID = "1663";
 
@@ -20,9 +21,31 @@ export async function GET(request: Request) {
       .eq("evening_date", date)
       .maybeSingle();
     if (error) throw error;
+    const chapters = sanitizeDebriefChapters(data?.chapters ?? []);
+    const paths = [...new Set(chapters.flatMap((chapter) =>
+      chapter.media.flatMap((media) => media.storagePath &&
+        isValidDebriefMediaPath(media.storagePath, date, media.kind) ? [media.storagePath] : [])
+    ))];
+    const signed = new Map<string, string>();
+    if (paths.length) {
+      const result = await createAdminClient().storage
+        .from(DEBRIEF_MEDIA_BUCKET).createSignedUrls(paths, DEBRIEF_MEDIA_URL_TTL);
+      if (result.error) throw result.error;
+      for (let index = 0; index < paths.length; index++) {
+        const link = result.data?.[index]?.signedUrl;
+        if (typeof link === "string" && link) signed.set(paths[index], link);
+      }
+    }
+    const hydrated = chapters.map((chapter) => ({
+      ...chapter,
+      media: chapter.media.map((media) => ({
+        ...media,
+        ...(media.storagePath ? { url: signed.get(media.storagePath) ?? "" } : {}),
+      })),
+    }));
     return NextResponse.json({
       date,
-      chapters: sanitizeDebriefChapters(data?.chapters ?? []),
+      chapters: hydrated,
       updatedAt: data?.updated_at ?? null,
       currentUser: authorization.profile,
     });
@@ -46,11 +69,32 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "La date ou la liste des chapitres est invalide (1 à 12 chapitres)." }, { status: 400 });
   }
   const normalized = sanitizeDebriefChapters(chapters);
-  if (normalized.length !== chapters.length || normalized.some((chapter, index) =>
-    !Array.isArray((chapters[index] as Record<string, unknown>)?.media) ||
-    chapter.media.length !== ((chapters[index] as Record<string, unknown>).media as unknown[]).length
-  )) {
-    return NextResponse.json({ error: "Un chapitre ou un média est invalide. Seules les images HTTPS et vidéos Twitch/YouTube sont acceptées." }, { status: 400 });
+  // Les anciennes soirées sans objectifs ni annotations restent compatibles.
+  // Pour les nouvelles données, rejeter une saisie invalide plutôt que
+  // tronquer silencieusement des dessins ou consignes.
+  const invalid = normalized.length !== chapters.length || normalized.some((chapter, index) => {
+    const source = chapters[index];
+    if (!source || typeof source !== "object" || Array.isArray(source)) return true;
+    const raw = source as Record<string, unknown>;
+    const rawMedia = Array.isArray(raw.media) ? raw.media : null;
+    if (!rawMedia || chapter.media.length !== rawMedia.length || rawMedia.length > 8) return true;
+    const rawObjectives = raw.objectives === undefined ? [] : Array.isArray(raw.objectives) ? raw.objectives : null;
+    if (!rawObjectives || rawObjectives.length > 8 ||
+        (chapter.objectives ?? []).length !== rawObjectives.length) return true;
+    return rawMedia.some((sourceMedia, mediaIndex) => {
+      if (!sourceMedia || typeof sourceMedia !== "object" || Array.isArray(sourceMedia)) return true;
+      const item = sourceMedia as Record<string, unknown>;
+      if (item.storagePath !== undefined && !isValidDebriefMediaPath(item.storagePath, date, item.kind === "image" ? "image" : "video")) return true;
+      const originalAnnotations = item.annotations === undefined ? [] : Array.isArray(item.annotations) ? item.annotations : null;
+      if (!originalAnnotations || originalAnnotations.length > 30) return true;
+      if (item.kind !== "image" && originalAnnotations.length > 0) return true;
+      return (chapter.media[mediaIndex]?.annotations ?? []).length !== originalAnnotations.length;
+    });
+  });
+  if (invalid) {
+    return NextResponse.json({
+      error: "Débrief invalide. Vérifie les médias HTTPS, les annotations (30 maximum par capture) et les objectifs (8 maximum par chapitre).",
+    }, { status: 400 });
   }
   try {
     const { data, error } = await createAdminClient()

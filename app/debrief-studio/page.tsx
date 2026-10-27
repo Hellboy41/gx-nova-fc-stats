@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
 import { DataQualityPanel } from "@/components/debrief/DataQualityPanel";
+import { createClient } from "@/lib/supabase/client";
+import { DEBRIEF_MAX_UPLOAD_BYTES, DEBRIEF_MEDIA_BUCKET } from "@/lib/debrief-media";
+import { TacticalImage, TacticalImageEditor } from "@/components/debrief/TacticalImageEditor";
+import { OBJECTIVE_LABELS, TacticalObjectives, TacticalObjectivesLive } from "@/components/debrief/TacticalObjectives";
 import {
   type LiveEveningReport,
   LiveEveningSummary, LiveMatchResults, LivePlayerStats,
@@ -13,7 +17,7 @@ import {
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
   ExternalLink, FileText, Link as LinkIcon,
-  MonitorPlay, Plus, Save, Trash2, Video, X,
+  MonitorPlay, Plus, Save, Trash2, Upload, Video, X,
 } from "lucide-react";
 import {
   type DebriefChapter, type DebriefMedia, isEveningDate,
@@ -61,10 +65,15 @@ function MediaPreview({ media, presentation = false }: {
             loading={presentation ? "eager" : "lazy"}
             referrerPolicy="strict-origin-when-cross-origin"
           />
+        ) : media.kind === "video" && media.storagePath && safeHttpsUrl(media.url) ? (
+          <video controls playsInline preload="metadata" src={media.url}
+            className="h-full w-full object-contain" title={media.caption || "Vidéo MP4 de match"}>
+            Ton navigateur ne permet pas la lecture des vidéos MP4.
+          </video>
         ) : media.kind === "image" && safeHttpsUrl(media.url) ? (
           // Images saisies par le staff ; hôtes externes non listés dans next/image.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={media.url} alt={media.caption || "Capture d'écran de match"} className="h-full w-full object-contain"/>
+          <TacticalImage media={media}/>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-gray-500">Média indisponible.</div>
         )}
@@ -90,11 +99,14 @@ function ChapterBody({ chapter, presentation = false }: {
           {chapter.media.map((media) => <MediaPreview key={media.id} media={media} presentation={presentation}/>)}
         </div>
       )}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
-        <p className="mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-cyan-300">L&apos;analyse du staff</p>
-        <p className="whitespace-pre-wrap text-base leading-8 text-gray-200">
-          {chapter.analysis.trim() || "Aucune analyse rédigée pour ce chapitre."}
-        </p>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
+          <p className="mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-cyan-300">L&apos;analyse du staff</p>
+          <p className="whitespace-pre-wrap text-base leading-8 text-gray-200">
+            {chapter.analysis.trim() || "Aucune analyse rédigée pour ce chapitre."}
+          </p>
+        </div>
+        <TacticalObjectivesLive objectives={chapter.objectives ?? []}/>
       </div>
     </div>
   );
@@ -119,6 +131,8 @@ export default function DebriefStudioPage() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "image">("video");
   const [mediaCaption, setMediaCaption] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
   const requestVersion = useRef(0);
 
   const canEdit = role === "admin" || role === "staff";
@@ -149,6 +163,7 @@ export default function DebriefStudioPage() {
       }
       const fetchedChapters = studio.chapters.length ? studio.chapters : makeDefaultChapters();
       setChapters(fetchedChapters);
+      setEditingMediaId(null);
       setActiveId(fetchedChapters[0]?.id ?? "");
       setRole(studio.currentUser.role);
       setSavedAt(studio.updatedAt);
@@ -213,8 +228,9 @@ export default function DebriefStudioPage() {
 
   const chapterCount = chapters.length;
   const mediaCount = useMemo(() => chapters.reduce((count, chapter) => count + chapter.media.length, 0), [chapters]);
+  const tacticalObjectives = useMemo(() => chapters.flatMap((chapter) => chapter.objectives ?? []), [chapters]);
   const livePanel = liveView !== "chapter" ? liveView : activeIndex === 0 ? "bilan" : activeIndex === 1 ? "resultats" : activeIndex === 2 ? "joueurs" : null;
-  const showChapterAnalysis = liveView === "chapter" && (active.analysis.trim().length > 0 || active.media.length > 0 || livePanel === null);
+  const showChapterAnalysis = liveView === "chapter" && (active.analysis.trim().length > 0 || active.media.length > 0 || (active.objectives?.length ?? 0) > 0 || livePanel === null);
 
   function changeChapter(id: string, patch: Partial<DebriefChapter>) {
     if (!canEdit) return;
@@ -225,7 +241,7 @@ export default function DebriefStudioPage() {
 
   function addChapter() {
     if (!canEdit || chapters.length >= 12) return;
-    const chapter = { id: crypto.randomUUID(), title: "Nouveau chapitre", analysis: "", media: [] };
+    const chapter = { id: crypto.randomUUID(), title: "Nouveau chapitre", analysis: "", media: [], objectives: [] };
     setChapters((current) => [...current, chapter]);
     setActiveId(chapter.id);
     setDirty(true);
@@ -267,6 +283,63 @@ export default function DebriefStudioPage() {
     setError("");
   }
 
+  async function uploadFromComputer(file: File) {
+    if (!active || !canEdit || uploadingMedia) return;
+    if (active.media.length >= 8) { setError("8 médias maximum par chapitre."); return; }
+    if (!file.size || file.size > DEBRIEF_MAX_UPLOAD_BYTES) {
+      setError("Fichier trop volumineux : limite de 45 Mo."); return;
+    }
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const mimeType = file.type === "image/jpg" ? "image/jpeg" : file.type;
+    const accepted: Record<string, string[]> = {
+      "image/png": ["png"], "image/jpeg": ["jpg", "jpeg"],
+      "image/webp": ["webp"], "video/mp4": ["mp4"],
+    };
+    if (!accepted[mimeType]?.includes(extension)) {
+      setError("Format refusé : utilise PNG, JPG, WebP ou MP4."); return;
+    }
+    const chapterId = active.id;
+    setUploadingMedia(true);
+    setError("");
+    setMessage("Envoi du fichier vers Supabase…");
+    try {
+      const response = await fetch("/api/debrief-studio/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare", date, fileName: file.name, mimeType, size: file.size }),
+      });
+      const ticket = await response.json() as {
+        path?: string; token?: string; kind?: "image" | "video"; error?: string; details?: string;
+      };
+      if (!response.ok || !ticket.path || !ticket.token || !ticket.kind) {
+        throw new Error(ticket.details ?? ticket.error ?? "Impossible de préparer l'import.");
+      }
+      const { error: uploadError } = await createClient().storage.from(DEBRIEF_MEDIA_BUCKET)
+        .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: mimeType, cacheControl: "3600" });
+      if (uploadError) throw uploadError;
+      const viewResponse = await fetch("/api/debrief-studio/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "view", date, path: ticket.path }),
+      });
+      const view = await viewResponse.json() as { url?: string; error?: string; details?: string };
+      if (!viewResponse.ok || !view.url) {
+        throw new Error(view.details ?? view.error ?? "Fichier transféré, mais lecture indisponible.");
+      }
+      const media: DebriefMedia = {
+        id: crypto.randomUUID(), kind: ticket.kind, url: view.url,
+        storagePath: ticket.path, caption: mediaCaption.trim() || file.name,
+      };
+      setChapters((current) => current.map((chapter) => chapter.id === chapterId
+        ? { ...chapter, media: [...chapter.media, media] } : chapter));
+      setDirty(true);
+      setMessage(`${file.name} importé. Clique sur « Enregistrer » pour conserver ce média dans le débrief.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "L'import a échoué.");
+      setMessage("");
+    } finally {
+      setUploadingMedia(false);
+    }
+  }
+
   async function save() {
     if (!canEdit || saving || !dirty) return;
     setSaving(true);
@@ -297,7 +370,10 @@ export default function DebriefStudioPage() {
       ...chapters.flatMap((chapter, index) => [
         `**${String(index + 1).padStart(2, "0")} — ${chapter.title.toUpperCase()}**`,
         chapter.analysis.trim() || "À compléter",
-        ...chapter.media.map((media) => `🔗 ${media.caption || (media.kind === "image" ? "Capture" : "Clip")} : ${media.url}`),
+        ...chapter.media.map((media) => media.storagePath
+          ? `📎 ${media.caption || (media.kind === "image" ? "Capture" : "Vidéo MP4")} — média privé consultable dans le Débrief Studio`
+          : `🔗 ${media.caption || (media.kind === "image" ? "Capture" : "Clip")} : ${media.url}${media.kind === "image" && (media.annotations?.length ?? 0) > 0 ? " (annotations visibles dans le Débrief Studio)" : ""}`),
+        ...(chapter.objectives?.length ? ["**Objectifs tactiques :**", ...chapter.objectives.map((objective) => `• [${OBJECTIVE_LABELS[objective.status]}] ${objective.title}`)] : []),
         "",
       ]),
       "💙💛 GX NØVA — ENSEMBLE POUR PROGRESSER",
@@ -341,7 +417,7 @@ export default function DebriefStudioPage() {
 
       <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-400">
-          <span>{formatDate(date)} • {chapterCount} chapitres • {mediaCount} médias • {report?.totals.matches ?? 0} matchs EA</span>
+          <span>{formatDate(date)} • {chapterCount} chapitres • {mediaCount} médias • {tacticalObjectives.length} objectifs • {report?.totals.matches ?? 0} matchs EA</span>
           <span>{dirty ? "● Modifications non enregistrées" : savedAt ? `Enregistré le ${new Date(savedAt).toLocaleString("fr-FR")}` : "Nouveau débrief"}</span>
         </div>
         {error && <div role="alert" className="mb-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div>}
@@ -376,6 +452,9 @@ export default function DebriefStudioPage() {
               <textarea value={active.analysis} maxLength={6000} rows={13} disabled={!canEdit} onChange={(event) => changeChapter(active.id, { analysis: event.target.value })} placeholder="Déroulement de la soirée, points forts, erreurs de placement, consignes, axes d'amélioration..." className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#030914] px-3 py-3 text-sm leading-6 text-white outline-none focus:border-yellow-400/50 disabled:opacity-60" />
             </label>
             <p className="mt-2 text-right text-xs text-gray-600">{active.analysis.length}/6000</p>
+            <div className="mt-5">
+              <TacticalObjectives objectives={active.objectives ?? []} canEdit={canEdit} onChange={(objectives) => changeChapter(active.id, { objectives })}/>
+            </div>
             {activeIndex === 1 && report && (
               <div className="mt-4 rounded-xl border border-cyan-400/15 p-3">
                 <p className="mb-2 text-xs font-black text-cyan-300">Matchs importés depuis EA</p>
@@ -399,15 +478,49 @@ export default function DebriefStudioPage() {
                 <input value={mediaCaption} onChange={(event) => setMediaCaption(event.target.value)} placeholder="Titre / action / minute de jeu" maxLength={300} className="rounded-xl border border-white/10 bg-[#030914] px-3 py-2.5 text-sm md:col-span-2"/>
                 <button type="button" onClick={addMedia} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-black text-[#04101f] md:col-span-2"><Plus size={16}/> Ajouter au chapitre</button>
               </div>}
+              {canEdit && <div className="mt-4 rounded-xl border border-dashed border-yellow-400/25 bg-yellow-400/[0.035] p-4">
+                <label className="flex cursor-pointer flex-wrap items-center justify-between gap-3">
+                  <span className="flex items-center gap-3">
+                    <Upload size={20} className="text-yellow-300"/>
+                    <span>
+                      <strong className="block text-sm text-yellow-200">Importer une image ou un MP4 depuis mon ordinateur</strong>
+                      <span className="mt-1 block text-xs text-slate-400">PNG, JPG, WebP ou MP4 · 45 Mo maximum · {active.media.length}/8 médias</span>
+                    </span>
+                  </span>
+                  <span className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2.5 text-xs font-black text-yellow-200">{uploadingMedia ? "Import en cours…" : "Choisir un fichier"}</span>
+                  <input type="file" accept=".png,.jpg,.jpeg,.webp,.mp4,image/png,image/jpeg,image/webp,video/mp4"
+                    className="sr-only" disabled={uploadingMedia || active.media.length >= 8}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      if (file) void uploadFromComputer(file);
+                    }}/>
+                </label>
+                <p className="mt-3 text-[11px] leading-5 text-slate-500">Les fichiers sont conservés dans un stockage privé Supabase ; les liens de lecture temporaires sont renouvelés à l'ouverture du débrief.</p>
+              </div>}
               {active.media.length > 0 ? (
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   {active.media.map((media) => <div key={media.id}>
                     <MediaPreview media={media}/>
-                    {canEdit && <button type="button" onClick={() => changeChapter(active.id, { media: active.media.filter((item) => item.id !== media.id) })} className="mt-2 flex items-center gap-1 text-xs text-red-300"><Trash2 size={13}/> Retirer</button>}
+                    {canEdit && <div className="mt-2 flex flex-wrap gap-3">
+                      {media.kind === "image" && <button type="button" onClick={() => setEditingMediaId((current) => current === media.id ? null : media.id)}
+                        className="flex items-center gap-1 text-xs font-bold text-yellow-300 hover:text-yellow-200">
+                        <FileText size={13}/> {editingMediaId === media.id ? "Fermer les annotations" : `Annoter la capture${(media.annotations?.length ?? 0) ? ` (${media.annotations?.length})` : ""}`}
+                      </button>}
+                      <button type="button" onClick={() => {
+                        if (!window.confirm("Retirer ce média du chapitre ?")) return;
+                        changeChapter(active.id, { media: active.media.filter((item) => item.id !== media.id) });
+                        if (editingMediaId === media.id) setEditingMediaId(null);
+                      }} className="flex items-center gap-1 text-xs text-red-300"><Trash2 size={13}/> Retirer</button>
+                    </div>}
+                    {canEdit && media.kind === "image" && editingMediaId === media.id && <div className="mt-3">
+                      <TacticalImageEditor media={media} onClose={() => setEditingMediaId(null)}
+                        onChange={(next) => changeChapter(active.id, { media: active.media.map((item) => item.id === media.id ? next : item) })}/>
+                    </div>}
                   </div>)}
                 </div>
               ) : <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-12 text-gray-500"><Video size={30}/><p className="mt-3 text-sm">Aucun média ajouté</p></div>}
-              <p className="mt-3 text-xs text-gray-500">V1 : liens externes. Import direct de fichiers et annotations tactiques prévus dans une version suivante.</p>
+              <p className="mt-3 text-xs text-gray-500">Tu peux utiliser une URL Twitch/YouTube ou importer directement une capture PNG/JPG/WebP et une vidéo MP4. Les captures importées sont annotables et les vidéos MP4 se lisent dans le Studio et le live.</p>
             </div>
             <div className="rounded-3xl border border-yellow-400/15 bg-[#091626] p-5">
               <h2 className="mb-3 text-base font-black"><FileText size={16} className="mr-2 inline text-yellow-300"/> Aperçu de la présentation</h2>
