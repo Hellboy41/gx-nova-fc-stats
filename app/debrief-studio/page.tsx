@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
 import { DataQualityPanel } from "@/components/debrief/DataQualityPanel";
+import { createClient } from "@/lib/supabase/client";
+import { DEBRIEF_MAX_UPLOAD_BYTES, DEBRIEF_MEDIA_BUCKET } from "@/lib/debrief-media";
 import { TacticalImage, TacticalImageEditor } from "@/components/debrief/TacticalImageEditor";
 import { OBJECTIVE_LABELS, TacticalObjectives, TacticalObjectivesLive } from "@/components/debrief/TacticalObjectives";
 import {
@@ -15,7 +17,7 @@ import {
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronUp, Copy,
   ExternalLink, FileText, Link as LinkIcon,
-  MonitorPlay, Plus, Save, Trash2, Video, X,
+  MonitorPlay, Plus, Save, Trash2, Upload, Video, X,
 } from "lucide-react";
 import {
   type DebriefChapter, type DebriefMedia, isEveningDate,
@@ -63,6 +65,11 @@ function MediaPreview({ media, presentation = false }: {
             loading={presentation ? "eager" : "lazy"}
             referrerPolicy="strict-origin-when-cross-origin"
           />
+        ) : media.kind === "video" && media.storagePath && safeHttpsUrl(media.url) ? (
+          <video controls playsInline preload="metadata" src={media.url}
+            className="h-full w-full object-contain" title={media.caption || "Vidéo MP4 de match"}>
+            Ton navigateur ne permet pas la lecture des vidéos MP4.
+          </video>
         ) : media.kind === "image" && safeHttpsUrl(media.url) ? (
           // Images saisies par le staff ; hôtes externes non listés dans next/image.
           // eslint-disable-next-line @next/next/no-img-element
@@ -124,6 +131,7 @@ export default function DebriefStudioPage() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "image">("video");
   const [mediaCaption, setMediaCaption] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
   const requestVersion = useRef(0);
 
