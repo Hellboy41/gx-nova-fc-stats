@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
+import { DataQualityPanel } from "@/components/debrief/DataQualityPanel";
 import {
   type LiveEveningReport,
   LiveEveningSummary, LiveMatchResults, LivePlayerStats,
@@ -415,6 +416,7 @@ export default function DebriefStudioPage() {
           </section>
         </div>}
         {performanceError && <p role="alert" className="mt-6 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200">{performanceError}</p>}
+        {performances && <DataQualityPanel data={performances}/>}
         {performances && <PlayerStatsEditor data={performances} canEdit={canEdit} onSaved={setPerformances}/>}
       </div>
 
