@@ -32,7 +32,8 @@ export async function GET(request: Request) {
         .from(DEBRIEF_MEDIA_BUCKET).createSignedUrls(paths, DEBRIEF_MEDIA_URL_TTL);
       if (result.error) throw result.error;
       for (let index = 0; index < paths.length; index++) {
-        if (result.data?.[index]?.signedUrl) signed.set(paths[index], result.data[index].signedUrl);
+        const link = result.data?.[index]?.signedUrl;
+        if (typeof link === "string" && link) signed.set(paths[index], link);
       }
     }
     const hydrated = chapters.map((chapter) => ({
