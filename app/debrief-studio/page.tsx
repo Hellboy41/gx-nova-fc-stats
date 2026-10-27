@@ -283,6 +283,63 @@ export default function DebriefStudioPage() {
     setError("");
   }
 
+  async function uploadFromComputer(file: File) {
+    if (!active || !canEdit || uploadingMedia) return;
+    if (active.media.length >= 8) { setError("8 médias maximum par chapitre."); return; }
+    if (!file.size || file.size > DEBRIEF_MAX_UPLOAD_BYTES) {
+      setError("Fichier trop volumineux : limite de 45 Mo."); return;
+    }
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const mimeType = file.type === "image/jpg" ? "image/jpeg" : file.type;
+    const accepted: Record<string, string[]> = {
+      "image/png": ["png"], "image/jpeg": ["jpg", "jpeg"],
+      "image/webp": ["webp"], "video/mp4": ["mp4"],
+    };
+    if (!accepted[mimeType]?.includes(extension)) {
+      setError("Format refusé : utilise PNG, JPG, WebP ou MP4."); return;
+    }
+    const chapterId = active.id;
+    setUploadingMedia(true);
+    setError("");
+    setMessage("Envoi du fichier vers Supabase…");
+    try {
+      const response = await fetch("/api/debrief-studio/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare", date, fileName: file.name, mimeType, size: file.size }),
+      });
+      const ticket = await response.json() as {
+        path?: string; token?: string; kind?: "image" | "video"; error?: string; details?: string;
+      };
+      if (!response.ok || !ticket.path || !ticket.token || !ticket.kind) {
+        throw new Error(ticket.details ?? ticket.error ?? "Impossible de préparer l'import.");
+      }
+      const { error: uploadError } = await createClient().storage.from(DEBRIEF_MEDIA_BUCKET)
+        .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: mimeType, cacheControl: "3600" });
+      if (uploadError) throw uploadError;
+      const viewResponse = await fetch("/api/debrief-studio/media", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "view", date, path: ticket.path }),
+      });
+      const view = await viewResponse.json() as { url?: string; error?: string; details?: string };
+      if (!viewResponse.ok || !view.url) {
+        throw new Error(view.details ?? view.error ?? "Fichier transféré, mais lecture indisponible.");
+      }
+      const media: DebriefMedia = {
+        id: crypto.randomUUID(), kind: ticket.kind, url: view.url,
+        storagePath: ticket.path, caption: mediaCaption.trim() || file.name,
+      };
+      setChapters((current) => current.map((chapter) => chapter.id === chapterId
+        ? { ...chapter, media: [...chapter.media, media] } : chapter));
+      setDirty(true);
+      setMessage(`${file.name} importé. Clique sur « Enregistrer » pour conserver ce média dans le débrief.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "L'import a échoué.");
+      setMessage("");
+    } finally {
+      setUploadingMedia(false);
+    }
+  }
+
   async function save() {
     if (!canEdit || saving || !dirty) return;
     setSaving(true);
