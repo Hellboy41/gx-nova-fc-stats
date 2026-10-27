@@ -562,7 +562,13 @@ export default function DebriefStudioPage() {
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   {active.media.map((media) => <div key={media.id}>
                     <MediaPreview media={media}/>
-                    {canEdit && <div className="mt-2 flex flex-wrap gap-3">
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {media.kind === "image" && <button type="button" disabled={!!exportingId}
+                        onClick={() => void downloadImage(media)}
+                        className="flex items-center gap-1 text-xs font-black text-cyan-300 hover:text-cyan-100 disabled:opacity-50">
+                        <Download size={13}/>{exportingId === media.id ? "Export PNG…" : "Exporter PNG pour Discord"}
+                      </button>}
+                      {canEdit && <>
                       {media.kind === "image" && <button type="button" onClick={() => setEditingMediaId((current) => current === media.id ? null : media.id)}
                         className="flex items-center gap-1 text-xs font-bold text-yellow-300 hover:text-yellow-200">
                         <FileText size={13}/> {editingMediaId === media.id ? "Fermer les annotations" : `Annoter la capture${(media.annotations?.length ?? 0) ? ` (${media.annotations?.length})` : ""}`}
@@ -572,7 +578,8 @@ export default function DebriefStudioPage() {
                         changeChapter(active.id, { media: active.media.filter((item) => item.id !== media.id) });
                         if (editingMediaId === media.id) setEditingMediaId(null);
                       }} className="flex items-center gap-1 text-xs text-red-300"><Trash2 size={13}/> Retirer</button>
-                    </div>}
+                      </>}
+                    </div>
                     {canEdit && media.kind === "image" && editingMediaId === media.id && <div className="mt-3">
                       <TacticalImageEditor media={media} onClose={() => setEditingMediaId(null)}
                         onChange={(next) => changeChapter(active.id, { media: active.media.map((item) => item.id === media.id ? next : item) })}/>
