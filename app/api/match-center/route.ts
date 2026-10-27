@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applyStaffPerformanceCorrections } from "@/lib/stats/apply-staff-corrections";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 
 const CLUB_ID = "1663";
@@ -384,7 +385,10 @@ export async function GET(request: Request) {
       throw new Error(playersError.message);
     }
 
-    const playerRows = (playerRowsData ?? []) as PlayerRow[];
+    const playerRows = await applyStaffPerformanceCorrections(
+      CLUB_ID,
+      (playerRowsData ?? []) as PlayerRow[]
+    );
     const selectedPlayerRows = playerRows.filter(
       (row) => row.match_id === selectedMatch.id
     );
