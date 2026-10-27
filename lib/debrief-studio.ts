@@ -17,11 +17,14 @@ export type TacticalObjective = {
   status: "todo" | "working" | "done";
 };
 
+import { isValidDebriefMediaPath } from "@/lib/debrief-media";
+
 export type DebriefMedia = {
   id: string;
   kind: "video" | "image";
   url: string;
   caption: string;
+  storagePath?: string;
   annotations?: TacticAnnotation[];
 };
 
@@ -167,11 +170,15 @@ export function sanitizeDebriefChapters(value: unknown): DebriefChapter[] {
       const item = candidate as Record<string, unknown>;
       const url = cleanText(item.url, 1000);
       const kind = item.kind === "image" ? "image" : "video";
-      if (!safeHttpsUrl(url)) continue;
-      if (kind === "video" && !videoEmbedUrl(url, "localhost")) continue;
+      const storagePath = cleanText(item.storagePath, 300);
+      const fileDate = storagePath.split("/")[1] ?? "";
+      const uploaded = !!storagePath && isValidDebriefMediaPath(storagePath, fileDate, kind);
+      if (!uploaded && !safeHttpsUrl(url)) continue;
+      if (!uploaded && kind === "video" && !videoEmbedUrl(url, "localhost")) continue;
       media.push({
         id: cleanText(item.id, 80) || crypto.randomUUID(),
-        kind, url, caption: cleanText(item.caption, 300),
+        kind, url: uploaded ? "" : url, caption: cleanText(item.caption, 300),
+        ...(uploaded ? { storagePath } : {}),
         ...(kind === "image" ? { annotations: sanitizeAnnotations(item.annotations) } : {}),
       });
     }
