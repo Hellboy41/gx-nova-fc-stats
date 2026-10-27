@@ -370,7 +370,9 @@ export default function DebriefStudioPage() {
       ...chapters.flatMap((chapter, index) => [
         `**${String(index + 1).padStart(2, "0")} — ${chapter.title.toUpperCase()}**`,
         chapter.analysis.trim() || "À compléter",
-        ...chapter.media.map((media) => `🔗 ${media.caption || (media.kind === "image" ? "Capture" : "Clip")} : ${media.url}${media.kind === "image" && (media.annotations?.length ?? 0) > 0 ? " (annotations visibles dans le Débrief Studio)" : ""}`),
+        ...chapter.media.map((media) => media.storagePath
+          ? `📎 ${media.caption || (media.kind === "image" ? "Capture" : "Vidéo MP4")} — média privé consultable dans le Débrief Studio`
+          : `🔗 ${media.caption || (media.kind === "image" ? "Capture" : "Clip")} : ${media.url}${media.kind === "image" && (media.annotations?.length ?? 0) > 0 ? " (annotations visibles dans le Débrief Studio)" : ""}`),
         ...(chapter.objectives?.length ? ["**Objectifs tactiques :**", ...chapter.objectives.map((objective) => `• [${OBJECTIVE_LABELS[objective.status]}] ${objective.title}`)] : []),
         "",
       ]),
@@ -476,6 +478,26 @@ export default function DebriefStudioPage() {
                 <input value={mediaCaption} onChange={(event) => setMediaCaption(event.target.value)} placeholder="Titre / action / minute de jeu" maxLength={300} className="rounded-xl border border-white/10 bg-[#030914] px-3 py-2.5 text-sm md:col-span-2"/>
                 <button type="button" onClick={addMedia} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-black text-[#04101f] md:col-span-2"><Plus size={16}/> Ajouter au chapitre</button>
               </div>}
+              {canEdit && <div className="mt-4 rounded-xl border border-dashed border-yellow-400/25 bg-yellow-400/[0.035] p-4">
+                <label className="flex cursor-pointer flex-wrap items-center justify-between gap-3">
+                  <span className="flex items-center gap-3">
+                    <Upload size={20} className="text-yellow-300"/>
+                    <span>
+                      <strong className="block text-sm text-yellow-200">Importer une image ou un MP4 depuis mon ordinateur</strong>
+                      <span className="mt-1 block text-xs text-slate-400">PNG, JPG, WebP ou MP4 · 45 Mo maximum · {active.media.length}/8 médias</span>
+                    </span>
+                  </span>
+                  <span className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2.5 text-xs font-black text-yellow-200">{uploadingMedia ? "Import en cours…" : "Choisir un fichier"}</span>
+                  <input type="file" accept=".png,.jpg,.jpeg,.webp,.mp4,image/png,image/jpeg,image/webp,video/mp4"
+                    className="sr-only" disabled={uploadingMedia || active.media.length >= 8}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      if (file) void uploadFromComputer(file);
+                    }}/>
+                </label>
+                <p className="mt-3 text-[11px] leading-5 text-slate-500">Les fichiers sont conservés dans un stockage privé Supabase ; les liens de lecture temporaires sont renouvelés à l'ouverture du débrief.</p>
+              </div>}
               {active.media.length > 0 ? (
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   {active.media.map((media) => <div key={media.id}>
@@ -498,7 +520,7 @@ export default function DebriefStudioPage() {
                   </div>)}
                 </div>
               ) : <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-12 text-gray-500"><Video size={30}/><p className="mt-3 text-sm">Aucun média ajouté</p></div>}
-              <p className="mt-3 text-xs text-gray-500">Clips intégrés par liens Twitch/YouTube. Les captures HTTPS peuvent être annotées et présentées en live. L'import direct d'images depuis l'ordinateur sera étudié ensuite.</p>
+              <p className="mt-3 text-xs text-gray-500">Tu peux utiliser une URL Twitch/YouTube ou importer directement une capture PNG/JPG/WebP et une vidéo MP4. Les captures importées sont annotables et les vidéos MP4 se lisent dans le Studio et le live.</p>
             </div>
             <div className="rounded-3xl border border-yellow-400/15 bg-[#091626] p-5">
               <h2 className="mb-3 text-base font-black"><FileText size={16} className="mr-2 inline text-yellow-300"/> Aperçu de la présentation</h2>
