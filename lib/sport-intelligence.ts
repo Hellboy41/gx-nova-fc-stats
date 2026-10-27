@@ -244,8 +244,7 @@ export function buildSportIntelligence(
       winRate: round(pair.wins * 100 / pair.games, 1),
       baselineWinRate,
     }))
-    .sort((a, b) => b.pointsPerMatch - a.pointsPerMatch || b.games - a.games)
-    .slice(0, 100);
+    .sort((a, b) => b.pointsPerMatch - a.pointsPerMatch || b.games - a.games);
 
   return {
     matches: orderedMatches.length,
