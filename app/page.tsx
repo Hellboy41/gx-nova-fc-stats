@@ -282,6 +282,19 @@ type TabName =
   | "report"
   | "season"
   | "settings";
+const SECTION_LABELS: Record<TabName, string> = {
+  overview: "Cockpit du staff",
+  roster: "Effectif",
+  lineup: "Composition",
+  matches: "Matchs",
+  competitions: "Compétitions",
+  stats: "Statistiques",
+  analysis: "Analyses tactiques",
+  report: "Bilan de soirée",
+  season: "Centre Saison",
+  settings: "Paramètres",
+};
+
 
 type WindowStats = {
   played: number;
@@ -1901,8 +1914,10 @@ export default function Home() {
 
           </div>
 
-          <nav className="flex-1 space-y-2 p-4">
+          <nav aria-label="Navigation principale staff" className="flex-1 space-y-1.5 overflow-y-auto p-4">
 
+
+            <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Pilotage</p>
             <SidebarItem
               icon={
                 <HomeIcon
@@ -1929,6 +1944,16 @@ export default function Home() {
               Match Center
             </a>
 
+            <a
+              href="/programme"
+              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-white/5 hover:text-yellow-400"
+            >
+              <CalendarDays size={19} />
+              Programme semaine
+            </a>
+
+
+            <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Équipe</p>
             <SidebarItem
               icon={
                 <Users
@@ -1983,14 +2008,10 @@ export default function Home() {
               }
             />
 
-            <a
-              href="/programme"
-              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-white/5 hover:text-yellow-400"
-            >
-              <CalendarDays size={19} />
-              Programme semaine
-            </a>
 
+
+
+            <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Performance</p>
             <SidebarItem
               icon={
                 <BarChart3
@@ -2045,6 +2066,14 @@ export default function Home() {
               }
             />
 
+            <a
+              href="/debrief-studio"
+              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/[0.07] hover:text-yellow-200"
+            >
+              <BookOpen size={19} />
+              Débrief Studio
+            </a>
+
             <SidebarItem
               icon={
                 <Trophy
@@ -2063,7 +2092,8 @@ export default function Home() {
               }
             />
 
-            <div className="my-5 border-t border-white/5" />
+            <div className="my-3 border-t border-white/10" />
+            <p className="px-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Administration</p>
 
             <SidebarItem
               icon={
@@ -2149,7 +2179,7 @@ export default function Home() {
                 </div>
 
                   <p className="mt-1 text-sm text-gray-400">
-                    FC27 Performance Center
+                    Centre de performance · {SECTION_LABELS[activeTab]}
                   </p>
 
                 </div>
@@ -2199,7 +2229,7 @@ export default function Home() {
 
           {/* ONGLETS */}
 
-          <div className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7">
+          <div aria-label="Navigation mobile" className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7 xl:hidden">
 
             <div className="flex w-full min-w-max items-stretch justify-between gap-4">
 
@@ -2294,6 +2324,13 @@ export default function Home() {
                   )
                 }
               />
+
+              <a
+                href="/debrief-studio"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-yellow-300 transition hover:border-yellow-400/60 hover:text-yellow-200"
+              >
+                DÉBRIEF STUDIO
+              </a>
 
               <TopTab
                 label="CENTRE SAISON"
@@ -12146,7 +12183,7 @@ function OverviewDashboard({
               <CalendarDays
                 size={16}
               />
-              Programme
+              Préparer
             </a>
 
             <a
@@ -12156,21 +12193,16 @@ function OverviewDashboard({
               <Swords
                 size={16}
               />
-              Match Center
+              Analyser
             </a>
 
-            <button
-              type="button"
-              onClick={
-                onEditLineup
-              }
+            <a
+              href="/debrief-studio"
               className="flex items-center justify-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.07] px-4 py-3 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/[0.14]"
             >
-              <Users
-                size={16}
-              />
-              Composition
-            </button>
+              <BookOpen size={16} />
+              Débriefer
+            </a>
 
             <button
               type="button"
