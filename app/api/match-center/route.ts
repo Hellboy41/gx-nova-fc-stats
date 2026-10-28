@@ -260,7 +260,11 @@ export async function GET(request: Request) {
   try {
     const admin = createAdminClient();
     const url = new URL(request.url);
-    const requestedMatchId = Number(url.searchParams.get("matchId") ?? 0);
+    const rawMatchId = url.searchParams.get("matchId");
+    const requestedMatchId = rawMatchId ? Number(rawMatchId) : 0;
+    if (rawMatchId && (!Number.isSafeInteger(requestedMatchId) || requestedMatchId <= 0)) {
+      return NextResponse.json({ error: "Identifiant de match invalide." }, { status: 400 });
+    }
 
     const { data: matchRowsData, error: matchesError } = await admin
       .from("matches")
@@ -276,6 +280,18 @@ export async function GET(request: Request) {
     }
 
     const matchRows = (matchRowsData ?? []) as MatchRow[];
+    // Un ancien lien Match Center doit rester utilisable même si le match
+    // n'est plus dans les 50 dernières rencontres.
+    if (requestedMatchId && !matchRows.some((match) => match.id === requestedMatchId)) {
+      const { data: olderMatch, error: olderError } = await admin.from("matches")
+        .select("id, ea_match_id, played_at, opponent_name, goals_for, goals_against, result, season_id, competition_id, raw_data")
+        .eq("club_id", CLUB_ID).eq("id", requestedMatchId).maybeSingle();
+      if (olderError) throw olderError;
+      if (!olderMatch) {
+        return NextResponse.json({ error: "Match introuvable pour GX NOVA." }, { status: 404 });
+      }
+      matchRows.push(olderMatch as MatchRow);
+    }
 
     const [{ data: competitions }, { data: seasons }] = await Promise.all([
       admin
@@ -374,21 +390,25 @@ export async function GET(request: Request) {
     }
 
     const allMatchIds = matchRows.map((match) => match.id);
-    const { data: playerRowsData, error: playersError } = await admin
-      .from("match_players")
-      .select(
-        "match_id, player_ea_id, player_name, position, rating, goals, assists, shots, passes_made, pass_attempts, tackles_made, tackle_attempts, saves, red_cards, raw_data"
-      )
-      .in("match_id", allMatchIds);
-
-    if (playersError) {
-      throw new Error(playersError.message);
+    // Par défaut PostgREST limite la lecture à 1 000 joueurs.
+    // Une pagination déterministe garantit des classements complets.
+    const playerRowsData: PlayerRow[] = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data: page, error: playersError } = await admin
+        .from("match_players")
+        .select(
+          "id, match_id, player_ea_id, player_name, position, rating, goals, assists, shots, passes_made, pass_attempts, tackles_made, tackle_attempts, saves, red_cards, raw_data"
+        )
+        .in("match_id", allMatchIds)
+        .order("id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (playersError) throw new Error(playersError.message);
+      playerRowsData.push(...((page ?? []) as PlayerRow[]));
+      if ((page ?? []).length < pageSize) break;
     }
 
-    const playerRows = await applyStaffPerformanceCorrections(
-      CLUB_ID,
-      (playerRowsData ?? []) as PlayerRow[]
-    );
+    const playerRows = await applyStaffPerformanceCorrections(CLUB_ID, playerRowsData);
     const selectedPlayerRows = playerRows.filter(
       (row) => row.match_id === selectedMatch.id
     );
@@ -791,6 +811,8 @@ export async function GET(request: Request) {
       seasons: seasons ?? [],
       competitions: competitions ?? [],
       currentUser: authorization.profile,
+      historyWindow: 50,
+      includesOlderSelectedMatch: requestedMatchId > 0 && !matchRows.slice(0, 50).some((match) => match.id === requestedMatchId),
     });
   } catch (error) {
     return NextResponse.json(

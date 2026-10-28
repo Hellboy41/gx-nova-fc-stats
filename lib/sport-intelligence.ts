@@ -106,7 +106,7 @@ function pct(n: number, d: number): number | null {
   return d > 0 ? round((n * 100) / d, 1) : null;
 }
 function normRole(value: string | null): Role | null {
-  const v = String(value ?? "").toLowerCase();
+  const v = String(value ?? "").trim().toLowerCase();
   return ROLES.includes(v as Role) ? (v as Role) : null;
 }
 function count(rows: Row[], prop: keyof IntelligencePerformance): number {
@@ -162,14 +162,18 @@ export function buildSportIntelligence(
     const previous = rows.slice(5, 10);
     const recentRating = average(recent);
     const previousRating = average(previous);
-    const hasEnough = recent.length >= 3 && previous.length >= 3 &&
+    // EA peut transmettre des notes vides ou à zéro : elles ne doivent pas
+    // compter pour atteindre le minimum de trois notes par période.
+    const recentRated = recent.filter((row) => number(row.rating) > 0).length;
+    const previousRated = previous.filter((row) => number(row.rating) > 0).length;
+    const hasEnough = recentRated >= 3 && previousRated >= 3 &&
       recentRating !== null && previousRating !== null;
     const delta = hasEnough ? round(recentRating! - previousRating!) : null;
     const trend: FormTrend = delta === null ? "insufficient" : delta >= 0.35
       ? "up" : delta <= -0.35 ? "down" : "stable";
     players.push({
       key, name: rows[0].player_name, role: topRole, appearances: rows.length,
-      recentCount: recent.length, previousCount: previous.length,
+      recentCount: recentRated, previousCount: previousRated,
       recentRating, previousRating, overallRating: average(rows) ?? 0,
       ratingDelta: delta, trend,
       recentGoals: count(recent, "goals"),

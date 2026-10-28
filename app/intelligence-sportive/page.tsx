@@ -111,7 +111,7 @@ function PlayerFormCard({ player }: { player: PlayerFormReport }) {
         <span className="rounded-lg border border-white/10 px-2 py-1">Tacles : <strong className="text-white">{player.recentTackles}</strong></span>
         {player.role === "goalkeeper" && <span className="rounded-lg border border-white/10 px-2 py-1">Arrêts : <strong className="text-white">{player.recentSaves}</strong></span>}
       </div>
-      <p className="mt-3 text-[11px] text-slate-500">Échantillons : {player.previousCount} avant · {player.recentCount} récents. {player.trend === "insufficient" ? "Évolution non interprétable." : "Seuil de variation : ±0,35 point."}</p>
+      <p className="mt-3 text-[11px] text-slate-500">Échantillons : {player.previousCount} notes valides avant · {player.recentCount} notes valides récentes. {player.trend === "insufficient" ? "Évolution non interprétable." : "Seuil de variation : ±0,35 point."}</p>
     </article>
   );
 }
@@ -276,9 +276,9 @@ export default function SportIntelligencePage() {
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Les statistiques corrigées par le staff sont utilisées pour les notes et les actions individuelles. Les résultats des rencontres restent les scores EA. Aucun indice tactique ou xG n'est inventé.</p>
           </div>
         </section>
-        {error && <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-4 text-sm text-rose-200">{error}</div>}
+        {error && <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-4 text-sm text-rose-200">{error} <button type="button" onClick={() => setRefreshId((value) => value + 1)} className="ml-2 underline underline-offset-2">Réessayer</button></div>}
         {loading && <div role="status" className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-5 text-sm font-bold text-cyan-200">Chargement des performances EA…</div>}
-        {data && (
+        {!loading && !error && data && (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <SmallStat label="Matchs analysés" value={data.matches} subtitle={displayDate(data.minDate) + " → " + displayDate(data.maxDate)}/>
@@ -287,6 +287,7 @@ export default function SportIntelligencePage() {
               <SmallStat label="Associations évaluables" value={data.pairs.length} subtitle="Au moins 8 matchs communs"/>
             </div>
             {data.truncated && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-3 text-sm text-amber-200">Historique limité aux 250 rencontres les plus récentes pour conserver de bonnes performances.</div>}
+            {data.matches === 0 && <p role="status" className="rounded-xl border border-white/10 bg-[#091626] p-6 text-sm text-slate-400">Aucun match EA enregistré pour cette saison. Choisis une autre saison ou « Toutes les saisons ».</p>}
             <nav aria-label="Types d'analyses" className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#081626] p-2">
               {(["form","roles","pairs"] as const).map((tab) =>
                 <button type="button" key={tab} onClick={() => { setActiveTab(tab); setSearch(""); setRole("all"); }}
