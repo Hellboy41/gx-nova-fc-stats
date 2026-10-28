@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 
 export async function GET() {
-  const authorization = await requireActiveStaff();
+  const authorization = await requireActiveStaff({profileOnly:true});
   if (authorization.error) return authorization.error;
   const supabase = await createClient();
 
