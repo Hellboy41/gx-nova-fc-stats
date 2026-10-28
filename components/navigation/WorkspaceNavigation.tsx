@@ -104,10 +104,11 @@ export function WorkspaceNavigation({
         const cls = variant === "sidebar"
           ? `flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs font-semibold transition ${selected ? "bg-cyan-400/10 text-cyan-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`
           : `flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${selected ? "bg-cyan-400/10 text-cyan-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`;
-        return entry.href
-          ? <a key={entry.title} href={entry.href} className={cls}><Icon size={15}/>{entry.title}</a>
-          : <button key={entry.title} type="button" className={cls} aria-current={selected ? "page" : undefined}
-              onClick={() => onSelectTab(entry.tab)}><Icon size={15}/>{entry.title}</button>;
+        if (entry.tab !== undefined) {
+          return <button key={entry.title} type="button" className={cls} aria-current={selected ? "page" : undefined}
+            onClick={() => onSelectTab(entry.tab)}><Icon size={15}/>{entry.title}</button>;
+        }
+        return <a key={entry.title} href={entry.href} className={cls}><Icon size={15}/>{entry.title}</a>;
       })}
     </div>
   );
