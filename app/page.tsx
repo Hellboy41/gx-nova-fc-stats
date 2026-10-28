@@ -44,6 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { WorkspaceNavigation } from "@/components/navigation/WorkspaceNavigation";
+import { StaffAccessPanel } from "@/components/admin/StaffAccessPanel";
 import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 
@@ -3303,6 +3304,7 @@ function SettingsDashboard() {
                 </div>
               </section>
 
+              <StaffAccessPanel />
               <section className="overflow-hidden rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-12">
                 <PanelHeader
                   title="MEMBRES AUTORISÉS"

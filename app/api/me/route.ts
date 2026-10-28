@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireActiveStaff } from "@/lib/auth/require-staff";
 
 export async function GET() {
+  const authorization = await requireActiveStaff();
+  if (authorization.error) return authorization.error;
   const supabase = await createClient();
 
   const { data: claimsData, error: claimsError } =
@@ -53,6 +56,8 @@ export async function GET() {
           : null,
       displayName: profile.display_name,
       role: profile.role,
+      accessScope: authorization.profile!.accessScope,
+      allowedRosterIds: authorization.profile!.allowedRosterIds,
     },
   });
 }
