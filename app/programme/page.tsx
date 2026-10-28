@@ -1935,6 +1935,13 @@ export default function ProgrammePage() {
               >
                 Cette semaine
               </button>
+              <a
+                href={`/preparation-match?startDate=${encodeURIComponent(weekStart)}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-200 hover:bg-yellow-400/15"
+              >
+                Prépa coaching
+                <ArrowLeft size={15} className="rotate-135"/>
+              </a>
               <button
                 type="button"
                 onClick={() => changeWeek(1)}
