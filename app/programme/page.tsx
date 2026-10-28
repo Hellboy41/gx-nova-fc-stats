@@ -3054,7 +3054,7 @@ function EventPlanModal({
       let opponentLogo: HTMLImageElement | null = null;
 
       try {
-        clubLogo = await loadImage(currentClubLogo);
+        clubLogo = await loadImage(CLUB_LOGO);
       } catch {
         clubLogo = null;
       }
