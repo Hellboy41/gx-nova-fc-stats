@@ -26,6 +26,10 @@ export function RosterSquadStudio({rosterId,rosterName,primary,secondary,logoUrl
  const [dirty,setDirty]=useState(false);
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
+ const [editingId,setEditingId]=useState<string|null>(null);
+ const [editName,setEditName]=useState("");
+ const [editNumber,setEditNumber]=useState("");
+ const [editPosition,setEditPosition]=useState("POLY");
  const [newName,setNewName]=useState("");
  const [newNumber,setNewNumber]=useState("");
  const [newPosition,setNewPosition]=useState("POLY");
@@ -40,7 +44,9 @@ export function RosterSquadStudio({rosterId,rosterName,primary,secondary,logoUrl
    if(signal.aborted)return;
    setPlayers(p.players??[]);setCanWrite(Boolean(p.canWrite&&l.canWrite));
    setFormation(formationByName(l.formation)?l.formation:"4-3-3");
-   setAssignments(l.assignments??{});setBench(l.bench??[]);
+   const eligible=new Set((p.players??[]).filter(player=>player.is_active).map(player=>player.id));
+   setAssignments(Object.fromEntries(Object.entries(l.assignments??{}).filter(([,id])=>eligible.has(id))));
+   setBench((l.bench??[]).filter(id=>eligible.has(id)));
    setSelectedSlot(null);setDirty(false);setError("");
   }catch(e){if(!signal.aborted)setError(e instanceof Error?e.message:"Chargement impossible.");}
   finally{if(!signal.aborted)setLoading(false);}
@@ -92,6 +98,23 @@ export function RosterSquadStudio({rosterId,rosterName,primary,secondary,logoUrl
    // Ne pas écraser une composition en cours d'édition.
    setPlayers(old=>[...old,data.player].sort((a,b)=>a.display_name.localeCompare(b.display_name,"fr")));
   }catch(e){setError(e instanceof Error?e.message:"Ajout impossible.");}finally{setBusy(false);}
+ }
+ function startEditing(p:Player){
+  setEditingId(p.id);setEditName(p.display_name);setEditNumber(p.shirt_number==null?"":String(p.shirt_number));
+  setEditPosition(p.preferred_position);setError("");setNotice("");
+ }
+ async function saveEdited(){
+  const p=players.find(x=>x.id===editingId);
+  if(!p)return;
+  setBusy(true);setError("");setNotice("");
+  try{
+   const r=await fetch(base+"/players",{method:"PATCH",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({playerId:p.id,name:editName,number:editNumber?Number(editNumber):null,position:editPosition,isActive:p.is_active})});
+   const data=await r.json();
+   if(!r.ok)throw new Error(data.error??"Modification impossible.");
+   setPlayers(old=>old.map(x=>x.id===p.id?data.player:x));
+   setEditingId(null);setNotice("Fiche joueur actualisée.");
+  }catch(e){setError(e instanceof Error?e.message:"Modification impossible.");}finally{setBusy(false);}
  }
  async function togglePlayer(p:Player){
   if(!canWrite)return;
@@ -152,12 +175,30 @@ export function RosterSquadStudio({rosterId,rosterName,primary,secondary,logoUrl
      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-black" style={{borderColor:primary+"55",color:primary}}>{p.shirt_number??"—"}</span>
      <div className="min-w-0 flex-1"><p className={`truncate text-sm font-bold ${p.is_active?"text-white":"text-slate-500"}`}>{p.display_name}</p>
       <p className="text-xs text-slate-500">{p.preferred_position} · {p.is_active?"Actif":"Inactif"}</p></div>
-     {canWrite&&<button type="button" disabled={busy} onClick={()=>void togglePlayer(p)}
-      className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${p.is_active?"border-rose-400/20 text-rose-300":"border-emerald-400/20 text-emerald-300"}`}>
-      {p.is_active?"Désactiver":"Réactiver"}</button>}
+     {canWrite&&<div className="flex shrink-0 gap-2">
+      <button type="button" disabled={busy} onClick={()=>startEditing(p)} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Modifier</button>
+      <button type="button" disabled={busy} onClick={()=>void togglePlayer(p)}
+       className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${p.is_active?"border-rose-400/20 text-rose-300":"border-emerald-400/20 text-emerald-300"}`}>
+       {p.is_active?"Désactiver":"Réactiver"}</button>
+     </div>}
     </div>)}</div>}
    </div>
   </div>}
+  {!loading&&tab==="squad"&&editingId&&canWrite&&<form onSubmit={e=>{e.preventDefault();void saveEdited();}} className="rounded-2xl border border-white/15 bg-[#111] p-5">
+   <h3 className="font-black" style={{color:primary}}>Modifier la fiche joueur</h3>
+   <div className="mt-4 grid gap-3 sm:grid-cols-3">
+    <label className="text-xs text-slate-300">Pseudo<input required minLength={2} maxLength={40} value={editName} onChange={e=>setEditName(e.target.value)}
+      className="mt-2 w-full rounded-lg border border-white/15 bg-black p-3 text-sm text-white"/></label>
+    <label className="text-xs text-slate-300">Numéro<input type="number" min={1} max={99} value={editNumber} onChange={e=>setEditNumber(e.target.value)}
+      className="mt-2 w-full rounded-lg border border-white/15 bg-black p-3 text-sm text-white"/></label>
+    <label className="text-xs text-slate-300">Poste<select value={editPosition} onChange={e=>setEditPosition(e.target.value)}
+      className="mt-2 w-full rounded-lg border border-white/15 bg-black p-3 text-sm text-white">{OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}</select></label>
+   </div>
+   <div className="mt-4 flex gap-3">
+    <button type="submit" disabled={busy} className="rounded-lg px-4 py-2 text-xs font-black text-black disabled:opacity-50" style={{backgroundColor:primary}}>Enregistrer le joueur</button>
+    <button type="button" onClick={()=>setEditingId(null)} className="rounded-lg border border-white/15 px-4 py-2 text-xs text-slate-300">Annuler</button>
+   </div>
+  </form>}
   {!loading&&tab==="lineup"&&<div className="space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#111] p-4">
     <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dispositif tactique</p>
