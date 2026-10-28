@@ -13,7 +13,7 @@ export type StaffProfile = {
   allowedRosterIds: string[];
 };
 
-export async function requireActiveStaff(options?: { write?: boolean; requireStructure?: boolean; rosterId?: string }) {
+export async function requireActiveStaff(options?: { write?: boolean; requireStructure?: boolean; rosterId?: string; profileOnly?: boolean }) {
   const supabase = await createClient();
 
   const { data: claimsData, error: claimsError } =
@@ -60,9 +60,9 @@ export async function requireActiveStaff(options?: { write?: boolean; requireStr
   const accessScope = profile.access_scope === "structure" ? "structure" : "rosters";
   const allowedRosterIds = Array.isArray(profile.allowed_roster_ids) ? profile.allowed_roster_ids.filter((id: unknown): id is string => typeof id === "string") : [];
   const needsRosterId = options?.rosterId ?? LEGACY_WORKSPACE.activeRosterId;
-  if ((profile.role === "admin" && accessScope !== "structure") ||
+  if (!options?.profileOnly && ((profile.role === "admin" && accessScope !== "structure") ||
       (options?.requireStructure && accessScope !== "structure") ||
-      (!options?.requireStructure && accessScope !== "structure" && !allowedRosterIds.includes(needsRosterId))) {
+      (!options?.requireStructure && accessScope !== "structure" && !allowedRosterIds.includes(needsRosterId)))) {
     return { error: NextResponse.json({ error: "Vous n’avez pas accès à ce roster ou à cet espace de la structure." }, { status: 403 }), profile: null };
   }
 

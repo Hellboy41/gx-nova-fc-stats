@@ -6,6 +6,7 @@ import type { StaffRole } from "@/lib/auth/require-staff";
 import type { WorkspaceContext } from "@/lib/platform/workspace";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 import { StructureOverview } from "@/components/organisation/StructureOverview";
+import { RosterManager } from "@/components/organisation/RosterManager";
 
 type WorkspacePayload = {
   workspace: WorkspaceContext;
@@ -55,8 +56,8 @@ export default function OrganisationPage() {
           <p className="text-xs font-black uppercase tracking-widest text-yellow-300">Vision produit</p>
           <h2 className="mt-2 text-xl font-black">Une structure esport, plusieurs rosters indépendants.</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Cette version présente l'organisation des espaces. GX NØVA reste l'unique roster connecté pendant la phase pilote.
-            L'ouverture à d'autres clubs sera activée une fois les autorisations et les données isolées pour chaque structure.
+            ATYOM peut accueillir plusieurs rosters, chacun avec son identifiant EA et un suivi de résultats indépendant.
+            GX NØVA conserve son centre de performance historique ; les nouveaux rosters démarrent avec le suivi EA.
           </p>
         </section>
 
@@ -77,9 +78,11 @@ export default function OrganisationPage() {
                 <h2 className="mt-1 text-xl font-black" style={{color:branding.structure.primaryColor}}>{branding.structure.name}</h2>
                 <p className="mt-1 text-xs text-slate-400">Identité de la structure · Membre : {payload.membership.displayName} · {payload.membership.role.toUpperCase()}</p>
               </div>
-              <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure pilote</span>
+              <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure ATYOM</span>
             </div>
           </section>
+
+          {payload.membership.role === "admin" && <RosterManager />}
 
           <StructureOverview />
 
@@ -87,27 +90,27 @@ export default function OrganisationPage() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-black"><Layers3 size={19} className="text-yellow-300"/> Rosters de la structure</h2>
-                <p className="mt-2 text-xs text-slate-400">{rosters.length} roster(s) référencé(s) sur la plateforme pilote</p>
+                <p className="mt-2 text-xs text-slate-400">{rosters.length} roster(s) actif(s) dans la structure</p>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {rosters.map((roster) => <div key={roster.id} className="rounded-xl border border-cyan-400/20 bg-black/20 p-4">
                 <div className="flex items-center gap-3">
-                  {branding.roster.logoUrl ? <img src={branding.roster.logoUrl} alt={branding.roster.name} className="h-12 w-12 object-contain"/> : <Users size={32} className="text-slate-400"/>}
+                  {roster.id === "gx-nova-legacy" && branding.roster.logoUrl ? <img src={branding.roster.logoUrl} alt={branding.roster.name} className="h-12 w-12 object-contain"/> : <Users size={32} className="text-[#FBD046]"/>}
                   <div className="flex-1">
                     <h3 className="font-black">{roster.id === payload.workspace.activeRosterId ? branding.roster.name : roster.name}</h3>
                     <p className="mt-1 text-xs text-slate-400">{roster.gameEdition} · EA Club ID {roster.eaClubId}</p>
                   </div>
                   <CheckCircle2 size={18} className="text-emerald-300"/>
                 </div>
-                <a href="/" className="mt-4 inline-flex rounded-lg border border-white/15 px-3 py-2 text-xs font-black text-yellow-200 hover:border-yellow-400/30">Ouvrir ce roster</a>
+                <a href={roster.id === "gx-nova-legacy" ? "/" : "/rosters/" + roster.id} className="mt-4 inline-flex rounded-lg border border-white/15 px-3 py-2 text-xs font-black text-yellow-200 hover:border-yellow-400/30">Ouvrir ce roster</a>
               </div>)}
             </div>
           </section>
 
           <section className="rounded-2xl border border-yellow-400/15 bg-[#091626] p-6">
-            <h2 className="flex items-center gap-2 font-black"><LockKeyhole size={19} className="text-yellow-300"/> Préparation de la version multi-structures</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">La création de nouvelles structures, l'ajout de rosters et le changement de roster ne sont pas encore disponibles : ces actions resteront bloquées jusqu'à l'activation d'une isolation vérifiée des données.</p>
+            <h2 className="flex items-center gap-2 font-black"><LockKeyhole size={19} className="text-yellow-300"/> Évolution de la plateforme</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">Tu peux créer des rosters et gérer leurs accès dès maintenant. Les outils avancés (programme, effectif, statistiques détaillées) du roster historique seront étendus progressivement aux autres équipes, sans mélange de données.</p>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               {[
                 { icon: Building2, title: "Structures", text: "Une identité, des couleurs et des paramètres propres à chaque club." },

@@ -37,6 +37,7 @@ const NAVIGATION: NavigationGroup[] = [
     entries: [
       { title: "Effectif", icon: Users, tab: "roster" },
       { title: "Composition", icon: Shield, tab: "lineup" },
+      { title: "Mes rosters", icon: Layers3, href: "/rosters" },
     ],
   },
   {

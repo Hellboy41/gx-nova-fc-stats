@@ -53,7 +53,7 @@ async function requireAdmin() {
       error: NextResponse.json(
         {
           error:
-            "Cette action est réservée aux administrateurs GX NOVA.",
+            "Cette action est réservée aux administrateurs ATYOM.",
         },
         {
           status: 403,

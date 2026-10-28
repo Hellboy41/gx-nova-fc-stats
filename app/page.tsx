@@ -792,6 +792,11 @@ export default function Home() {
             );
           }
 
+          if (data.user?.accessScope === "rosters" &&
+              !data.user?.allowedRosterIds?.includes("gx-nova-legacy")) {
+            window.location.replace("/rosters");
+            return;
+          }
           setCurrentUser(
             data.user ??
               null
@@ -1902,11 +1907,8 @@ export default function Home() {
 
               <div>
 
-                <h1 className="text-xl font-black">
-
-                  {branding.roster.name}
-
-                </h1>
+                <h1 className="text-xl font-black" style={{color:branding.structure.primaryColor}}>{branding.structure.name}</h1>
+                <p className="mt-1 text-xs font-semibold text-slate-300">{branding.roster.name}</p>
 
                 <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
                   {INSTANCE_CONFIG.gameEdition} CLUB
@@ -1955,7 +1957,7 @@ export default function Home() {
                 </div>
 
                   <p className="mt-1 text-sm text-gray-400">
-                    Centre de performance · {SECTION_LABELS[activeTab]}
+                    {branding.structure.name} · Centre de performance · {SECTION_LABELS[activeTab]}
                   </p>
 
                 </div>
@@ -2903,7 +2905,7 @@ function SettingsDashboard() {
         </h2>
 
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
-          Gestion du compte connecté, des droits d'accès et des membres autorisés à utiliser le Performance Center GX NOVA.
+          Gestion du compte connecté, des droits d'accès et des membres autorisés sur la plateforme ATYOM.
         </p>
       </div>
 

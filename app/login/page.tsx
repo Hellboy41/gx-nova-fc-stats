@@ -8,49 +8,15 @@ import {
   Shield,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
-const CLUB_LOGO_CANDIDATES = [
-  "/logo-gx-nova.png",
-  "/gx-nova.png",
-  "/logo.png",
-  "/logo-gx-nova.webp",
-  "/gx-nova.webp",
-  "/logo.svg",
-];
-
-function ClubLogo() {
-  const [logoIndex, setLogoIndex] = useState(0);
-  const [failed, setFailed] = useState(false);
-
-  const src = CLUB_LOGO_CANDIDATES[logoIndex];
-
-  return (
-    <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-yellow-400/30 bg-[#07111f] shadow-[0_0_35px_rgba(250,204,21,0.16)]">
-      {!failed ? (
-        <img
-          src={src}
-          alt="Logo GX NOVA"
-          width={96}
-          height={96}
-          className="h-full w-full object-contain p-2"
-          onError={() => {
-            const nextIndex = logoIndex + 1;
-
-            if (nextIndex < CLUB_LOGO_CANDIDATES.length) {
-              setLogoIndex(nextIndex);
-            } else {
-              setFailed(true);
-            }
-          }}
-        />
-      ) : (
-        <Shield
-          size={44}
-          className="text-yellow-400"
-        />
-      )}
-    </div>
-  );
+function StructureLogo() {
+  const {structure} = useClubBranding();
+  const [failed,setFailed] = useState(false);
+  return <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-[#FBD046]/50 bg-black shadow-[0_0_35px_rgba(251,208,70,0.14)]">
+    {structure.logoUrl && !failed ? <img src={structure.logoUrl} alt="Logo ATYOM" className="h-full w-full object-contain p-1" onError={() => setFailed(true)}/> :
+    <span className="text-5xl font-black text-[#FBD046]">A</span>}
+  </div>;
 }
 
 export default function LoginPage() {
@@ -96,23 +62,23 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#030914] px-5 text-white">
+    <main className="flex min-h-screen items-center justify-center bg-[#060606] px-5 text-white">
       <div className="w-full max-w-md">
         <div className="mb-7 text-center">
-          <ClubLogo />
+          <StructureLogo />
 
           <h1 className="mt-5 text-3xl font-black">
-            GX <span className="text-yellow-400">NOVA</span>
+            <span className="text-[#FBD046]">ATYOM</span>
           </h1>
 
           <p className="mt-2 text-sm text-gray-500">
-            FC27 Performance Center
+            Plateforme Esport · Gestion des rosters
           </p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-3xl border border-white/10 bg-[#091626] p-6 shadow-2xl"
+          className="rounded-3xl border border-white/10 bg-[#101010] p-6 shadow-2xl"
         >
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.05] p-4">
             <LockKeyhole
@@ -121,7 +87,7 @@ export default function LoginPage() {
             />
 
             <p className="text-sm leading-6 text-gray-400">
-              Accès réservé au staff GX NOVA.
+              Accès réservé aux utilisateurs autorisés par ATYOM.
             </p>
           </div>
 
@@ -142,8 +108,8 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="staff@gxnova.fr"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3.5 outline-none transition focus:border-yellow-400/40"
+              placeholder="utilisateur@exemple.fr"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-[#090909] px-4 py-3.5 outline-none transition focus:border-yellow-400/40"
             />
           </label>
 
@@ -159,7 +125,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••••••"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-[#050d18] px-4 py-3.5 outline-none transition focus:border-yellow-400/40"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-[#090909] px-4 py-3.5 outline-none transition focus:border-yellow-400/40"
             />
           </label>
 
@@ -172,7 +138,7 @@ export default function LoginPage() {
           </button>
 
           <p className="mt-5 text-center text-[11px] leading-5 text-gray-600">
-            Aucun compte ne peut être créé depuis cette page. Les accès sont gérés par l'administrateur GX NOVA.
+            Aucun compte ne peut être créé depuis cette page. Les accès sont gérés par les administrateurs ATYOM.
           </p>
         </form>
       </div>

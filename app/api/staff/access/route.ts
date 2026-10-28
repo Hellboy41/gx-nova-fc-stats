@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { LEGACY_WORKSPACE } from "@/lib/platform/workspace";
+import { activeRosters } from "@/lib/platform/rosters";
 
 export const dynamic = "force-dynamic";
 const HEADERS = { "Cache-Control": "private, no-store" };
@@ -23,8 +23,9 @@ export async function GET() {
     .select("user_id, display_name, role, is_active, access_scope, allowed_roster_ids")
     .order("display_name");
   if (error) return NextResponse.json({ error: "Impossible de charger les périmètres d'accès." }, { status: 500, headers: HEADERS });
+  const rosters = await activeRosters();
   return NextResponse.json({
-    rosters: LEGACY_WORKSPACE.rosters.filter(r => r.status === "active").map(r => ({ id: r.id, name: r.name, gameEdition: r.gameEdition })),
+    rosters: rosters.map(r => ({ id: r.id, name: r.name, gameEdition: r.game_edition })),
     staff: (data ?? []).map(p => ({
       userId: p.user_id, name: p.display_name, role: p.role, isActive: p.is_active,
       accessScope: p.access_scope, allowedRosterIds: p.allowed_roster_ids,
@@ -45,7 +46,7 @@ export async function PATCH(request: Request) {
       !Array.isArray(body.allowedRosterIds)) {
     return NextResponse.json({ error: "Données de droits invalides." }, { status: 400, headers: HEADERS });
   }
-  const available = new Set(LEGACY_WORKSPACE.rosters.filter(r => r.status === "active").map(r => r.id));
+  const available = new Set((await activeRosters()).map(r => r.id));
   const ids: unknown[] = body.allowedRosterIds;
   if (ids.some(id => typeof id !== "string" || !available.has(id)) || new Set(ids).size !== ids.length ||
       (body.accessScope === "rosters" && ids.length === 0) ||
