@@ -1,4 +1,5 @@
 "use client";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -507,6 +508,7 @@ function TeamCrest({
 }
 
 export default function MatchCenterPage() {
+  const branding = useClubBranding();
   const [data, setData] = useState<MatchCenterResponse | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1210,10 +1212,10 @@ export default function MatchCenterPage() {
             >
               <ArrowLeft size={19} />
             </a>
-            <img src={CLUB_LOGO} alt="GX NOVA" className="h-14 w-14 object-contain" />
+            <img src={branding.roster.logoUrl || CLUB_LOGO} alt={branding.roster.name} className="h-14 w-14 object-contain" />
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-400">
-                GX NOVA • FC27
+                {branding.roster.name} • {branding.roster.gameEdition}
               </p>
               <h1 className="mt-1 text-2xl font-black lg:text-3xl">Match Center</h1>
             </div>
@@ -1360,7 +1362,7 @@ export default function MatchCenterPage() {
                         </p>
                       </div>
                       <TeamCrest
-                        sources={[CLUB_LOGO]}
+                        sources={[branding.roster.logoUrl || CLUB_LOGO]}
                         name="GX NOVA"
                         size={76}
                         className="border-yellow-400/20 bg-yellow-400/[0.04]"

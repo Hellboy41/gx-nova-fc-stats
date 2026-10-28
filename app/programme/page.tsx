@@ -1,4 +1,5 @@
 "use client";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 import {
   useCallback,
@@ -409,6 +410,8 @@ function fitText(
 }
 
 export default function ProgrammePage() {
+  const branding = useClubBranding();
+  const currentClubLogo = branding.roster.logoUrl || CLUB_LOGO;
   const [weekStart, setWeekStart] = useState(() =>
     toDateKey(getSunday())
   );
@@ -1132,7 +1135,7 @@ export default function ProgrammePage() {
         }
       };
 
-      const clubLogo = await getCachedImage(CLUB_LOGO);
+      const clubLogo = await getCachedImage(currentClubLogo);
 
       const getItemPalette = (type: ProgrammeItem["type"]) => {
         if (type === "competition") {
@@ -1853,14 +1856,14 @@ export default function ProgrammePage() {
             </a>
 
             <img
-              src={CLUB_LOGO}
-              alt="GX NOVA"
+              src={currentClubLogo}
+              alt={branding.roster.name}
               className="h-14 w-14 rounded-2xl object-contain"
             />
 
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-yellow-400">
-                GX NOVA • FC27
+                {branding.roster.name} • {branding.roster.gameEdition}
               </p>
               <h1 className="mt-1 text-2xl font-black lg:text-3xl">
                 Programme de la semaine
@@ -3051,7 +3054,7 @@ function EventPlanModal({
       let opponentLogo: HTMLImageElement | null = null;
 
       try {
-        clubLogo = await loadImage(CLUB_LOGO);
+        clubLogo = await loadImage(currentClubLogo);
       } catch {
         clubLogo = null;
       }
