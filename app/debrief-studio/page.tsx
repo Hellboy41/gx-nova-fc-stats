@@ -140,6 +140,8 @@ export default function DebriefStudioPage() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
   const requestVersion = useRef(0);
+  // Empêche une sauvegarde commencée avant une nouvelle modification de masquer les changements restants.
+  const editRevision = useRef(0);
 
   const canEdit = role === "admin" || role === "staff";
   const activeIndex = Math.max(0, chapters.findIndex((chapter) => chapter.id === activeId));
@@ -169,6 +171,7 @@ export default function DebriefStudioPage() {
       }
       const fetchedChapters = studio.chapters.length ? studio.chapters : makeDefaultChapters();
       setChapters(fetchedChapters);
+      editRevision.current = 0;
       setEditingMediaId(null);
       setActiveId(fetchedChapters[0]?.id ?? "");
       setRole(studio.currentUser.role);
@@ -264,6 +267,7 @@ export default function DebriefStudioPage() {
   function changeChapter(id: string, patch: Partial<DebriefChapter>) {
     if (!canEdit) return;
     setChapters((current) => current.map((chapter) => chapter.id === id ? { ...chapter, ...patch } : chapter));
+    editRevision.current += 1;
     setDirty(true);
     setMessage("");
   }
@@ -299,6 +303,7 @@ export default function DebriefStudioPage() {
     const chapter = { id: crypto.randomUUID(), title: "Nouveau chapitre", analysis: "", media: [], objectives: [] };
     setChapters((current) => [...current, chapter]);
     setActiveId(chapter.id);
+    editRevision.current += 1;
     setDirty(true);
   }
 
@@ -311,6 +316,7 @@ export default function DebriefStudioPage() {
       [next[activeIndex], next[nextIndex]] = [next[nextIndex], next[activeIndex]];
       return next;
     });
+    editRevision.current += 1;
     setDirty(true);
   }
 
@@ -319,11 +325,12 @@ export default function DebriefStudioPage() {
     const next = chapters.filter((chapter) => chapter.id !== active.id);
     setChapters(next);
     setActiveId(next[Math.min(activeIndex, next.length - 1)].id);
+    editRevision.current += 1;
     setDirty(true);
   }
 
   function addMedia() {
-    if (!active || !canEdit) return;
+    if (!active || !canEdit || uploadingMedia || saving) return;
     if (active.media.length >= 8) { setError("8 médias maximum par chapitre."); return; }
     const url = mediaUrl.trim();
     const valid = safeHttpsUrl(url) && (mediaKind === "image" || videoEmbedUrl(url, window.location.hostname));
@@ -339,7 +346,7 @@ export default function DebriefStudioPage() {
   }
 
   async function uploadFromComputer(file: File) {
-    if (!active || !canEdit || uploadingMedia) return;
+    if (!active || !canEdit || uploadingMedia || saving) return;
     if (active.media.length >= 8) { setError("8 médias maximum par chapitre."); return; }
     if (!file.size || file.size > DEBRIEF_MAX_UPLOAD_BYTES) {
       setError("Fichier trop volumineux : limite de 45 Mo."); return;
@@ -385,6 +392,7 @@ export default function DebriefStudioPage() {
       };
       setChapters((current) => current.map((chapter) => chapter.id === chapterId
         ? { ...chapter, media: [...chapter.media, media] } : chapter));
+      editRevision.current += 1;
       setDirty(true);
       setMessage(`${file.name} importé. Clique sur « Enregistrer » pour conserver ce média dans le débrief.`);
     } catch (err) {
@@ -396,7 +404,8 @@ export default function DebriefStudioPage() {
   }
 
   async function save() {
-    if (!canEdit || saving || !dirty) return;
+    if (!canEdit || saving || uploadingMedia || loading || !dirty) return;
+    const revisionAtSave = editRevision.current;
     setSaving(true);
     setError("");
     try {
@@ -408,8 +417,11 @@ export default function DebriefStudioPage() {
       const result = await response.json() as { updatedAt?: string; error?: string; details?: string };
       if (!response.ok) throw new Error(result.details ? `${result.error} ${result.details}` : result.error ?? "Enregistrement impossible.");
       setSavedAt(result.updatedAt ?? null);
-      setDirty(false);
-      setMessage("Débrief enregistré dans Supabase.");
+      const editsAfterSave = editRevision.current !== revisionAtSave;
+      setDirty(editsAfterSave);
+      setMessage(editsAfterSave
+        ? "Une partie du débrief a été enregistrée. D'autres modifications restent à enregistrer."
+        : "Débrief enregistré dans Supabase.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible d'enregistrer le débrief.");
     } finally {
@@ -453,19 +465,20 @@ export default function DebriefStudioPage() {
             <a href="/" className="mb-2 inline-flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white"><ArrowLeft size={14}/> Retour au dashboard</a>
             <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">GX NOVA • FC27 • STAFF</p>
             <h1 className="text-3xl font-black">Débrief <span className="text-yellow-400">Studio</span></h1>
-            <p className="mt-1 text-sm text-gray-400">Prépare ton analyse, ajoute tes clips Twitch/YouTube et présente-la en live.</p>
+            <p className="mt-1 text-sm text-gray-400">Analyse tes matchs, importe captures et MP4, annote les actions et prépare la présentation du staff.</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs text-gray-400">Soirée
               <input type="date" value={date} onChange={(event) => {
+                if (uploadingMedia || saving || loading) return;
                 if (dirty && !window.confirm("Changer de soirée sans enregistrer tes modifications ?")) return;
                 if (isEveningDate(event.target.value)) setDate(event.target.value);
-              }} className="mt-1 block rounded-xl border border-white/10 bg-[#020913] px-3 py-2 text-sm text-white" />
+              }} disabled={uploadingMedia || saving || loading} className="mt-1 block rounded-xl border border-white/10 bg-[#020913] px-3 py-2 text-sm text-white disabled:cursor-wait disabled:opacity-60" />
             </label>
             <button type="button" onClick={() => void copyDiscord()} className="flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-300"><Copy size={16}/> Copier Discord</button>
             <a href="#performances" className="flex items-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-2.5 text-sm font-bold text-yellow-300">Corriger les stats EA</a>
             <button type="button" onClick={() => { setLiveView("chapter"); setPresenting(true); }} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold"><MonitorPlay size={16}/> Mode live</button>
-            {canEdit && <button type="button" disabled={!dirty || saving} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-black disabled:opacity-40"><Save size={16}/>{saving ? "Enregistrement..." : "Enregistrer"}</button>}
+            {canEdit && <button type="button" disabled={!dirty || saving || uploadingMedia || loading} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-black disabled:opacity-40"><Save size={16}/>{saving ? "Enregistrement..." : uploadingMedia ? "Import en cours…" : "Enregistrer"}</button>}
           </div>
         </div>
       </header>
@@ -473,7 +486,7 @@ export default function DebriefStudioPage() {
       <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-400">
           <span>{formatDate(date)} • {chapterCount} chapitres • {mediaCount} médias • {tacticalObjectives.length} objectifs • {report?.totals.matches ?? 0} matchs EA</span>
-          <span>{dirty ? "● Modifications non enregistrées" : savedAt ? `Enregistré le ${new Date(savedAt).toLocaleString("fr-FR")}` : "Nouveau débrief"}</span>
+          <span role="status" aria-live="polite">{uploadingMedia ? "Import du média en cours — ne quitte pas cette soirée" : saving ? "Enregistrement du débrief…" : dirty ? "● Modifications non enregistrées" : savedAt ? `Enregistré le ${new Date(savedAt).toLocaleString("fr-FR")}` : "Nouveau débrief"}</span>
         </div>
         {error && <div role="alert" className="mb-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div>}
         {message && <div role="status" className="mb-4 rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-4 text-sm text-cyan-200">{message}</div>}
@@ -536,10 +549,10 @@ export default function DebriefStudioPage() {
                 <select value={mediaKind} onChange={(event) => setMediaKind(event.target.value as "video" | "image")} className="rounded-xl border border-white/10 bg-[#030914] px-3 py-2.5 text-sm"><option value="video">Clip vidéo</option><option value="image">Image URL</option></select>
                 <input type="url" value={mediaUrl} onChange={(event) => setMediaUrl(event.target.value)} placeholder="https://www.twitch.tv/... ou https://youtu.be/..." className="min-w-0 rounded-xl border border-white/10 bg-[#030914] px-3 py-2.5 text-sm"/>
                 <input value={mediaCaption} onChange={(event) => setMediaCaption(event.target.value)} placeholder="Titre / action / minute de jeu" maxLength={300} className="rounded-xl border border-white/10 bg-[#030914] px-3 py-2.5 text-sm md:col-span-2"/>
-                <button type="button" onClick={addMedia} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-black text-[#04101f] md:col-span-2"><Plus size={16}/> Ajouter au chapitre</button>
+                <button type="button" onClick={addMedia} disabled={uploadingMedia || saving || active.media.length >= 8} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-black text-[#04101f] disabled:cursor-not-allowed disabled:opacity-40 md:col-span-2"><Plus size={16}/> Ajouter au chapitre</button>
               </div>}
               {canEdit && <div className="mt-4 rounded-xl border border-dashed border-yellow-400/25 bg-yellow-400/[0.035] p-4">
-                <label className="flex cursor-pointer flex-wrap items-center justify-between gap-3">
+                <label className={`flex flex-wrap items-center justify-between gap-3 ${uploadingMedia || saving || active.media.length >= 8 ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
                   <span className="flex items-center gap-3">
                     <Upload size={20} className="text-yellow-300"/>
                     <span>
@@ -549,7 +562,7 @@ export default function DebriefStudioPage() {
                   </span>
                   <span className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2.5 text-xs font-black text-yellow-200">{uploadingMedia ? "Import en cours…" : "Choisir un fichier"}</span>
                   <input type="file" accept=".png,.jpg,.jpeg,.webp,.mp4,image/png,image/jpeg,image/webp,video/mp4"
-                    className="sr-only" disabled={uploadingMedia || active.media.length >= 8}
+                    className="sr-only" disabled={uploadingMedia || saving || active.media.length >= 8}
                     onChange={(event) => {
                       const file = event.currentTarget.files?.[0];
                       event.currentTarget.value = "";
