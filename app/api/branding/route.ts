@@ -118,6 +118,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Empêcher un site tiers de soumettre le formulaire via la session staff.
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Origine de requête non autorisée." }, { status: 403, headers: NO_CACHE });
+  }
   const auth = await requireActiveStaff({ write: true });
   if (auth.error) return auth.error;
   if (auth.profile?.role !== "admin") {
