@@ -5,7 +5,7 @@ import { useClubBranding } from "@/lib/platform/use-club-branding";
 type Result = "V" | "N" | "D";
 type Stats={played:number;wins:number;draws:number;losses:number;goalsFor:number;goalsAgainst:number;winRate:number;goalDifference:number};
 type Match={id:number;rosterId:string;rosterName:string;playedAt:string|null;opponent:string;goalsFor:number;goalsAgainst:number;result:Result;competition:string};
-type Roster={id:string;name:string;gameEdition:string;matches30:Stats;form:Result[];lastMatchAt:string|null;capped:boolean};
+type Roster={id:string;name:string;gameEdition:string;matches30:Stats;form:Result[];lastMatchAt:string|null;capped:boolean;logoUrl?:string|null};
 type Fixture={rosterId:string;rosterName:string;eventDate:string;time:string;opponent:string;competition:string};
 type Overview={activeRosters:number;activeMembers:number;totals:Stats;rosterBreakdown:Roster[];lastResults:Match[];
 upcoming:Fixture[];upcomingCount:number;periodMatchesCapped:boolean;pilot:boolean;asOf:string};
@@ -97,8 +97,8 @@ export function StructureOverview(){
       <section className="rounded-2xl border border-white/10 bg-[#111] p-5">
        <h3 className="flex items-center gap-2 font-black"><TrendingUp size={18} style={{color:gold}}/> Forme par roster</h3>
        <div className="mt-4 space-y-3">{data.rosterBreakdown.map(r=><div key={r.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
-        <div className="flex items-center justify-between gap-2"><div><p className="font-bold">{name(r.id,r.name)}</p>
-         <p className="mt-1 text-xs text-slate-400">{r.matches30.played} matchs sur 30 jours · Diff. buts {r.matches30.goalDifference>0?"+":""}{r.matches30.goalDifference}</p></div>
+        <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2">{(r.id==="gx-nova-legacy"?branding.roster.logoUrl:r.logoUrl)&&<img src={(r.id==="gx-nova-legacy"?branding.roster.logoUrl:r.logoUrl)??""} alt="" className="h-9 w-9 shrink-0 object-contain"/>}<div><p className="font-bold">{name(r.id,r.name)}</p>
+         <p className="mt-1 text-xs text-slate-400">{r.matches30.played} matchs sur 30 jours · Diff. buts {r.matches30.goalDifference>0?"+":""}{r.matches30.goalDifference}</p></div></div>
          <span className="text-sm font-black" style={{color:gold}}>{r.matches30.winRate}%</span></div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5"><span className="mr-1 text-xs text-slate-500">5 derniers</span>
          {r.form.length===0?<span className="text-xs text-slate-400">Aucun match</span>:r.form.map((result,i)=><span key={i} title={RESULT_NAME[result]} className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-black ${RESULT_STYLE[result]}`}>{result}</span>)}
