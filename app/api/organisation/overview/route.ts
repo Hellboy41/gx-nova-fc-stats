@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { LEGACY_WORKSPACE } from "@/lib/platform/workspace";
+import { activeRosters } from "@/lib/platform/rosters";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 type Result = "V" | "N" | "D";
@@ -24,7 +24,8 @@ export async function GET(){
  if(auth.error)return auth.error;
  try{
   const admin=createAdminClient();
-  const rosters=LEGACY_WORKSPACE.rosters.filter(r=>r.status==="active");
+  const registry=await activeRosters();
+  const rosters=registry.map(r=>({id:r.id,name:r.name,gameEdition:r.game_edition,eaClubId:r.ea_club_id,workspaceMode:r.workspace_mode}));
   const ids=rosters.map(r=>r.eaClubId);
   const now=parisNow(), start=new Date(Date.now()-30*86400000).toISOString();
   const [comp, programme, members]=await Promise.all([
@@ -36,6 +37,22 @@ export async function GET(){
   const titles=new Map<string,Map<number,string>>();
   for(const c of comp.data??[]){const map=titles.get(c.club_id)??new Map<number,string>();map.set(c.id,c.short_name||c.name);titles.set(c.club_id,map);}
   const rosterBreakdown=await Promise.all(rosters.map(async roster=>{
+   if(roster.workspaceMode==="monitoring"){
+    const [recent30,recent]=await Promise.all([
+     admin.from("atyom_roster_results").select("ea_match_id,played_at,opponent_name,goals_for,goals_against,result").eq("roster_id",roster.id)
+      .gte("played_at",start).lte("played_at",new Date().toISOString()).order("played_at",{ascending:false}).limit(1000),
+     admin.from("atyom_roster_results").select("ea_match_id,played_at,opponent_name,goals_for,goals_against,result").eq("roster_id",roster.id)
+      .order("played_at",{ascending:false}).limit(10),
+    ]);
+    if(recent30.error||recent.error)throw recent30.error||recent.error;
+    const matches=(recent.data??[]) as Array<Omit<Match,"id"|"competition_id">&{ea_match_id:string}>;
+    const period=(recent30.data??[]) as Array<Omit<Match,"id"|"competition_id">&{ea_match_id:string}>;
+    const totals=summarize(period.map((m,i)=>({...m,id:i,competition_id:null})));
+    return {id:roster.id,name:roster.name,gameEdition:roster.gameEdition,matches30:totals,capped:period.length>=1000,
+      form:matches.slice(0,5).map(m=>m.result),lastMatchAt:matches[0]?.played_at??null,
+      results:matches.map(m=>({id:m.ea_match_id,rosterId:roster.id,rosterName:roster.name,playedAt:m.played_at,
+       opponent:m.opponent_name,goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result,competition:"EA Clubs"}))};
+   }
    const [recent30,recent]=await Promise.all([
     admin.from("matches").select("id,played_at,opponent_name,goals_for,goals_against,result,competition_id").eq("club_id",roster.eaClubId)
      .gte("played_at",start).lte("played_at",new Date().toISOString()).order("played_at",{ascending:false}).limit(1000),
@@ -74,7 +91,7 @@ export async function GET(){
   return NextResponse.json({activeRosters:rosters.length,activeMembers:members.count??0,period:"30 derniers jours",
    totals:all30,rosterBreakdown:rosterBreakdown.map(({results,...rest})=>rest),lastResults,
    upcoming:next.slice(0,8),upcomingCount:next.length,periodMatchesCapped:rosterBreakdown.some(r=>r.capped),
-   pilot:LEGACY_WORKSPACE.mode==="single-club-pilot",asOf:new Date().toISOString()},{headers});
+   pilot:rosters.length===1,asOf:new Date().toISOString()},{headers});
  }catch(e){console.error("Structure overview failed:",e);
   return NextResponse.json({error:"La vue consolidée est momentanément indisponible."},{status:500,headers});}
 }
