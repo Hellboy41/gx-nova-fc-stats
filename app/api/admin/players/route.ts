@@ -1,3 +1,4 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
@@ -6,7 +7,7 @@ import {
   normalizeClubPlayerName,
 } from "@/lib/players/status";
 
-const CLUB_ID = "1663";
+
 const PARIS_TIME_ZONE = "Europe/Paris";
 
 type PlayerPerformanceRow = {

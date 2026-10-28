@@ -1,9 +1,10 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyStaffPerformanceCorrections } from "@/lib/stats/apply-staff-corrections";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 
-const CLUB_ID = "1663";
+
 const GX_NOVA_LOGO = "/logo-gx-nova.png";
 
 function crestProxyUrl(assetId: unknown) {

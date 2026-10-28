@@ -1,10 +1,11 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { isProgrammeDateKey, programmeCanonicalWeek, programmePeriodDates, programmePeriodWeeks } from "@/lib/programme-period";
 import { sortProgrammeItemsByTime } from "@/lib/programme-sort";
 
-const CLUB_ID = "1663";
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 

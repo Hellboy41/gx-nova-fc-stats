@@ -1,7 +1,8 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const CLUB_ID = "1663";
+
 
 type MatchRow = {
   id: number;

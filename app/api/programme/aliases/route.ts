@@ -1,8 +1,9 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 
-const CLUB_ID = "1663";
+
 const GENERIC_WORDS = new Set(["fc", "esport", "esports", "club", "team", "gaming"]);
 
 function cleanText(value: unknown, maxLength: number) {
