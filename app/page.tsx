@@ -1918,31 +1918,6 @@ export default function Home() {
 
           <WorkspaceNavigation variant="sidebar" activeTab={activeTab} onSelectTab={setActiveTab}/>
 
-          <div className="p-4">
-
-            <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/5 p-4">
-
-              <Database
-                size={22}
-                className="text-yellow-400"
-              />
-
-              <p className="mt-3 text-sm font-black">
-                Supabase actif
-              </p>
-
-              <p className="mt-1 text-xs text-gray-500">
-
-                {
-                  matchAssignments.length
-                } matchs amicaux
-
-              </p>
-
-            </div>
-
-          </div>
-
         </aside>
 
         {/* CONTENU */}
