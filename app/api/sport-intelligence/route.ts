@@ -29,11 +29,11 @@ export async function GET(request: Request) {
   try {
     const admin = createAdminClient();
     const seasonsPromise = admin.from("seasons")
-      .select("id,name,is_active").order("id", { ascending: false });
+      .select("id,name,is_active").eq("club_id", CLUB_ID).order("id", { ascending: false });
     let matchesQuery = admin.from("matches")
       .select("id,played_at,result,goals_for,goals_against")
       .eq("club_id", CLUB_ID)
-      .order("played_at", { ascending: false })
+      .order("played_at", { ascending: false, nullsFirst: false })
       .limit(MAX_MATCHES + 1);
     if (selectedSeason !== null) matchesQuery = matchesQuery.eq("season_id", selectedSeason);
     const [matchesResult, seasonsResult, archivedKeys] = await Promise.all([
