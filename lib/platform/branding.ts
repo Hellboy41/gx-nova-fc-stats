@@ -18,6 +18,11 @@ export type BrandingResponse = {
 };
 
 export const BRANDING_BUCKET = "esport-branding-private";
+
+/** Identité structure indépendante, personnalisable par installation. */
+function structureColor(value: string | undefined, fallback: string): string {
+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+}
 export const BRANDING_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
 export const BRANDING_IMAGE_MIME = ["image/png", "image/jpeg", "image/webp"] as const;
 
@@ -25,8 +30,8 @@ export function brandingDefaults(): Omit<BrandingResponse, "canEdit" | "environm
   return {
     structure: {
       name: INSTANCE_CONFIG.structureName,
-      primaryColor: INSTANCE_CONFIG.primaryColor,
-      secondaryColor: INSTANCE_CONFIG.secondaryColor,
+      primaryColor: structureColor(process.env.NEXT_PUBLIC_ESPORT_STRUCTURE_PRIMARY_COLOR, "#FBD046"),
+      secondaryColor: structureColor(process.env.NEXT_PUBLIC_ESPORT_STRUCTURE_SECONDARY_COLOR, "#FFFFFF"),
       logoPath: null,
       logoUrl: null,
       updatedAt: null,

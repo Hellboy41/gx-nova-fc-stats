@@ -38,19 +38,19 @@ export default function OrganisationPage() {
   const rosters = payload?.workspace.rosters ?? [];
 
   return (
-    <main className="min-h-screen bg-[#030914] pb-16 text-white">
-      <header className="border-b border-white/10 bg-[#06111f]">
+    <main className="min-h-screen bg-[#060606] pb-16 text-white">
+      <header className="border-b border-white/10 bg-[#0A0A0A]">
         <div className="mx-auto flex max-w-[1200px] items-center gap-4 px-5 py-6">
           <a href="/" aria-label="Retour à l'accueil" className="rounded-xl border border-white/10 p-3 text-slate-400 hover:text-yellow-300"><ArrowLeft size={19}/></a>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-yellow-300">Pilotage de la plateforme</p>
+            <p className="text-[11px] font-black uppercase tracking-widest" style={{color:branding.structure.primaryColor}}>{branding.structure.name} · Pilotage de la plateforme</p>
             <h1 className="mt-1 text-2xl font-black">Structure et <span className="text-cyan-300">rosters</span></h1>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-[1200px] space-y-6 px-5 py-7">
-        <section className="rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-[#0c2233] to-[#071321] p-6">
+        <section className="rounded-2xl border bg-gradient-to-br from-[#17130A] to-[#090909] p-6" style={{borderColor:branding.structure.primaryColor + "40"}}>
           <p className="text-xs font-black uppercase tracking-widest text-yellow-300">Vision produit</p>
           <h2 className="mt-2 text-xl font-black">Une structure esport, plusieurs rosters indépendants.</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
@@ -63,23 +63,23 @@ export default function OrganisationPage() {
         {error && <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-5 text-sm text-rose-200">{error}</p>}
 
         {payload && organisation && <>
-          <section className="rounded-2xl border border-white/10 bg-[#091626] p-6">
+          <section className="rounded-2xl border border-white/10 bg-[#101010] p-6">
             <div className="flex flex-wrap items-center gap-4">
               <div className="rounded-2xl border bg-white/[0.03] p-4" style={{ borderColor: branding.structure.primaryColor + "66" }}>
                 {branding.structure.logoUrl
                   ? <img src={branding.structure.logoUrl} alt={branding.structure.name} className="h-12 w-12 object-contain"/>
-                  : <Building2 size={28} style={{ color: branding.structure.secondaryColor }}/>}
+                  : <Building2 size={28} style={{ color: branding.structure.primaryColor }}/>}
               </div>
               <div className="flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Structure esport</p>
-                <h2 className="mt-1 text-xl font-black">{branding.structure.name}</h2>
+                <h2 className="mt-1 text-xl font-black" style={{color:branding.structure.primaryColor}}>{branding.structure.name}</h2>
                 <p className="mt-1 text-xs text-slate-400">Identité de la structure · Membre : {payload.membership.displayName} · {payload.membership.role.toUpperCase()}</p>
               </div>
               <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure pilote</span>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-[#091626] p-6">
+          <section className="rounded-2xl border border-white/10 bg-[#101010] p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-black"><Layers3 size={19} className="text-yellow-300"/> Rosters de la structure</h2>

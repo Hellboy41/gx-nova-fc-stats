@@ -8,6 +8,7 @@ import { brandingDefaults, type BrandingSettings, type BrandingResponse, type Br
 type Draft = BrandingSettings;
 const defaults = brandingDefaults();
 const HEX = /^#[0-9a-f]{6}$/i;
+const ATYOM_PALETTE = { primary: "#FBD046", secondary: "#FFFFFF" } as const;
 function colorDistance(a: [number,number,number], b: [number,number,number]) {
   return Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]);
 }
@@ -121,6 +122,11 @@ export default function PersonnalisationPage() {
     } catch { setInfo("Logo prêt à être enregistré. Analyse automatique des couleurs indisponible."); }
     finally { setDetecting(false); }
   }
+  const applyAtyomPalette = () => {
+    setDraft(old => ({ ...old, primaryColor: ATYOM_PALETTE.primary, secondaryColor: ATYOM_PALETTE.secondary }));
+    setDirty(true); setError("");
+    setInfo("Palette noir, or et blanc sélectionnée. Clique sur « Enregistrer les modifications » pour la publier.");
+  };
   const reset = () => {
     const original = stored?.[scope] ?? blankDraft(scope);
     setDraft({ ...original }); setPreview(null); setFile(null);
@@ -161,8 +167,8 @@ export default function PersonnalisationPage() {
   const main = safeColor(draft.primaryColor, "#22d3ee");
   const accent = safeColor(draft.secondaryColor, "#facc15");
   return (
-    <main className="min-h-screen bg-[#030914] pb-16 text-white">
-      <header className="border-b border-white/10 bg-[#06111f]">
+    <main className={`min-h-screen pb-16 text-white ${scope === "structure" ? "bg-[#050505]" : "bg-[#030914]"}`}>
+      <header className={`border-b border-white/10 ${scope === "structure" ? "bg-[#090909]" : "bg-[#06111f]"}`}>
         <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 px-5 py-5">
           <div className="flex items-center gap-3">
             <a href="/" aria-label="Retour à l'accueil" className="rounded-xl border border-white/10 p-3 text-slate-400 hover:text-white"><ArrowLeft size={19}/></a>
@@ -172,13 +178,13 @@ export default function PersonnalisationPage() {
         </div>
       </header>
       <div className="mx-auto max-w-[1280px] space-y-5 px-5 py-7">
-        <section className="rounded-2xl border border-cyan-400/20 bg-[#0d2535] p-5">
+        <section className={`rounded-2xl border p-5 ${scope === "structure" ? "border-[#FBD046]/25 bg-[#101010]" : "border-cyan-400/20 bg-[#0d2535]"}`}>
           <h2 className="text-lg font-black">Une structure, une identité différente pour chaque roster</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">ATYOM est la structure esport. GX NØVA est son roster FC27 : son logo bleu et jaune peut rester indépendant du logo et des couleurs d'ATYOM. Les modifications sont enregistrées uniquement lorsque tu cliques sur « Enregistrer les modifications ».</p>
           {stored?.environment === "preview" && <p className="mt-3 text-xs font-semibold text-yellow-200">Les enregistrements effectués ici restent dans l'espace de test de cette branche et ne changent pas la production.</p>}
         </section>
         <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-          <section className="space-y-5 rounded-2xl border border-white/10 bg-[#091626] p-5">
+          <section className={`space-y-5 rounded-2xl border border-white/10 p-5 ${scope === "structure" ? "bg-[#101010]" : "bg-[#091626]"}`}>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => select("structure")} aria-pressed={scope === "structure"} className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-black ${scope === "structure" ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-200" : "border-white/10 text-slate-400"}`}><Building2 size={17}/> Structure ATYOM</button>
               <button type="button" onClick={() => select("roster")} aria-pressed={scope === "roster"} className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-black ${scope === "roster" ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-400"}`}><Users size={17}/> Roster FC27</button>
@@ -195,7 +201,7 @@ export default function PersonnalisationPage() {
               <div>
                 <label className="text-xs font-bold text-slate-300">{scope === "structure" ? "Logo de la structure" : "Logo du roster"}</label>
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={!stored?.canEdit || saving} onChange={e => void chooseLogo(e.target.files?.[0])}/>
-                <button type="button" disabled={!stored?.canEdit || saving} onClick={() => fileRef.current?.click()} className="mt-2 flex w-full items-center gap-3 rounded-xl border border-dashed border-cyan-400/25 bg-cyan-400/[0.04] p-4 text-left text-xs font-bold text-cyan-200 disabled:opacity-50"><ImagePlus size={20}/>{file?.name || "Importer un logo PNG, JPG ou WebP (5 Mo max)"}</button>
+                <button type="button" disabled={!stored?.canEdit || saving} onClick={() => fileRef.current?.click()} className={`mt-2 flex w-full items-center gap-3 rounded-xl border border-dashed p-4 text-left text-xs font-bold disabled:opacity-50 ${scope === "structure" ? "border-[#FBD046]/30 bg-[#FBD046]/[0.04] text-[#FBD046]" : "border-cyan-400/25 bg-cyan-400/[0.04] text-cyan-200"}`}><ImagePlus size={20}/>{file?.name || "Importer un logo PNG, JPG ou WebP (5 Mo max)"}</button>
                 {(draft.logoPath || file) && <button type="button" disabled={!stored?.canEdit || saving} onClick={() => { setRemoveLogo(true); setFile(null); setPreview(null); setDirty(true); }} className="mt-2 text-xs text-rose-300 underline underline-offset-2">Retirer le logo personnalisé</button>}
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -206,6 +212,7 @@ export default function PersonnalisationPage() {
                   </div>
                 </label>)}
               </div>
+              {scope === "structure" && draft.name.trim().toUpperCase() === "ATYOM" && <button type="button" disabled={!stored?.canEdit || saving || detecting} onClick={applyAtyomPalette} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#FBD046]/50 bg-[#FBD046]/10 px-4 py-3 text-xs font-black text-[#FBD046] transition hover:bg-[#FBD046]/15 disabled:opacity-40"><Palette size={16}/> Appliquer la palette ATYOM — or et blanc sur noir</button>}
               {error && <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error}</p>}
               {info && <p role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-sm text-emerald-200">{info}</p>}
               {!stored?.canEdit && <p className="flex items-center gap-2 text-xs text-amber-200"><LockKeyhole size={15}/> Seul un administrateur peut enregistrer les couleurs et logos.</p>}
@@ -218,8 +225,8 @@ export default function PersonnalisationPage() {
             </div>}
           </section>
           <div className="space-y-5">
-            <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#091626]">
-              <div className="p-6" style={{ background: `linear-gradient(110deg, ${main}40, #091626 83%)` }}>
+            <section className={`overflow-hidden rounded-2xl border border-white/10 ${scope === "structure" ? "bg-[#101010]" : "bg-[#091626]"}`}>
+              <div className="p-6" style={{ background: `linear-gradient(110deg, ${main}40, ${scope === "structure" ? "#090909" : "#091626"} 83%)` }}>
                 <div className="flex items-center gap-4">
                   <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-black/25 p-2" style={{borderColor:main}}>
                     {currentLogo ? <img src={currentLogo} alt="Aperçu du logo" className="h-full w-full object-contain"/> :
@@ -233,7 +240,7 @@ export default function PersonnalisationPage() {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 border-t border-white/10 p-4">
-                {["Accueil","Compétitions","Performance"].map((item,i) => <div key={item} className="rounded-xl border p-3 text-center text-xs font-bold" style={{borderColor:main+"80",background:i===0?main+"30":"#06111b",color:i===0?accent:"#cbd5e1"}}>{item}</div>)}
+                {["Accueil","Compétitions","Performance"].map((item,i) => <div key={item} className="rounded-xl border p-3 text-center text-xs font-bold" style={{borderColor:main+"80",background:i===0?main+"30":scope === "structure" ? "#080808" : "#06111b",color:i===0?accent:"#cbd5e1"}}>{item}</div>)}
               </div>
             </section>
             <section className="rounded-2xl border border-yellow-400/15 bg-[#091626] p-5">
