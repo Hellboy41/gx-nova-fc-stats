@@ -1,3 +1,4 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
@@ -9,7 +10,7 @@ import {
   type IntelligencePerformance,
 } from "@/lib/sport-intelligence";
 
-const CLUB_ID = "1663";
+
 const MAX_MATCHES = 250;
 const PAGE_SIZE = 1000;
 

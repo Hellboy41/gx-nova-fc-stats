@@ -43,9 +43,11 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { WorkspaceNavigation } from "@/components/navigation/WorkspaceNavigation";
+import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
 
-const CLUB_LOGO_CANDIDATES = [
-  "/logo-gx-nova.png",
+const CLUB_LOGO_CANDIDATES = INSTANCE_CONFIG.clubName !== "GX NØVA" ? [INSTANCE_CONFIG.logoUrl] : [
+  INSTANCE_CONFIG.logoUrl,
   "/gx-nova.png",
   "/logo.png",
   "/logo-gx-nova.webp",
@@ -1897,16 +1899,12 @@ export default function Home() {
 
                 <h1 className="text-xl font-black">
 
-                  GX{" "}
-
-                  <span className="text-yellow-400">
-                    NOVA
-                  </span>
+                  {INSTANCE_CONFIG.clubName}
 
                 </h1>
 
                 <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
-                  FC27 CLUB
+                  {INSTANCE_CONFIG.gameEdition} CLUB
                 </p>
 
               </div>
@@ -1915,247 +1913,7 @@ export default function Home() {
 
           </div>
 
-          <nav aria-label="Navigation principale staff" className="flex-1 space-y-1.5 overflow-y-auto p-4">
-
-
-            <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Pilotage</p>
-            <SidebarItem
-              icon={
-                <HomeIcon
-                  size={19}
-                />
-              }
-              label="Accueil"
-              active={
-                activeTab ===
-                "overview"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "overview"
-                )
-              }
-            />
-
-            <a
-              href="/match-center"
-              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-cyan-400/[0.06] hover:text-cyan-300"
-            >
-              <Medal size={19} />
-              Match Center
-            </a>
-
-            <a
-              href="/programme"
-              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-white/5 hover:text-yellow-400"
-            >
-              <CalendarDays size={19} />
-              Programme semaine
-            </a>
-
-            <a
-              href="/preparation-match"
-              className="flex w-full items-center gap-4 rounded-xl border border-yellow-400/15 bg-yellow-400/[0.04] px-4 py-3 text-left text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/10"
-            >
-              <Shield size={19} />
-              Préparation des matchs
-            </a>
-
-
-            <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Équipe</p>
-            <SidebarItem
-              icon={
-                <Users
-                  size={19}
-                />
-              }
-              label="Joueurs"
-              active={
-                activeTab ===
-                "roster"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "roster"
-                )
-              }
-            />
-
-            <SidebarItem
-              icon={
-                <Shield
-                  size={19}
-                />
-              }
-              label="Composition"
-              active={
-                activeTab ===
-                "lineup"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "lineup"
-                )
-              }
-            />
-
-            <SidebarItem
-              icon={
-                <Trophy
-                  size={19}
-                />
-              }
-              label="Compétitions"
-              active={
-                activeTab ===
-                "competitions"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "competitions"
-                )
-              }
-            />
-
-
-
-
-            <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Performance</p>
-            <SidebarItem
-              icon={
-                <BarChart3
-                  size={19}
-                />
-              }
-              label="Statistiques"
-              active={
-                activeTab ===
-                "stats"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "stats"
-                )
-              }
-            />
-
-            <SidebarItem
-              icon={
-                <Activity
-                  size={19}
-                />
-              }
-              label="Analyses"
-              active={
-                activeTab ===
-                "analysis"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "analysis"
-                )
-              }
-            />
-
-            <a
-              href="/intelligence-sportive"
-              className="flex w-full items-center gap-4 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.035] px-4 py-3 text-left text-sm font-semibold text-cyan-300 transition hover:bg-cyan-400/10 hover:text-white"
-            >
-              <TrendingUp size={19} />
-              Intelligence sportive
-            </a>
-
-            <SidebarItem
-              icon={
-                <FileText
-                  size={19}
-                />
-              }
-              label="Rapport soirée"
-              active={
-                activeTab ===
-                "report"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "report"
-                )
-              }
-            />
-
-            <a
-              href="/debrief-studio"
-              className="flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/[0.07] hover:text-yellow-200"
-            >
-              <BookOpen size={19} />
-              Débrief Studio
-            </a>
-
-            <SidebarItem
-              icon={
-                <Trophy
-                  size={19}
-                />
-              }
-              label="Centre Saison"
-              active={
-                activeTab ===
-                "season"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "season"
-                )
-              }
-            />
-
-            <div className="my-3 border-t border-white/10" />
-            <p className="px-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Administration</p>
-
-            <SidebarItem
-              icon={
-                <Settings
-                  size={19}
-                />
-              }
-              label="Paramètres"
-              active={
-                activeTab ===
-                "settings"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "settings"
-                )
-              }
-            />
-
-          </nav>
-
-          <div className="p-4">
-
-            <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/5 p-4">
-
-              <Database
-                size={22}
-                className="text-yellow-400"
-              />
-
-              <p className="mt-3 text-sm font-black">
-                Supabase actif
-              </p>
-
-              <p className="mt-1 text-xs text-gray-500">
-
-                {
-                  matchAssignments.length
-                } matchs amicaux
-
-              </p>
-
-            </div>
-
-          </div>
+          <WorkspaceNavigation variant="sidebar" activeTab={activeTab} onSelectTab={setActiveTab}/>
 
         </aside>
 
@@ -2180,11 +1938,7 @@ export default function Home() {
 
                   <h2 className="text-3xl font-black">
 
-                    GX{" "}
-
-                    <span className="text-yellow-400">
-                      NOVA
-                    </span>
+                    {INSTANCE_CONFIG.clubName}
 
                   </h2>
 
@@ -2246,139 +2000,7 @@ export default function Home() {
 
           {/* ONGLETS */}
 
-          <div aria-label="Navigation mobile" className="overflow-x-auto border-b border-white/5 bg-[#071321] px-4 lg:px-7 xl:hidden">
-
-            <div className="flex w-full min-w-max items-stretch justify-between gap-4">
-
-              <TopTab
-                label="APERÇU"
-                active={
-                  activeTab ===
-                  "overview"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "overview"
-                  )
-                }
-              />
-
-              <TopTab
-                label="EFFECTIF"
-                active={
-                  activeTab ===
-                  "roster"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "roster"
-                  )
-                }
-              />
-
-              <TopTab
-                label="COMPOSITION"
-                active={
-                  activeTab ===
-                  "lineup"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "lineup"
-                  )
-                }
-              />
-
-              <a
-                href="/match-center"
-                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-cyan-400/50 hover:text-cyan-300"
-              >
-                MATCH CENTER
-              </a>
-
-              <a
-                href="/programme"
-                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
-              >
-                PROGRAMME
-              </a>
-
-              <a
-                href="/preparation-match"
-                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-yellow-300 transition hover:border-yellow-400/50 hover:text-white"
-              >
-                PRÉPA MATCH
-              </a>
-
-              <TopTab
-                label="STATS"
-                active={
-                  activeTab ===
-                  "stats"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "stats"
-                  )
-                }
-              />
-
-              <TopTab
-                label="ANALYSES"
-                active={
-                  activeTab ===
-                  "analysis"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "analysis"
-                  )
-                }
-              />
-
-              <a
-                href="/intelligence-sportive"
-                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-cyan-300 transition hover:border-cyan-400/60 hover:text-white"
-              >
-                INTELLIGENCE SPORTIVE
-              </a>
-
-              <TopTab
-                label="RAPPORT SOIRÉE"
-                active={
-                  activeTab ===
-                  "report"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "report"
-                  )
-                }
-              />
-
-              <a
-                href="/debrief-studio"
-                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-yellow-300 transition hover:border-yellow-400/60 hover:text-yellow-200"
-              >
-                DÉBRIEF STUDIO
-              </a>
-
-              <TopTab
-                label="CENTRE SAISON"
-                active={
-                  activeTab ===
-                  "season"
-                }
-                onClick={() =>
-                  setActiveTab(
-                    "season"
-                  )
-                }
-              />
-
-            </div>
-
-          </div>
+          <WorkspaceNavigation variant="mobile" activeTab={activeTab} onSelectTab={setActiveTab}/>
 
           <div className="p-6">
 

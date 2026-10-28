@@ -1,9 +1,10 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
-const CLUB_ID = "1663";
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FORMATIONS = new Set(["3-1-4-2", "3-5-2", "4-3-3", "4-2-2-2", "4-3-1-2"]);
 const STATUSES = new Set(["available", "maybe", "absent", "unknown"]);

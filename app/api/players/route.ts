@@ -1,6 +1,7 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 
-const CLUB_ID = "1663";
+
 const PLATFORM = "common-gen5";
 
 type RawPlayer = Record<string, unknown>;

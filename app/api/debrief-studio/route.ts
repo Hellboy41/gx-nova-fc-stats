@@ -1,10 +1,11 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { isEveningDate, sanitizeDebriefChapters } from "@/lib/debrief-studio";
 import { DEBRIEF_MEDIA_BUCKET, DEBRIEF_MEDIA_URL_TTL, isValidDebriefMediaPath } from "@/lib/debrief-media";
 
-const CLUB_ID = "1663";
+
 
 export async function GET(request: Request) {
   const authorization = await requireActiveStaff();
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     const chapters = sanitizeDebriefChapters(data?.chapters ?? []);
     const paths = [...new Set(chapters.flatMap((chapter) =>
       chapter.media.flatMap((media) => media.storagePath &&
-        isValidDebriefMediaPath(media.storagePath, date, media.kind) ? [media.storagePath] : [])
+        isValidDebriefMediaPath(media.storagePath, date, media.kind, CLUB_ID) ? [media.storagePath] : [])
     ))];
     const signed = new Map<string, string>();
     if (paths.length) {
@@ -84,7 +85,7 @@ export async function PUT(request: Request) {
     return rawMedia.some((sourceMedia, mediaIndex) => {
       if (!sourceMedia || typeof sourceMedia !== "object" || Array.isArray(sourceMedia)) return true;
       const item = sourceMedia as Record<string, unknown>;
-      if (item.storagePath !== undefined && !isValidDebriefMediaPath(item.storagePath, date, item.kind === "image" ? "image" : "video")) return true;
+      if (item.storagePath !== undefined && !isValidDebriefMediaPath(item.storagePath, date, item.kind === "image" ? "image" : "video", CLUB_ID)) return true;
       const originalAnnotations = item.annotations === undefined ? [] : Array.isArray(item.annotations) ? item.annotations : null;
       if (!originalAnnotations || originalAnnotations.length > 30) return true;
       if (item.kind !== "image" && originalAnnotations.length > 0) return true;

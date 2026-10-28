@@ -1,9 +1,10 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyStaffPerformanceCorrections } from "@/lib/stats/apply-staff-corrections";
 import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
-const CLUB_ID = "1663";
+
 
 type DatabaseMatch = {
   id: number;

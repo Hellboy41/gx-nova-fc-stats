@@ -1,6 +1,8 @@
+import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 
-const CLUB_ID = "1663";
+
 const PLATFORM = "common-gen5";
 
 type ClubData = {
@@ -83,7 +85,7 @@ export async function GET() {
           ? new Date(match.timestamp * 1000).toISOString()
           : null,
 
-        club: gxNova?.details?.name ?? "GX NOVA",
+        club: gxNova?.details?.name ?? INSTANCE_CONFIG.clubName,
 
         opponent:
           opponent?.details?.name ??

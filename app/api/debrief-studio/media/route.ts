@@ -1,3 +1,4 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
           error: "Fichier non autorisé. Formats : PNG, JPG, WebP ou MP4 (45 Mo maximum).",
         }, { status: 400 });
       }
-      const storagePath = `1663/${data.date}/${crypto.randomUUID()}.${validated.extension}`;
+      const storagePath = `${CLUB_ID}/${data.date}/${crypto.randomUUID()}.${validated.extension}`;
       const supabase = await ensurePrivateBucket();
       const { data: signed, error } = await supabase.storage
         .from(DEBRIEF_MEDIA_BUCKET).createSignedUploadUrl(storagePath);
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 
     const date = typeof payload.date === "string" ? payload.date : "";
     const path = payload.path;
-    if (!isValidDebriefMediaPath(path, date)) {
+    if (!isValidDebriefMediaPath(path, date, undefined, CLUB_ID)) {
       return NextResponse.json({ error: "Média non reconnu." }, { status: 400 });
     }
     const { data, error } = await createAdminClient().storage

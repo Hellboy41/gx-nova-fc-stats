@@ -1,9 +1,10 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isEveningDate, sanitizeDebriefChapters } from "@/lib/debrief-studio";
 
-const CLUB_ID = "1663";
+
 const HISTORY_LIMIT = 80;
 
 export type HistoricalObjective = {
