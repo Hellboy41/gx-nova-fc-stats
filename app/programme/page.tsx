@@ -2470,6 +2470,7 @@ function ProgrammeEditorCard({
   onConfirm: (matchId: number) => void;
   onUnlink: () => void;
 }) {
+  const branding = useClubBranding();
   const isCompetition = item.type === "competition";
   const [showPlayedDetails, setShowPlayedDetails] = useState(false);
 
