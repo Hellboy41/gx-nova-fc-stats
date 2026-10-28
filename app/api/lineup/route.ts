@@ -1,3 +1,4 @@
+import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -200,6 +201,8 @@ const FORMATIONS: FormationDefinition[] = [
 ========================================================= */
 
 export async function GET() {
+  const authorization = await requireActiveStaff();
+  if (authorization.error) return authorization.error;
   try {
     const supabase =
       createAdminClient();
@@ -310,6 +313,8 @@ export async function GET() {
 export async function POST(
   request: Request
 ) {
+  const authorization = await requireActiveStaff({ write: true });
+  if (authorization.error) return authorization.error;
   try {
     const body =
       await request.json();

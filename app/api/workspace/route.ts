@@ -12,11 +12,16 @@ export async function GET() {
   const { error, profile } = await requireActiveStaff();
   if (error) return error;
 
+  const available = profile!.accessScope === "structure"
+    ? LEGACY_WORKSPACE.rosters
+    : LEGACY_WORKSPACE.rosters.filter(roster => profile!.allowedRosterIds.includes(roster.id));
   return NextResponse.json({
-    workspace: LEGACY_WORKSPACE,
+    workspace: { ...LEGACY_WORKSPACE, rosters: available },
     membership: {
       role: profile!.role,
       displayName: profile!.displayName,
+      accessScope: profile!.accessScope,
+      allowedRosterIds: profile!.allowedRosterIds,
     },
     actions: {
       createOrganisation: false,

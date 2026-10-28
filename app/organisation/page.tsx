@@ -8,7 +8,7 @@ import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 type WorkspacePayload = {
   workspace: WorkspaceContext;
-  membership: { role: StaffRole; displayName: string };
+  membership: { role: StaffRole; displayName: string; accessScope: "structure" | "rosters" };
   actions: { createOrganisation: boolean; createRoster: boolean; switchRoster: boolean };
 };
 
@@ -62,7 +62,8 @@ export default function OrganisationPage() {
         {loading && <p role="status" className="rounded-xl border border-white/10 p-5 text-sm text-slate-400">Chargement de l'espace…</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-5 text-sm text-rose-200">{error}</p>}
 
-        {payload && organisation && <>
+        {payload?.membership.accessScope === "rosters" && <p role="status" className="rounded-xl border border-[#FBD046]/30 bg-[#FBD046]/10 p-5 text-sm text-[#FBD046]">Votre accès est limité au roster autorisé. La gestion globale ATYOM est réservée aux membres ayant le périmètre Structure.</p>}
+        {payload && organisation && payload.membership.accessScope === "structure" && <>
           <section className="rounded-2xl border border-white/10 bg-[#101010] p-6">
             <div className="flex flex-wrap items-center gap-4">
               <div className="rounded-2xl border bg-white/[0.03] p-4" style={{ borderColor: branding.structure.primaryColor + "66" }}>

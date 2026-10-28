@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { LEGACY_WORKSPACE } from "@/lib/platform/workspace";
 
 type StaffRole = "admin" | "staff" | "viewer";
 
@@ -88,7 +89,7 @@ export async function GET() {
     await admin
       .from("staff_profiles")
       .select(
-        "user_id, display_name, role, is_active, created_at, updated_at"
+        "user_id, display_name, role, is_active, access_scope, allowed_roster_ids, created_at, updated_at"
       )
       .order("created_at", {
         ascending: true,
@@ -151,6 +152,8 @@ export async function GET() {
         displayName: profile.display_name,
         role: profile.role,
         isActive: profile.is_active,
+        accessScope: profile.access_scope,
+        allowedRosterIds: profile.allowed_roster_ids,
         createdAt: profile.created_at,
         lastSignInAt:
           user?.last_sign_in_at ?? null,
@@ -257,6 +260,8 @@ export async function POST(request: Request) {
             displayName || fallbackName,
           role,
           is_active: true,
+          access_scope: role === "admin" ? "structure" : "rosters",
+          allowed_roster_ids: role === "admin" ? [] : [LEGACY_WORKSPACE.activeRosterId],
           updated_at:
             new Date().toISOString(),
         },
@@ -451,6 +456,7 @@ export async function PATCH(request: Request) {
         display_name: displayName,
         role,
         is_active: isActive,
+        ...(role === "admin" ? { access_scope: "structure", allowed_roster_ids: [] } : {}),
         updated_at:
           new Date().toISOString(),
       })

@@ -44,6 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { WorkspaceNavigation } from "@/components/navigation/WorkspaceNavigation";
+import { StaffAccessPanel } from "@/components/admin/StaffAccessPanel";
 import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 
@@ -533,6 +534,8 @@ type CurrentStaffUser = {
   email: string | null;
   displayName: string;
   role: StaffRole;
+  accessScope?: "structure" | "rosters";
+  allowedRosterIds?: string[];
 };
 
 type StaffMember = {
@@ -1915,7 +1918,7 @@ export default function Home() {
 
           </div>
 
-          <WorkspaceNavigation variant="sidebar" activeTab={activeTab} onSelectTab={setActiveTab}/>
+          <WorkspaceNavigation variant="sidebar" activeTab={activeTab} onSelectTab={setActiveTab} accessScope={currentUser?.accessScope}/>
 
         </aside>
 
@@ -2002,7 +2005,7 @@ export default function Home() {
 
           {/* ONGLETS */}
 
-          <WorkspaceNavigation variant="mobile" activeTab={activeTab} onSelectTab={setActiveTab}/>
+          <WorkspaceNavigation variant="mobile" activeTab={activeTab} onSelectTab={setActiveTab} accessScope={currentUser?.accessScope}/>
 
           <div className="p-6">
 
@@ -2963,9 +2966,9 @@ function SettingsDashboard() {
                     className="text-yellow-400"
                   />
 
-                  <p className="font-black">
-                    {roleLabel}
-                  </p>
+                  <div><p className="font-black">{roleLabel}</p>
+                    <p className="mt-1 text-xs text-gray-400">{currentUser?.accessScope === "structure" ? "Périmètre : toute la structure ATYOM" : "Périmètre : " + (currentUser?.allowedRosterIds?.includes("gx-nova-legacy") ? "GX NØVA" : "aucun roster autorisé")}</p>
+                  </div>
                 </div>
               </div>
 
@@ -3303,6 +3306,7 @@ function SettingsDashboard() {
                 </div>
               </section>
 
+              <StaffAccessPanel />
               <section className="overflow-hidden rounded-2xl border border-blue-400/20 bg-[#091626] 2xl:col-span-12">
                 <PanelHeader
                   title="MEMBRES AUTORISÉS"

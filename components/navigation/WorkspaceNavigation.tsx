@@ -67,11 +67,12 @@ const NAVIGATION: NavigationGroup[] = [
 ];
 
 export function WorkspaceNavigation({
-  activeTab, onSelectTab, variant,
+  activeTab, onSelectTab, variant, accessScope,
 }: {
   activeTab: DashboardTab;
   onSelectTab: (tab: DashboardTab) => void;
   variant: "sidebar" | "mobile";
+  accessScope?: "structure" | "rosters";
 }) {
   const branding = useClubBranding();
   const current = useMemo(() =>
@@ -101,7 +102,7 @@ export function WorkspaceNavigation({
     <div className={variant === "sidebar"
       ? "mt-2 space-y-1 border-t border-white/10 px-4 pb-4 pt-4"
       : "flex min-w-max items-center gap-1 border-t border-white/10 px-2 pb-2 pt-2"}>
-      {current.entries.map((entry) => {
+      {current.entries.filter(entry => accessScope !== "rosters" || entry.href !== "/personnalisation").map((entry) => {
         const Icon = entry.icon;
         const selected = "tab" in entry && entry.tab === activeTab;
         const cls = variant === "sidebar"

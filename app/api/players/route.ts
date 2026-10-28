@@ -1,3 +1,4 @@
+import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 
@@ -103,6 +104,8 @@ function normalizePlayers(
 }
 
 export async function GET() {
+  const authorization = await requireActiveStaff();
+  if (authorization.error) return authorization.error;
   try {
     const url =
       `https://proclubs.ea.com/api/fc/clubs/matches` +

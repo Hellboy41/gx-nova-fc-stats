@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { LEGACY_WORKSPACE } from "@/lib/platform/workspace";
 
 export type StaffRole = "admin" | "staff" | "viewer";
+export type StaffAccessScope = "structure" | "rosters";
 
 export type StaffProfile = {
   userId: string;
   displayName: string;
   role: StaffRole;
+  accessScope: StaffAccessScope;
+  allowedRosterIds: string[];
 };
 
-export async function requireActiveStaff(options?: { write?: boolean }) {
+export async function requireActiveStaff(options?: { write?: boolean; requireStructure?: boolean; rosterId?: string }) {
   const supabase = await createClient();
 
   const { data: claimsData, error: claimsError } =
@@ -33,7 +37,7 @@ export async function requireActiveStaff(options?: { write?: boolean }) {
   const { data: profile, error: profileError } =
     await supabase
       .from("staff_profiles")
-      .select("display_name, role, is_active")
+      .select("display_name, role, is_active, access_scope, allowed_roster_ids")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -50,6 +54,16 @@ export async function requireActiveStaff(options?: { write?: boolean }) {
       ),
       profile: null,
     };
+  }
+
+  // Vérifier le périmètre à chaque requête, sans accepter d’ID client comme preuve d’accès.
+  const accessScope = profile.access_scope === "structure" ? "structure" : "rosters";
+  const allowedRosterIds = Array.isArray(profile.allowed_roster_ids) ? profile.allowed_roster_ids.filter((id: unknown): id is string => typeof id === "string") : [];
+  const needsRosterId = options?.rosterId ?? LEGACY_WORKSPACE.activeRosterId;
+  if ((profile.role === "admin" && accessScope !== "structure") ||
+      (options?.requireStructure && accessScope !== "structure") ||
+      (!options?.requireStructure && accessScope !== "structure" && !allowedRosterIds.includes(needsRosterId))) {
+    return { error: NextResponse.json({ error: "Vous n’avez pas accès à ce roster ou à cet espace de la structure." }, { status: 403 }), profile: null };
   }
 
   if (options?.write && profile.role === "viewer") {
@@ -71,6 +85,8 @@ export async function requireActiveStaff(options?: { write?: boolean }) {
       userId,
       displayName: profile.display_name,
       role: profile.role as StaffRole,
+      accessScope,
+      allowedRosterIds,
     } satisfies StaffProfile,
   };
 }
