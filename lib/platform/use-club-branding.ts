@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
 import { brandingDefaults, type BrandingResponse } from "@/lib/platform/branding";
 
 const FALLBACK: BrandingResponse = {
@@ -35,6 +35,6 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     window.addEventListener("esport-branding-updated", refresh);
     return () => { active = false; current?.abort(); window.removeEventListener("esport-branding-updated", refresh); };
   }, []);
-  return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>;
+  return createElement(BrandingContext.Provider, { value: branding }, children);
 }
 export function useClubBranding() { return useContext(BrandingContext); }
