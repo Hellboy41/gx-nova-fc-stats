@@ -1,3 +1,5 @@
+> **Orientation produit actualisée — V9 :** nous privilégions désormais une **copie autonome par club** (projet Vercel + base Supabase distincts) plutôt qu'un SaaS multi-structures dès la première commercialisation. Cette documentation reste une perspective technique pour une éventuelle version ultérieure. Voir [Déploiement par club](deploiement-par-club.md).
+
 # V9 — Du club pilote à une plateforme esport multi-structures
 
 ## Ce que la V9 met réellement en place
