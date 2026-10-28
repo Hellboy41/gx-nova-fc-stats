@@ -44,9 +44,10 @@ import {
   X,
 } from "lucide-react";
 import { WorkspaceNavigation } from "@/components/navigation/WorkspaceNavigation";
+import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
 
-const CLUB_LOGO_CANDIDATES = [
-  "/logo-gx-nova.png",
+const CLUB_LOGO_CANDIDATES = INSTANCE_CONFIG.clubName !== "GX NØVA" ? [INSTANCE_CONFIG.logoUrl] : [
+  INSTANCE_CONFIG.logoUrl,
   "/gx-nova.png",
   "/logo.png",
   "/logo-gx-nova.webp",
@@ -1898,16 +1899,12 @@ export default function Home() {
 
                 <h1 className="text-xl font-black">
 
-                  GX{" "}
-
-                  <span className="text-yellow-400">
-                    NOVA
-                  </span>
+                  {INSTANCE_CONFIG.clubName}
 
                 </h1>
 
                 <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
-                  FC27 CLUB
+                  {INSTANCE_CONFIG.gameEdition} CLUB
                 </p>
 
               </div>
@@ -1941,11 +1938,7 @@ export default function Home() {
 
                   <h2 className="text-3xl font-black">
 
-                    GX{" "}
-
-                    <span className="text-yellow-400">
-                      NOVA
-                    </span>
+                    {INSTANCE_CONFIG.clubName}
 
                   </h2>
 
