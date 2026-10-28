@@ -49,6 +49,7 @@ const NAVIGATION: NavigationGroup[] = [
     name: "performance", title: "Performance", icon: BarChart3, firstTab: "stats",
     entries: [
       { title: "Statistiques", icon: BarChart3, tab: "stats" },
+      { title: "Historique des matchs", icon: Swords, tab: "matches" },
       { title: "Analyses", icon: TrendingUp, tab: "analysis" },
       { title: "Match Center", icon: Goal, href: "/match-center" },
       { title: "Intelligence sportive", icon: Medal, href: "/intelligence-sportive" },
