@@ -1,3 +1,4 @@
+import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -62,6 +63,8 @@ type AggregatedPlayer = StatBucket & {
 export async function GET(
   request: Request
 ) {
+  const authorization = await requireActiveStaff();
+  if (authorization.error) return authorization.error;
   try {
     const supabase =
       createAdminClient();

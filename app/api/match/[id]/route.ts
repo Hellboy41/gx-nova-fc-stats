@@ -1,3 +1,4 @@
+import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -43,6 +44,8 @@ export async function GET(
     }>;
   }
 ) {
+  const authorization = await requireActiveStaff();
+  if (authorization.error) return authorization.error;
   try {
     const { id } =
       await context.params;
