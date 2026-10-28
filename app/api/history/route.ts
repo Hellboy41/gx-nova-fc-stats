@@ -254,39 +254,26 @@ export async function GET(
       );
     }
 
-    const {
-      data: playersData,
-      error: playersError,
-    } =
-      await supabase
-        .from(
-          "match_players"
-        )
-        .select(`
-          match_id,
-          player_ea_id,
-          player_name,
-          position,
-          rating,
-          goals,
-          assists,
-          shots,
-          passes_made,
-          pass_attempts,
-          tackles_made,
-          tackle_attempts,
-          saves,
-          red_cards
-        `)
-        .in(
-          "match_id",
-          matchIds
-        );
-
-    if (playersError) {
-      throw new Error(
-        playersError.message
-      );
+    // Supabase peut plafonner les réponses à 1 000 lignes. Charger
+    // l'intégralité des performances pour ne pas fausser les classements.
+    const playersData: DatabasePlayer[] = [];
+    const pageSize = 1000;
+    for (const ids of Array.from({ length: Math.ceil(matchIds.length / 80) }, (_, i) => matchIds.slice(i * 80, i * 80 + 80))) {
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error: playersError } = await supabase
+          .from("match_players")
+          .select(`
+            id, match_id, player_ea_id, player_name, position, rating,
+            goals, assists, shots, passes_made, pass_attempts,
+            tackles_made, tackle_attempts, saves, red_cards
+          `)
+          .in("match_id", ids)
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (playersError) throw new Error(playersError.message);
+        playersData.push(...((data ?? []) as DatabasePlayer[]));
+        if ((data ?? []).length < pageSize) break;
+      }
     }
 
     const archivedPlayerKeys =
@@ -296,7 +283,7 @@ export async function GET(
 
     const performances = await applyStaffPerformanceCorrections(
       CLUB_ID,
-      (playersData ?? []) as DatabasePlayer[]
+      playersData
     );
 
     performances.sort(
