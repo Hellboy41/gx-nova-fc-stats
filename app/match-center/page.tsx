@@ -668,7 +668,7 @@ export default function MatchCenterPage() {
     if (!selected) return null;
     const gxMotm = selected.players.find((player) => player.manOfTheMatch);
     if (gxMotm) {
-      return { ...gxMotm, team: "GX NOVA" };
+      return { ...gxMotm, team: branding.roster.name };
     }
     const opponentMotm = selected.opponentPlayers.find(
       (player) => player.manOfTheMatch
@@ -808,14 +808,14 @@ export default function MatchCenterPage() {
         ctx.restore();
       }
 
-      ctx.fillStyle = "#facc15";
+      ctx.fillStyle = branding.roster.secondaryColor;
       ctx.fillRect(0, 0, width, 9);
-      ctx.fillStyle = "#22d3ee";
+      ctx.fillStyle = branding.roster.primaryColor;
       ctx.fillRect(0, 196, 920, 4);
 
       let logo: HTMLImageElement | null = null;
       try {
-        logo = await loadImage(CLUB_LOGO);
+        logo = await loadImage(branding.roster.logoUrl || CLUB_LOGO);
       } catch {
         logo = null;
       }
@@ -834,9 +834,9 @@ export default function MatchCenterPage() {
         }
       }
 
-      ctx.fillStyle = "#facc15";
+      ctx.fillStyle = branding.roster.secondaryColor;
       ctx.font = "900 28px Arial";
-      ctx.fillText("GX NOVA • FC27", 220, 82);
+      ctx.fillText(`${branding.roster.name.toUpperCase()} • ${branding.roster.gameEdition}`, 220, 82);
       ctx.fillStyle = "#ffffff";
       ctx.font = "900 58px Arial";
       ctx.fillText(
@@ -882,7 +882,7 @@ export default function MatchCenterPage() {
         ctx.fillStyle = "#ffffff";
         ctx.font = "900 42px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("GX NOVA", 470, 440);
+        ctx.fillText(branding.roster.name.toUpperCase(), 470, 440);
         ctx.fillText(selected.match.opponent.toUpperCase(), 1130, 440);
 
         ctx.font = "900 104px Arial";
@@ -1157,7 +1157,7 @@ export default function MatchCenterPage() {
 
       ctx.fillStyle = "rgba(255,255,255,0.30)";
       ctx.font = "800 16px Arial";
-      ctx.fillText("GX NOVA • MATCH CENTER OFFICIEL", 54, 862);
+      ctx.fillText(`${branding.roster.name.toUpperCase()} • MATCH CENTER OFFICIEL`, 54, 862);
 
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, "image/png", 1)
@@ -1356,14 +1356,14 @@ export default function MatchCenterPage() {
                   <div className="mt-8 grid items-center gap-5 md:grid-cols-[1fr_auto_1fr]">
                     <div className="flex items-center justify-center gap-4 md:justify-end">
                       <div className="text-center md:text-right">
-                        <p className="text-3xl font-black">GX NOVA</p>
+                        <p className="text-3xl font-black">{branding.roster.name}</p>
                         <p className="mt-2 text-xs font-black uppercase tracking-[0.16em] text-yellow-400">
                           {selected.gxTeam.averageRating.toFixed(2)} note équipe
                         </p>
                       </div>
                       <TeamCrest
                         sources={[branding.roster.logoUrl || CLUB_LOGO]}
-                        name="GX NOVA"
+                        name={branding.roster.name}
                         size={76}
                         className="border-yellow-400/20 bg-yellow-400/[0.04]"
                       />

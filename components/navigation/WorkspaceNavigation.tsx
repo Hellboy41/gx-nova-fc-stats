@@ -86,6 +86,7 @@ export function WorkspaceNavigation({
           <button type="button" key={group.name} onClick={() => onSelectTab(group.firstTab)}
             aria-current={active ? "page" : undefined}
             aria-expanded={active}
+            style={active ? { borderColor: branding.roster.primaryColor + "66", backgroundColor: branding.roster.primaryColor + "1a", color: branding.roster.secondaryColor } : undefined}
             className={variant === "sidebar"
               ? `flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm font-black transition ${active ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-200" : "border-transparent text-slate-400 hover:bg-white/[0.05] hover:text-white"}`
               : `flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition ${active ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-200" : "border-white/5 text-slate-400 hover:bg-white/[0.05] hover:text-white"}`}>
@@ -108,6 +109,7 @@ export function WorkspaceNavigation({
           : `flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${selected ? "bg-cyan-400/10 text-cyan-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`;
         if (entry.tab !== undefined) {
           return <button key={entry.title} type="button" className={cls} aria-current={selected ? "page" : undefined}
+            style={selected ? { backgroundColor: branding.roster.primaryColor + "1a", color: branding.roster.secondaryColor } : undefined}
             onClick={() => onSelectTab(entry.tab)}><Icon size={15}/>{entry.title}</button>;
         }
         return <a key={entry.title} href={entry.href} className={cls}><Icon size={15}/>{entry.title}</a>;
@@ -117,6 +119,15 @@ export function WorkspaceNavigation({
 
   if (variant === "mobile") return (
     <nav aria-label="Navigation principale mobile" className="border-b border-white/10 bg-[#071321] xl:hidden">
+      <div className="flex items-center gap-3 border-b border-white/10 px-3 py-2 text-xs font-black">
+        {branding.structure.logoUrl
+          ? <img src={branding.structure.logoUrl} alt="" className="h-7 w-7 object-contain"/>
+          : <span style={{ color: branding.structure.secondaryColor }}>{branding.structure.name.slice(0, 2).toUpperCase()}</span>}
+        <span className="truncate" style={{ color: branding.structure.secondaryColor }}>{branding.structure.name}</span>
+        <span className="text-slate-600">/</span>
+        {branding.roster.logoUrl && <img src={branding.roster.logoUrl} alt="" className="h-7 w-7 object-contain"/>}
+        <span className="truncate" style={{ color: branding.roster.secondaryColor }}>{branding.roster.name}</span>
+      </div>
       <div className="overflow-x-auto">{nav}</div>
       <div className="overflow-x-auto">{entries}</div>
     </nav>
@@ -124,7 +135,7 @@ export function WorkspaceNavigation({
 
   return (
     <nav aria-label="Navigation principale staff" className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-3 mt-3 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="mx-3 mt-3 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3" style={{ borderColor: branding.structure.primaryColor + "44" }}>
         <div className="flex items-center gap-2">
           {branding.structure.logoUrl ? <img src={branding.structure.logoUrl} alt="" className="h-8 w-8 shrink-0 object-contain"/> :
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[11px] font-black" style={{color:branding.structure.secondaryColor}}>{branding.structure.name.slice(0,2).toUpperCase()}</div>}

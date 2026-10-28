@@ -1057,8 +1057,8 @@ export default function ProgrammePage() {
     const selectedDay = dayKey ? days.find((day) => day.key === dayKey) : null;
     const lines = [
       selectedDay
-        ? "📅 **PROGRAMME DU JOUR — GX NØVA FC27**"
-        : "📅 **PROGRAMME DE LA SEMAINE — GX NØVA FC27**",
+        ? `📅 **PROGRAMME DU JOUR — ${branding.roster.name} ${branding.roster.gameEdition}**`
+        : `📅 **PROGRAMME DE LA SEMAINE — ${branding.roster.name} ${branding.roster.gameEdition}**`,
       `🗓️ ${selectedDay ? formatLongDate(selectedDay.date) : weekLabel}`,
       "",
     ];
@@ -1074,7 +1074,7 @@ export default function ProgrammePage() {
         const competition = competitionLabel(item, competitions);
         const opponent = item.opponentName.trim();
         const matchLabel = opponent
-          ? `GX NØVA vs ${opponent}`
+          ? `${branding.roster.name} vs ${opponent}`
           : item.type === "competition"
             ? "Adversaire à définir"
             : "Participants à définir";
@@ -1087,7 +1087,7 @@ export default function ProgrammePage() {
     if (totalMatches === 0) {
       lines.push(selectedDay ? "Aucun match programmé pour cette journée." : "Aucun match programmé pour cette semaine.", "");
     }
-    lines.push("💙💛 **ENSEMBLE POUR GX NØVA !**");
+    lines.push(`**ENSEMBLE POUR ${branding.roster.name.toUpperCase()} !**`);
     return lines.join("\n");
   }
 
@@ -1354,9 +1354,9 @@ export default function ProgrammePage() {
           ctx.drawImage(clubLogo, 68, 58, 112, 112);
         }
 
-        ctx.fillStyle = "#ffd332";
+        ctx.fillStyle = branding.roster.secondaryColor;
         ctx.font = "900 28px Arial, sans-serif";
-        ctx.fillText("GX NOVA • FC27", 224, 88);
+        ctx.fillText(`${branding.roster.name.toUpperCase()} • ${branding.roster.gameEdition}`, 224, 88);
 
         const titleSize = fitText(ctx, title, 980, 66, 40);
         ctx.fillStyle = "#ffffff";
@@ -1390,12 +1390,12 @@ export default function ProgrammePage() {
         ctx.rotate(Math.PI / 2);
         ctx.fillStyle = "rgba(255,255,255,0.18)";
         ctx.font = "900 12px Arial, sans-serif";
-        ctx.fillText("GX NOVA // BLUELOCK MODE // OFFICIAL STAFF", 0, 0);
+        ctx.fillText(`${branding.roster.name.toUpperCase()} // OFFICIAL STAFF`, 0, 0);
         ctx.restore();
 
         ctx.fillStyle = "rgba(255,255,255,0.34)";
         ctx.font = "800 16px Arial, sans-serif";
-        ctx.fillText("GX NOVA • PROGRAMME OFFICIEL STAFF & JOUEURS", 54, ctx.canvas.height - 28);
+        ctx.fillText(`${branding.roster.name.toUpperCase()} • PROGRAMME OFFICIEL STAFF & JOUEURS`, 54, ctx.canvas.height - 28);
 
         ctx.fillStyle = "#facc15";
         ctx.font = "900 16px Arial, sans-serif";
@@ -2509,7 +2509,7 @@ function ProgrammeEditorCard({
               </span>
 
               <p className="min-w-0 text-lg font-black text-white">
-                GX NOVA{" "}
+                {branding.roster.name}{" "}
                 <span className="text-yellow-400">{item.goalsFor ?? "-"}</span>
                 {" - "}
                 <span className="text-cyan-300">{item.goalsAgainst ?? "-"}</span>
@@ -2765,7 +2765,7 @@ function ProgrammeEditorCard({
                 )}
               </div>
               <p className="mt-2 text-lg font-black text-white">
-                GX NOVA <span className="text-yellow-400">{item.goalsFor ?? "-"}</span> - <span className="text-cyan-300">{item.goalsAgainst ?? "-"}</span> {item.eaOpponentName || item.opponentName}
+                {branding.roster.name} <span className="text-yellow-400">{item.goalsFor ?? "-"}</span> - <span className="text-cyan-300">{item.goalsAgainst ?? "-"}</span> {item.eaOpponentName || item.opponentName}
               </p>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
                 <span>Prévu : {item.time || "--:--"}</span>
@@ -2808,7 +2808,7 @@ function ProgrammeEditorCard({
               <div key={candidate.matchId} className="flex flex-col justify-between gap-3 rounded-xl border border-white/8 bg-black/15 p-3 sm:flex-row sm:items-center">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-white">
-                    {candidate.opponent} • GX NOVA {candidate.goalsFor}-{candidate.goalsAgainst}
+                    {candidate.opponent} • {branding.roster.name} {candidate.goalsFor}-{candidate.goalsAgainst}
                   </p>
                   <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-gray-500">
                     <Clock3 size={12} /> EA {formatEaTime(candidate.playedAt)}
@@ -2915,6 +2915,7 @@ function EventPlanModal({
   onSave: (plan: EventPlan) => void;
   onCopyToSameDay: (plan: EventPlan) => void;
 }) {
+  const branding = useClubBranding();
   const [exportingComposition, setExportingComposition] = useState(false);
   const [draft, setDraft] = useState<EventPlan>(() => ({
     weekStart,
@@ -3054,7 +3055,7 @@ function EventPlanModal({
       let opponentLogo: HTMLImageElement | null = null;
 
       try {
-        clubLogo = await loadImage(CLUB_LOGO);
+        clubLogo = await loadImage(branding.roster.logoUrl || CLUB_LOGO);
       } catch {
         clubLogo = null;
       }
@@ -3073,7 +3074,7 @@ function EventPlanModal({
 
       context.fillStyle = "#facc15";
       context.font = "900 24px Arial, sans-serif";
-      context.fillText("GX NOVA • FC27", 215, 66);
+      context.fillText(`${branding.roster.name.toUpperCase()} • ${branding.roster.gameEdition}`, 215, 66);
 
       context.fillStyle = "#ffffff";
       context.font = "900 54px Arial, sans-serif";
@@ -3366,7 +3367,7 @@ function EventPlanModal({
 
       context.fillStyle = "rgba(255,255,255,0.34)";
       context.font = "800 15px Arial, sans-serif";
-      context.fillText("GX NOVA • PROGRAMME OFFICIEL • FC27", 54, 872);
+      context.fillText(`${branding.roster.name.toUpperCase()} • PROGRAMME OFFICIEL • ${branding.roster.gameEdition}`, 54, 872);
 
       const safeOpponent = opponentName
         .replace(/[^a-zA-Z0-9À-ÿ_-]+/g, "-")
@@ -3379,7 +3380,7 @@ function EventPlanModal({
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = `GX-NOVA-composition-${eventDate}-${safeOpponent}.png`;
+        anchor.download = `${branding.roster.name.replace(/[^\p{L}\p{N}]+/gu, "-")}-composition-${eventDate}-${safeOpponent}.png`;
         anchor.click();
         URL.revokeObjectURL(url);
       }, "image/png");
@@ -3408,7 +3409,7 @@ function EventPlanModal({
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">Plan d'équipe</p>
             <h2 className="mt-2 text-2xl font-black text-white">
-              {item.opponentName ? `GX NOVA vs ${item.opponentName}` : competitionName}
+              {item.opponentName ? `${branding.roster.name} vs ${item.opponentName}` : competitionName}
             </h2>
             <p className="mt-1 text-sm font-semibold text-gray-500">{formatLongDate(parseDateKey(eventDate))} • {item.time || "--:--"}</p>
           </div>

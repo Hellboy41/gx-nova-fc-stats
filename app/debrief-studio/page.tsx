@@ -433,7 +433,7 @@ export default function DebriefStudioPage() {
 
   async function copyDiscord() {
     const output = [
-      `📋 **GX NØVA — DÉBRIEF DU ${formatDate(date).toUpperCase()}**`,
+      `📋 **${branding.roster.name} — DÉBRIEF DU ${formatDate(date).toUpperCase()}**`,
       "",
       ...(performances ? performancesDiscordText(performances.matches) : []),
       ...chapters.flatMap((chapter, index) => [
@@ -445,7 +445,7 @@ export default function DebriefStudioPage() {
         ...(chapter.objectives?.length ? ["**Objectifs tactiques :**", ...chapter.objectives.map((objective) => `• [${OBJECTIVE_LABELS[objective.status]}] ${objective.title}`)] : []),
         "",
       ]),
-      "💙💛 GX NØVA — ENSEMBLE POUR PROGRESSER",
+      `**${branding.roster.name.toUpperCase()} — ENSEMBLE POUR PROGRESSER**`,
     ].join("\n");
     try {
       await navigator.clipboard.writeText(output);

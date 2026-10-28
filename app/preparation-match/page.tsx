@@ -214,7 +214,7 @@ export default function PreparationMatchPage() {
   const copyText = () => {
     if (!selected) return;
     const output = [
-      `💙💛 **GX NØVA FC27 — BRIEFING STAFF**`,
+      `**${branding.roster.name} ${branding.roster.gameEdition} — BRIEFING STAFF**`,
       `📅 ${friendlyDate(selected.date)}${selected.item.time ? " · " + selected.item.time : ""}`,
       `⚔️ ${label}`,
       `🧩 Formation : ${plan?.formation ?? "à définir"}`,
@@ -226,7 +226,7 @@ export default function PreparationMatchPage() {
       ...(plan?.notes ? ["", "**Notes du plan de match**", plan.notes] : []),
       ...(selectedAxes.length ? ["", "**Consignes prioritaires**", ...selectedAxes.map((x) => `• ${x}`)] : []),
       ...(instruction.trim() ? ["", "**Message complémentaire du staff**", instruction.trim().slice(0, 600)] : []),
-      "", "📌 Composition et disponibilités à confirmer dans le Programme GX NOVA.",
+      "", `📌 Composition et disponibilités à confirmer dans le Programme ${branding.roster.name}.`,
     ].join("\n");
     navigator.clipboard.writeText(output).then(() => setNotice("Briefing copié pour Discord.")).catch(() => setNotice("Copie refusée : vérifie les permissions du navigateur."));
   };
