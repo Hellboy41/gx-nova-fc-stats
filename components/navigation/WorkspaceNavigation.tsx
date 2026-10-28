@@ -30,7 +30,6 @@ const NAVIGATION: NavigationGroup[] = [
     entries: [
       { title: "Vue d'ensemble", icon: Home, tab: "overview" },
       { title: "Vue globale ATYOM", icon: Layers3, href: "/organisation" },
-      { title: "Mes rosters", icon: Users, href: "/rosters" },
     ],
   },
   {
@@ -38,6 +37,7 @@ const NAVIGATION: NavigationGroup[] = [
     entries: [
       { title: "Effectif", icon: Users, tab: "roster" },
       { title: "Composition", icon: Shield, tab: "lineup" },
+      { title: "Mes rosters", icon: Layers3, href: "/rosters" },
     ],
   },
   {
