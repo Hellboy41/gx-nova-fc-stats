@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
@@ -196,6 +196,8 @@ type MatchCenterResponse = {
   seasons: SeasonOption[];
   competitions: CompetitionOption[];
   currentUser: StaffUser | null;
+  historyWindow?: number;
+  includesOlderSelectedMatch?: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -520,25 +522,35 @@ export default function MatchCenterPage() {
   const [exportPlayerImageName, setExportPlayerImageName] = useState("");
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [assignmentMessage, setAssignmentMessage] = useState("");
+  const pendingRequest = useRef<AbortController | null>(null);
 
   const load = useCallback(async (matchId?: number | null) => {
+    pendingRequest.current?.abort();
+    const controller = new AbortController();
+    pendingRequest.current = controller;
+    setLoading(true);
+    setError("");
     try {
-      setLoading(true);
-      setError("");
       const query = matchId ? `?matchId=${matchId}` : "";
       const response = await fetch(`/api/match-center${query}`, {
-        cache: "no-store",
+        cache: "no-store", signal: controller.signal,
       });
       const json = await response.json();
       if (!response.ok) {
         throw new Error(json.details ?? json.error ?? "Erreur Match Center");
       }
-      setData(json);
+      if (controller.signal.aborted) return;
+      setData(json as MatchCenterResponse);
       setSelectedId(json.selected?.match?.id ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de chargement");
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : "Erreur de chargement");
+      }
     } finally {
-      setLoading(false);
+      if (pendingRequest.current === controller) {
+        pendingRequest.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -546,6 +558,7 @@ export default function MatchCenterPage() {
     const params = new URLSearchParams(window.location.search);
     const requestedMatchId = Number(params.get("matchId") ?? 0);
     void load(Number.isInteger(requestedMatchId) && requestedMatchId > 0 ? requestedMatchId : null);
+    return () => pendingRequest.current?.abort();
   }, [load]);
 
   const selected = data?.selected ?? null;
@@ -1225,9 +1238,10 @@ export default function MatchCenterPage() {
           </div>
         )}
 
+        {loading && <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-3 text-sm font-bold text-cyan-200">Actualisation des résultats et performances EA…</div>}
         {!data?.matches.length || !selected ? (
           <div className="rounded-3xl border border-white/10 bg-[#071321] p-16 text-center text-slate-500">
-            Aucun match disponible.
+            {loading ? "Chargement des matchs…" : error ? "Les matchs n'ont pas pu être chargés." : "Aucun match disponible."}
           </div>
         ) : (
           <>
@@ -1240,6 +1254,7 @@ export default function MatchCenterPage() {
                   </h2>
                 </div>
 
+                <p className="mb-3 text-[11px] leading-5 text-slate-500">Statistiques avancées calculées sur les {data.historyWindow ?? 50} derniers matchs EA{data.includesOlderSelectedMatch ? " et le match ancien sélectionné" : ""}. Pour l'ensemble de l'historique, utilise l'écran Statistiques.</p>
                 <div className="mb-3 grid gap-2 sm:grid-cols-3 2xl:grid-cols-1">
                   <select
                     value={seasonFilter}
