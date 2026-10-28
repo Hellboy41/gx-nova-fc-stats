@@ -2,7 +2,7 @@
 import {useEffect,useState} from "react";
 import {ArrowLeft,ArrowUpRight,Layers3,Shield,Users} from "lucide-react";
 import {useClubBranding} from "@/lib/platform/use-club-branding";
-type Roster={id:string;name:string;eaClubId:string;gameEdition:string;workspaceMode:string;status:string;primaryColor:string;secondaryColor:string};
+type Roster={id:string;name:string;eaClubId:string;gameEdition:string;workspaceMode:string;status:string;primaryColor:string;secondaryColor:string;logoUrl?:string|null};
 export default function RostersPage(){
  const branding=useClubBranding();
  const [rosters,setRosters]=useState<Roster[]>([]),[error,setError]=useState(""),[loading,setLoading]=useState(true),[canCreate,setCanCreate]=useState(false);
@@ -28,7 +28,7 @@ export default function RostersPage(){
       className="group rounded-2xl border bg-[#111] p-5 transition hover:bg-[#181818]" style={{borderColor:r.primaryColor+"55"}}>
      <div className="flex items-start justify-between gap-3">
       <div className="flex items-center gap-3">
-       {r.workspaceMode==="legacy"&&branding.roster.logoUrl?<img src={branding.roster.logoUrl} alt="" className="h-14 w-14 object-contain"/>:
+       {(r.workspaceMode==="legacy"?branding.roster.logoUrl:r.logoUrl)?<img src={(r.workspaceMode==="legacy"?branding.roster.logoUrl:r.logoUrl)??""} alt="" className="h-14 w-14 object-contain"/>:
         <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-black/60"><Shield size={28} style={{color:r.primaryColor}}/></div>}
        <div><h2 className="text-lg font-black">{r.workspaceMode==="legacy"?branding.roster.name:r.name}</h2>
         <p className="mt-1 text-xs text-slate-400">{r.gameEdition} · EA {r.eaClubId}</p></div>

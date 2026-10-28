@@ -5,17 +5,17 @@ import { activeRosterById } from "@/lib/platform/rosters";
 export const dynamic="force-dynamic";
 const HEADER={"Cache-Control":"private, no-store"};
 type Ctx={params:Promise<{id:string}>};
-type RosterAccess={error:NextResponse|null;rosterId:string|null;userId:string|null};
+type RosterAccess={error:NextResponse|null;rosterId:string|null;userId:string|null;canWrite:boolean};
 async function authorize(ctx:Ctx,write=false):Promise<RosterAccess>{
  const {id}=await ctx.params;
  if(!/^roster-[a-f0-9]{32}$/.test(id))
-  return {error:NextResponse.json({error:"Programme des rosters non historiques uniquement."},{status:404,headers:HEADER}),rosterId:null,userId:null};
+  return {error:NextResponse.json({error:"Programme des rosters non historiques uniquement."},{status:404,headers:HEADER}),rosterId:null,userId:null,canWrite:false};
  const auth=await requireActiveStaff({rosterId:id,write});
- if(auth.error)return {error:auth.error,rosterId:null,userId:null};
+ if(auth.error)return {error:auth.error,rosterId:null,userId:null,canWrite:false};
  const roster=await activeRosterById(id);
  if(!roster||roster.workspace_mode!=="monitoring")
-  return {error:NextResponse.json({error:"Roster inactif ou introuvable."},{status:404,headers:HEADER}),rosterId:null,userId:null};
- return {error:null,rosterId:id,userId:auth.profile!.userId};
+  return {error:NextResponse.json({error:"Roster inactif ou introuvable."},{status:404,headers:HEADER}),rosterId:null,userId:null,canWrite:false};
+ return {error:null,rosterId:id,userId:auth.profile!.userId,canWrite:auth.profile!.role!=="viewer"};
 }
 function originAllowed(req:Request){
  const origin=req.headers.get("origin");
@@ -39,7 +39,7 @@ export async function GET(_req:Request,ctx:Ctx){
    .gte("event_date",new Date(Date.now()-14*86400000).toISOString().slice(0,10))
    .order("event_date",{ascending:true}).order("event_time",{ascending:true}).limit(200);
   if(error)throw error;
-  return NextResponse.json({events:(data??[]).map(mapped)},{headers:HEADER});
+  return NextResponse.json({events:(data??[]).map(mapped),canWrite:access.canWrite},{headers:HEADER});
  }catch(e){console.error("Roster programme GET:",e);return NextResponse.json({error:"Programme indisponible."},{status:500,headers:HEADER});}
 }
 export async function POST(req:Request,ctx:Ctx){
