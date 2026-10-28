@@ -4,7 +4,7 @@
  * être lu depuis un formulaire non authentifié comme preuve d'accès.
  */
 export const INSTANCE_CONFIG = {
-  structureName: process.env.NEXT_PUBLIC_ESPORT_STRUCTURE_NAME?.trim() || "Team GX Esports",
+  structureName: process.env.NEXT_PUBLIC_ESPORT_STRUCTURE_NAME?.trim() || "ATYOM",
   clubName: process.env.NEXT_PUBLIC_ESPORT_CLUB_NAME?.trim() || "GX NØVA",
   gameEdition: process.env.NEXT_PUBLIC_ESPORT_GAME_EDITION?.trim() || "FC27",
   eaClubId: process.env.NEXT_PUBLIC_ESPORT_EA_CLUB_ID?.trim() || "1663",
