@@ -30,7 +30,7 @@ Les API historiques utilisent souvent le `club_id` EA constant `1663`, avec `cre
 
 1. **Inventaire** de toutes les tables/Storage/API et de leurs références de `club_id` ; sauvegarde et plan de retour arrière.
 2. Créer les tables organisation/membership/rosters en migration additive **avec RLS activée immédiatement** sur chaque nouvelle table exposée. Un `TO authenticated` sans contrôle d'appartenance n'est pas une protection. N'utiliser ni `user_metadata` ni un `roster_id` client comme preuve d'autorisation.
-3. Créer la structure pilote Team GX et le roster GX NØVA en utilisant **les identifiants techniques existants** et rattacher les seuls membres réellement autorisés après revue.
+3. Créer la structure pilote ATYOM et le roster GX NØVA en utilisant **les identifiants techniques existants** et rattacher les seuls membres réellement autorisés après revue.
 4. Ajouter `roster_id` nullable, puis backfill `club_id='1663'` et effectuer des contrôles de comptage (matchs, joueurs, événements, débriefs, pièces jointes).
 5. Mettre toutes les API en **résolution serveur** du roster après session Auth + membership. Pour chaque lecture/écriture : vérifier `organisation_id`, `roster_id`, `user_id`, rôle et statut actif. Les opérations avec service role doivent refaire ces vérifications AVANT la requête.
 6. Tester par deux comptes/deux structures distinctes : aucun objet du club A ne doit être visible, éditable, téléchargeable ni exportable par B. Vérifier également les URL signées de Storage et la portée des exports.
