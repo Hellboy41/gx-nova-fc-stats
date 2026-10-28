@@ -4,6 +4,7 @@ import {useCallback,useEffect,useState} from "react";
 import {ArrowLeft,CheckCircle2,LoaderCircle,RefreshCw,Shield,LockKeyhole} from "lucide-react";
 import { RosterProgramme } from "@/components/rosters/RosterProgramme";
 import { RosterLogoForm } from "@/components/rosters/RosterLogoForm";
+import { RosterSquadStudio } from "@/components/rosters/RosterSquadStudio";
 type Roster={id:string;name:string;eaClubId:string;gameEdition:string;workspaceMode:string;primaryColor:string;secondaryColor:string;status:string;logoUrl?:string|null};
 type Match={matchId:string;playedAt:string;opponent:string;goalsFor:number;goalsAgainst:number;result:"V"|"N"|"D"};
 type Payload={roster:Roster;matches:Match[];storedCount:number;shownCount:number;form:string[];totals:{played:number;wins:number;draws:number;losses:number};note:string};
@@ -52,6 +53,7 @@ export default function RosterPage(){
    {[["Matchs enregistrés",data.storedCount],["Victoires (50 derniers)",data.totals.wins],["Nuls (50 derniers)",data.totals.draws],["Défaites (50 derniers)",data.totals.losses]].map(([label,value])=>
     <div key={String(label)} className="rounded-xl border border-white/10 bg-[#111] p-4"><p className="text-xs text-slate-400">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></div>)}
   </div>
+  {data.roster.workspaceMode==="monitoring"&&<RosterSquadStudio rosterId={id} rosterName={data.roster.name} primary={data.roster.primaryColor} secondary={data.roster.secondaryColor} logoUrl={data.roster.logoUrl}/>}
   {data.roster.workspaceMode==="monitoring"&&<RosterProgramme rosterId={id} rosterName={data.roster.name} color={data.roster.primaryColor}/>}
   <section className="overflow-hidden rounded-xl border border-white/10 bg-[#111]">
    <h2 className="border-b border-white/10 p-5 font-black">Derniers résultats EA</h2>

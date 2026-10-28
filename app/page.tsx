@@ -47,6 +47,8 @@ import { WorkspaceNavigation } from "@/components/navigation/WorkspaceNavigation
 import { StaffAccessPanel } from "@/components/admin/StaffAccessPanel";
 import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
+import { TacticalPitch } from "@/components/lineups/TacticalPitch";
+import { downloadLineupPoster } from "@/lib/platform/lineup-poster";
 
 const CLUB_LOGO_CANDIDATES = INSTANCE_CONFIG.clubName !== "GX NØVA" ? [INSTANCE_CONFIG.logoUrl] : [
   INSTANCE_CONFIG.logoUrl,
@@ -9444,6 +9446,7 @@ function LineupManager({
   onReset: () => void;
   onSave: () => void;
 }) {
+  const branding = useClubBranding();
   const [
     benchCandidate,
     setBenchCandidate,
@@ -9504,7 +9507,7 @@ function LineupManager({
           </p>
 
           <h2 className="mt-2 text-3xl font-black">
-            Composition GX NOVA
+            Composition {branding.roster.name}
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
@@ -9514,6 +9517,15 @@ function LineupManager({
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => { void downloadLineupPoster({
+            rosterName: branding.roster.name, formation,
+            spots: lineup.map(spot => ({slot:spot.slot,x:spot.x,y:spot.y,name:spot.name,
+              rating:findPlayer(players,spot.name)?.averageRating??null})),
+            primary:branding.roster.primaryColor,secondary:branding.roster.secondaryColor,bench
+          }).catch(() => window.alert("Impossible de générer le PNG sur ce navigateur.")); }}
+            className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-black text-white hover:bg-white/10">
+            <Copy size={17}/> Export PNG Discord
+          </button>
 
           {canEdit ? (
 
@@ -9645,6 +9657,7 @@ function LineupManager({
           </div>
 
           <EditablePitch
+            formation={formation}
             canEdit={
               canEdit
             }
@@ -10008,184 +10021,24 @@ function LineupManager({
 ========================================================= */
 
 function EditablePitch({
-  canEdit,
-  lineup,
-  players,
-  bench,
-  onPlayerChange,
-}: {
-  canEdit: boolean;
-  lineup: LineupSpot[];
-  players: Player[];
-  bench: string[];
-
-  onPlayerChange: (
-    slot: string,
-    playerName: string
-  ) => void;
-}) {
-  return (
-    <div className="relative min-h-[720px] overflow-hidden bg-gradient-to-b from-[#0b4a32] via-[#083323] to-[#061f17]">
-
-      <div className="absolute inset-6 rounded-2xl border-2 border-white/20" />
-
-      <div className="absolute left-6 right-6 top-1/2 border-t-2 border-white/15" />
-
-      <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/15" />
-
-      <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30" />
-
-      <div className="absolute left-1/2 top-6 h-24 w-[42%] -translate-x-1/2 border border-t-0 border-white/15" />
-
-      <div className="absolute bottom-6 left-1/2 h-24 w-[42%] -translate-x-1/2 border border-b-0 border-white/15" />
-
-      {lineup.map(
-        (spot) => {
-          const player =
-            findPlayer(
-              players,
-              spot.name
-            );
-
-          return (
-
-            <div
-              key={
-                spot.slot
-              }
-              className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-              style={{
-                left:
-                  `${spot.x}%`,
-                top:
-                  `${spot.y}%`,
-              }}
-            >
-
-              <div className="w-[125px] text-center">
-
-                <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-yellow-400/50 bg-[#07111d] shadow-xl">
-
-                  <UserCircle2
-                    size={29}
-                    className="text-gray-400"
-                  />
-
-                  <span className="absolute -left-2 -top-2 rounded-md bg-yellow-400 px-2 py-1 text-[9px] font-black text-black">
-                    {
-                      spot.slot
-                    }
-                  </span>
-
-                </div>
-
-                <select
-                  value={
-                    spot.name
-                  }
-                  disabled={
-                    !canEdit
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    onPlayerChange(
-                      spot.slot,
-                      event.target
-                        .value
-                    )
-                  }
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-[#030914]/95 px-2 py-2 text-center text-[10px] font-black outline-none"
-                >
-
-                  <option value="">
-                    Joueur
-                  </option>
-
-                  {players.map(
-                    (candidate) => {
-                      const usedElsewhere =
-                        lineup.some(
-                          (
-                            otherSpot
-                          ) =>
-                            otherSpot.slot !==
-                              spot.slot &&
-                            normalizePlayerName(
-                              otherSpot.name
-                            ) ===
-                              normalizePlayerName(
-                                candidate.name
-                              )
-                        ) ||
-                        bench.some(
-                          (
-                            benchName
-                          ) =>
-                            normalizePlayerName(
-                              benchName
-                            ) ===
-                              normalizePlayerName(
-                                candidate.name
-                              )
-                        );
-
-                      return (
-
-                        <option
-                          key={
-                            candidate.id
-                          }
-                          value={
-                            candidate.name
-                          }
-                          disabled={
-                            usedElsewhere
-                          }
-                        >
-
-                          {
-                            formatPlayerName(
-                              candidate.name
-                            )
-                          }
-
-                        </option>
-
-                      );
-                    }
-                  )}
-
-                </select>
-
-                <div
-                  className={`mx-auto mt-1 w-fit rounded-md border px-2 py-0.5 text-[10px] font-black ${
-                    player
-                      ? getRatingStyle(
-                          player.averageRating
-                        )
-                      : "border-white/10 text-gray-600"
-                  }`}
-                >
-
-                  {player
-                    ? player.averageRating.toFixed(
-                        2
-                      )
-                    : "--"}
-
-                </div>
-
-              </div>
-
-            </div>
-
-          );
-        }
-      )}
-
-    </div>
-  );
+  canEdit,lineup,players,bench,onPlayerChange,formation,
+}:{
+  canEdit:boolean;lineup:LineupSpot[];players:Player[];bench:string[];
+  onPlayerChange:(slot:string,name:string)=>void;formation:string;
+}){
+ const branding=useClubBranding();
+ return <div>
+   <TacticalPitch rosterName={branding.roster.name} formation={formation}
+     spots={lineup.map(spot=>({
+       slot:spot.slot,x:spot.x,y:spot.y,name:spot.name,
+       rating:findPlayer(players,spot.name)?.averageRating??null
+     }))}
+     theme={{primary:branding.roster.primaryColor,secondary:branding.roster.secondaryColor}}
+     logoUrl={branding.roster.logoUrl}/>
+   <p className="border-t border-white/10 bg-[#0B111A] px-5 py-3 text-xs text-slate-400">
+     {canEdit?"Modifie les titulaires dans le panneau à droite ; le terrain se met à jour automatiquement.":"Composition en lecture seule."}
+   </p>
+ </div>;
 }
 
 /* =========================================================
