@@ -52,7 +52,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
    ...events.slice(0,50).map(e=>`• ${dateLabel(e.date)} ${e.time} — ${e.competition} | ${rosterName} vs ${e.opponent}`),
   ];
   try {
-   await navigator.clipboard.writeText(lines.join("\\n"));
+   await navigator.clipboard.writeText(lines.join("\n"));
    setMessage("Programme copié pour Discord.");setError("");
   } catch {setError("Copie impossible. Autorise l'accès au presse-papiers dans ton navigateur.");}
  }
