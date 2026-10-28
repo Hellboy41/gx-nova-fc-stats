@@ -1,4 +1,5 @@
 "use client";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -189,6 +190,7 @@ function PairCard({ pair, rank }: { pair: PairReport; rank: number }) {
 }
 
 export default function SportIntelligencePage() {
+  const branding = useClubBranding();
   const [data, setData] = useState<ResponseData | null>(null);
   const [season, setSeason] = useState("all");
   const [activeTab, setActiveTab] = useState<Tab>("form");
@@ -250,9 +252,9 @@ export default function SportIntelligencePage() {
         <div className="mx-auto flex max-w-[1700px] flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8">
           <div className="flex items-center gap-4">
             <a href="/" aria-label="Retour au cockpit" className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 hover:text-yellow-300"><ArrowLeft size={19}/></a>
-            <img src={CLUB_LOGO} alt="GX NOVA" className="h-14 w-14 rounded-xl object-contain"/>
+            <img src={branding.roster.logoUrl || CLUB_LOGO} alt={branding.roster.name} className="h-14 w-14 rounded-xl object-contain"/>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-yellow-400">GX NOVA • FC27 / STAFF</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-yellow-400">{branding.roster.name} • {branding.roster.gameEdition} / STAFF</p>
               <h1 className="mt-1 text-xl font-black sm:text-3xl">Intelligence <span className="text-cyan-300">sportive</span></h1>
             </div>
           </div>

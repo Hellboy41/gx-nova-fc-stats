@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Building2, CheckCircle2, Layers3, LockKeyhole, ShieldCheck, Users } from "lucide-react";
 import type { StaffRole } from "@/lib/auth/require-staff";
 import type { WorkspaceContext } from "@/lib/platform/workspace";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 type WorkspacePayload = {
   workspace: WorkspaceContext;
@@ -12,6 +13,7 @@ type WorkspacePayload = {
 };
 
 export default function OrganisationPage() {
+  const branding = useClubBranding();
   const [payload, setPayload] = useState<WorkspacePayload | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -63,10 +65,14 @@ export default function OrganisationPage() {
         {payload && organisation && <>
           <section className="rounded-2xl border border-white/10 bg-[#091626] p-6">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4"><Building2 size={28} className="text-cyan-300"/></div>
+              <div className="rounded-2xl border bg-white/[0.03] p-4" style={{ borderColor: branding.structure.primaryColor + "66" }}>
+                {branding.structure.logoUrl
+                  ? <img src={branding.structure.logoUrl} alt={branding.structure.name} className="h-12 w-12 object-contain"/>
+                  : <Building2 size={28} style={{ color: branding.structure.secondaryColor }}/>}
+              </div>
               <div className="flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Structure esport</p>
-                <h2 className="mt-1 text-xl font-black">{organisation.name}</h2>
+                <h2 className="mt-1 text-xl font-black">{branding.structure.name}</h2>
                 <p className="mt-1 text-xs text-slate-400">Identité de la structure · Membre : {payload.membership.displayName} · {payload.membership.role.toUpperCase()}</p>
               </div>
               <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure pilote</span>
@@ -83,9 +89,9 @@ export default function OrganisationPage() {
             <div className="grid gap-3 md:grid-cols-2">
               {rosters.map((roster) => <div key={roster.id} className="rounded-xl border border-cyan-400/20 bg-black/20 p-4">
                 <div className="flex items-center gap-3">
-                  <img src={organisation.branding.logoUrl ?? "/logo-gx-nova.png"} alt="" className="h-12 w-12 object-contain"/>
+                  {branding.roster.logoUrl ? <img src={branding.roster.logoUrl} alt={branding.roster.name} className="h-12 w-12 object-contain"/> : <Users size={32} className="text-slate-400"/>}
                   <div className="flex-1">
-                    <h3 className="font-black">{roster.name}</h3>
+                    <h3 className="font-black">{roster.id === payload.workspace.activeRosterId ? branding.roster.name : roster.name}</h3>
                     <p className="mt-1 text-xs text-slate-400">{roster.gameEdition} · EA Club ID {roster.eaClubId}</p>
                   </div>
                   <CheckCircle2 size={18} className="text-emerald-300"/>

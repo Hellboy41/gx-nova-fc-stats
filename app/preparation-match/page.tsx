@@ -1,4 +1,5 @@
 "use client";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -87,6 +88,7 @@ function programmeLink(event: Event) {
 }
 
 export default function PreparationMatchPage() {
+  const branding = useClubBranding();
   const [start, setStart] = useState(localDate);
   const [selectedKey, setSelectedKey] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
@@ -212,7 +214,7 @@ export default function PreparationMatchPage() {
   const copyText = () => {
     if (!selected) return;
     const output = [
-      `💙💛 **GX NØVA FC27 — BRIEFING STAFF**`,
+      `**${branding.roster.name} ${branding.roster.gameEdition} — BRIEFING STAFF**`,
       `📅 ${friendlyDate(selected.date)}${selected.item.time ? " · " + selected.item.time : ""}`,
       `⚔️ ${label}`,
       `🧩 Formation : ${plan?.formation ?? "à définir"}`,
@@ -224,7 +226,7 @@ export default function PreparationMatchPage() {
       ...(plan?.notes ? ["", "**Notes du plan de match**", plan.notes] : []),
       ...(selectedAxes.length ? ["", "**Consignes prioritaires**", ...selectedAxes.map((x) => `• ${x}`)] : []),
       ...(instruction.trim() ? ["", "**Message complémentaire du staff**", instruction.trim().slice(0, 600)] : []),
-      "", "📌 Composition et disponibilités à confirmer dans le Programme GX NOVA.",
+      "", `📌 Composition et disponibilités à confirmer dans le Programme ${branding.roster.name}.`,
     ].join("\n");
     navigator.clipboard.writeText(output).then(() => setNotice("Briefing copié pour Discord.")).catch(() => setNotice("Copie refusée : vérifie les permissions du navigateur."));
   };
@@ -235,8 +237,8 @@ export default function PreparationMatchPage() {
         <div className="mx-auto flex max-w-[1650px] flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8">
           <div className="flex items-center gap-3">
             <a href="/" aria-label="Retour au tableau de bord" className="rounded-xl border border-white/10 p-3 text-slate-400 hover:text-yellow-300"><ArrowLeft size={18}/></a>
-            <img src="/logo-gx-nova.png" alt="GX NOVA" className="h-12 w-12 object-contain"/>
-            <div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">GX NOVA • FC27 • STAFF</p><h1 className="text-xl font-black sm:text-3xl">Préparation <span className="text-cyan-300">des matchs</span></h1></div>
+            <img src={branding.roster.logoUrl || "/logo-gx-nova.png"} alt={branding.roster.name} className="h-12 w-12 object-contain"/>
+            <div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">{branding.roster.name} • {branding.roster.gameEdition} • STAFF</p><h1 className="text-xl font-black sm:text-3xl">Préparation <span className="text-cyan-300">des matchs</span></h1></div>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs font-bold text-slate-400">Période de 7 jours à partir du

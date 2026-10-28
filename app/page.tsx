@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { WorkspaceNavigation } from "@/components/navigation/WorkspaceNavigation";
 import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 const CLUB_LOGO_CANDIDATES = INSTANCE_CONFIG.clubName !== "GX NØVA" ? [INSTANCE_CONFIG.logoUrl] : [
   INSTANCE_CONFIG.logoUrl,
@@ -598,6 +599,7 @@ type DashboardResponse = {
 ========================================================= */
 
 export default function Home() {
+  const branding = useClubBranding();
   const [activeTab, setActiveTab] =
     useState<TabName>("overview");
 
@@ -1899,7 +1901,7 @@ export default function Home() {
 
                 <h1 className="text-xl font-black">
 
-                  {INSTANCE_CONFIG.clubName}
+                  {branding.roster.name}
 
                 </h1>
 
@@ -1938,7 +1940,7 @@ export default function Home() {
 
                   <h2 className="text-3xl font-black">
 
-                    {INSTANCE_CONFIG.clubName}
+                    {branding.roster.name}
 
                   </h2>
 
@@ -20535,13 +20537,12 @@ function ClubLogo({
   size?: number;
   className?: string;
 }) {
+  const branding = useClubBranding();
   const [logoIndex, setLogoIndex] = useState(0);
   const [failed, setFailed] = useState(false);
+  const sources = branding.roster.logoPath && branding.roster.logoUrl ? [branding.roster.logoUrl, ...CLUB_LOGO_CANDIDATES] : CLUB_LOGO_CANDIDATES;
 
-  const src =
-    CLUB_LOGO_CANDIDATES[
-      logoIndex
-    ];
+  const src = sources[logoIndex] ?? sources[0];
 
   return (
     <div
@@ -20549,12 +20550,13 @@ function ClubLogo({
       style={{
         width: size,
         height: size,
+        borderColor: branding.roster.primaryColor + "66",
       }}
     >
       {!failed ? (
         <img
           src={src}
-          alt="Logo GX NOVA"
+          alt={`Logo ${branding.roster.name}`}
           width={size}
           height={size}
           className="h-full w-full object-contain p-1.5"
@@ -20564,7 +20566,7 @@ function ClubLogo({
 
             if (
               nextIndex <
-              CLUB_LOGO_CANDIDATES.length
+              sources.length
             ) {
               setLogoIndex(
                 nextIndex

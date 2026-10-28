@@ -1,4 +1,5 @@
 "use client";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerStatsEditor } from "@/components/debrief/PlayerStatsEditor";
@@ -115,6 +116,7 @@ function ChapterBody({ chapter, presentation = false }: {
 }
 
 export default function DebriefStudioPage() {
+  const branding = useClubBranding();
   const [date, setDate] = useState(todayKey);
   const [chapters, setChapters] = useState<DebriefChapter[]>(makeDefaultChapters);
   const [activeId, setActiveId] = useState("");
@@ -431,7 +433,7 @@ export default function DebriefStudioPage() {
 
   async function copyDiscord() {
     const output = [
-      `📋 **GX NØVA — DÉBRIEF DU ${formatDate(date).toUpperCase()}**`,
+      `📋 **${branding.roster.name} — DÉBRIEF DU ${formatDate(date).toUpperCase()}**`,
       "",
       ...(performances ? performancesDiscordText(performances.matches) : []),
       ...chapters.flatMap((chapter, index) => [
@@ -443,7 +445,7 @@ export default function DebriefStudioPage() {
         ...(chapter.objectives?.length ? ["**Objectifs tactiques :**", ...chapter.objectives.map((objective) => `• [${OBJECTIVE_LABELS[objective.status]}] ${objective.title}`)] : []),
         "",
       ]),
-      "💙💛 GX NØVA — ENSEMBLE POUR PROGRESSER",
+      `**${branding.roster.name.toUpperCase()} — ENSEMBLE POUR PROGRESSER**`,
     ].join("\n");
     try {
       await navigator.clipboard.writeText(output);
@@ -463,7 +465,7 @@ export default function DebriefStudioPage() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4">
           <div>
             <a href="/" className="mb-2 inline-flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white"><ArrowLeft size={14}/> Retour au dashboard</a>
-            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">GX NOVA • FC27 • STAFF</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">{branding.roster.name} • {branding.roster.gameEdition} • STAFF</p>
             <h1 className="text-3xl font-black">Débrief <span className="text-yellow-400">Studio</span></h1>
             <p className="mt-1 text-sm text-gray-400">Analyse tes matchs, importe captures et MP4, annote les actions et prépare la présentation du staff.</p>
           </div>
