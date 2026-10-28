@@ -7,7 +7,7 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { LEGACY_WORKSPACE, legacyRosterLabel } from "@/lib/platform/workspace";
+import { useClubBranding } from "@/lib/platform/use-club-branding";
 
 export type DashboardTab =
   | "overview" | "roster" | "lineup" | "matches" | "competitions"
@@ -73,6 +73,7 @@ export function WorkspaceNavigation({
   onSelectTab: (tab: DashboardTab) => void;
   variant: "sidebar" | "mobile";
 }) {
+  const branding = useClubBranding();
   const current = useMemo(() =>
     NAVIGATION.find((group) => group.entries.some((entry) => entry.tab === activeTab)) ?? NAVIGATION[0],
     [activeTab]);
@@ -123,10 +124,16 @@ export function WorkspaceNavigation({
 
   return (
     <nav aria-label="Navigation principale staff" className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-3 mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[0.035] p-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-yellow-300">{LEGACY_WORKSPACE.organisation.name}</p>
-        <p className="mt-1 text-sm font-black text-white">{legacyRosterLabel()}</p>
-        <p className="mt-1 text-[11px] text-slate-500">Structure pilote · roster actuel</p>
+      <div className="mx-3 mt-3 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="flex items-center gap-2">
+          {branding.structure.logoUrl ? <img src={branding.structure.logoUrl} alt="" className="h-8 w-8 shrink-0 object-contain"/> :
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[11px] font-black" style={{color:branding.structure.secondaryColor}}>{branding.structure.name.slice(0,2).toUpperCase()}</div>}
+          <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider" style={{color:branding.structure.secondaryColor}}>{branding.structure.name}</p><p className="text-[10px] text-slate-500">Structure esport</p></div>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
+          {branding.roster.logoUrl ? <img src={branding.roster.logoUrl} alt="" className="h-8 w-8 shrink-0 object-contain"/> : <Shield size={20} className="text-slate-400"/>}
+          <div className="min-w-0"><p className="truncate text-xs font-black text-white">{branding.roster.name}</p><p className="text-[10px] text-slate-500">{branding.roster.gameEdition} · roster actif</p></div>
+        </div>
       </div>
       {nav}
       {entries}
