@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpRight, CalendarDays, CheckCircle2,
   ClipboardCopy, Goal, Lightbulb, RefreshCw, Shield, Users,
@@ -56,7 +56,7 @@ function friendlyDate(date: string) {
   }).format(new Date(date + "T12:00:00Z"));
 }
 function normalized(name: string) {
-  return name.trim().toLowerCase().replace(/^gx[_\\-\\s]?/, "").replace(/[^a-z0-9]/g, "");
+  return name.trim().toLowerCase().replace(/^gx[_\s-]?/, "").replace(/[^a-z0-9]/g, "");
 }
 function formFor(player: Player, reports: PlayerFormReport[]) {
   const eaKey = player.playerId.startsWith("ea:") ? player.playerId : "ea:" + player.playerId;
@@ -117,8 +117,11 @@ export default function PreparationMatchPage() {
         }).then(async (response) => {
           const value = await response.json() as IntelligenceResponse;
           if (!response.ok) throw new Error(value.details ?? value.error ?? "Analyse EA indisponible");
-          return value;
-        });
+          return { value, error: "" };
+        }).catch((reason: unknown) => ({
+          value: null,
+          error: reason instanceof Error ? reason.message : "Analyse EA indisponible",
+        }));
         const [programmeResponse, ...planResponses] = await Promise.all([programmePromise, ...plansPromises]);
         const schedule = await programmeResponse.json() as ProgrammeResponse;
         if (!programmeResponse.ok) throw new Error(schedule.details ?? schedule.error ?? "Programme inaccessible");
@@ -134,19 +137,15 @@ export default function PreparationMatchPage() {
         if (!controller.signal.aborted) {
           setEvents(upcoming);
           setPlans(loadedPlans);
-          setSelectedKey((current) => upcoming.some((item) => eventKey(item) === current) ? current : eventKey(upcoming[0] ?? { date: "", item: { id: "", time: "", title: "", opponentName: "", notes: "", status: "upcoming", type: "competition" } }));
+          setSelectedKey((current) => upcoming.some((item) => eventKey(item) === current) ? current : (upcoming[0] ? eventKey(upcoming[0]) : ""));
         }
-        try {
-          const stats = await insightsPromise;
-          if (!controller.signal.aborted) setIntelligence(stats);
-        } catch (e) {
-          if (!controller.signal.aborted) {
-            setIntelligence(null);
-            setIntelligenceError(e instanceof Error ? e.message : "Données EA indisponibles");
-          }
+        const insight = await insightsPromise;
+        if (!controller.signal.aborted) {
+          setIntelligence(insight.value);
+          setIntelligenceError(insight.error);
         }
       } catch (e) {
-        // Consommer la promesse statistique, même lorsqu'une requête programme échoue.
+        // La requête de statistiques récupère ses erreurs sans rejet non géré.
         if (!controller.signal.aborted) {
           setError(e instanceof Error ? e.message : "Chargement impossible");
           setEvents([]);
@@ -175,8 +174,11 @@ export default function PreparationMatchPage() {
     if (!starters.some((player) => player.slot === "GK")) warnings.push("Aucun gardien dans les titulaires.");
     const unavailable = starters.filter((player) => plan.availability[player.playerId]?.status === "absent");
     const unsure = starters.filter((player) => plan.availability[player.playerId]?.status === "maybe");
+    const unconfirmed = starters.filter((player) => !plan.availability[player.playerId]?.status ||
+      plan.availability[player.playerId]?.status === "unknown");
     if (unavailable.length) warnings.push(`Disponibilité absente à vérifier : ${unavailable.map((p) => p.name).join(", ")}.`);
     if (unsure.length) warnings.push(`Disponibilités incertaines : ${unsure.map((p) => p.name).join(", ")}.`);
+    if (unconfirmed.length) warnings.push(`${unconfirmed.length} disponibilité(s) de titulaires encore non confirmée(s).`);
     if (new Set(starters.map((player) => normalized(player.name))).size !== starters.length) warnings.push("Vérifier les joueurs renseignés plusieurs fois.");
     return warnings;
   }, [selected, plan, starters]);
