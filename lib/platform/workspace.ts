@@ -35,9 +35,9 @@ export type WorkspaceContext = {
 export const LEGACY_WORKSPACE: WorkspaceContext = {
   mode: "single-club-pilot",
   organisation: {
-    id: "team-gx-legacy",
+    id: "atyom-pilot",
     name: INSTANCE_CONFIG.structureName,
-    slug: "team-gx",
+    slug: "atyom",
     branding: {
       logoUrl: INSTANCE_CONFIG.logoUrl,
       primaryColor: INSTANCE_CONFIG.primaryColor,
@@ -46,7 +46,7 @@ export const LEGACY_WORKSPACE: WorkspaceContext = {
   },
   rosters: [{
     id: "gx-nova-legacy",
-    organisationId: "team-gx-legacy",
+    organisationId: "atyom-pilot",
     name: INSTANCE_CONFIG.clubName,
     game: "ea-fc",
     gameEdition: INSTANCE_CONFIG.gameEdition,
