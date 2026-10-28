@@ -45,6 +45,17 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   }catch(e){setError(e instanceof Error?e.message:"Enregistrement impossible.");}
   finally{setSaving(false);}
  }
+ async function copyDiscord(){
+  if(!events.length)return;
+  const lines=[
+   "📅 PROGRAMME — "+rosterName,
+   ...events.slice(0,50).map(e=>`• ${dateLabel(e.date)} ${e.time} — ${e.competition} | ${rosterName} vs ${e.opponent}`),
+  ];
+  try {
+   await navigator.clipboard.writeText(lines.join("\\n"));
+   setMessage("Programme copié pour Discord.");setError("");
+  } catch {setError("Copie impossible. Autorise l'accès au presse-papiers dans ton navigateur.");}
+ }
  async function remove(id:string){
   if(!window.confirm("Supprimer cette rencontre du programme ?"))return;
   setSaving(true);setMessage("");setError("");
@@ -60,7 +71,8 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
    <div><h2 className="flex items-center gap-2 text-lg font-black"><CalendarDays size={20} style={{color}}/> Programme de {rosterName}</h2>
     <p className="mt-1 text-xs text-slate-400">Rencontres propres à ce roster · horaires en France</p></div>
-   <div className="flex gap-2">
+   <div className="flex flex-wrap gap-2">
+    {events.length>0&&<button type="button" onClick={()=>void copyDiscord()} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200">Copier Discord</button>}
     <button disabled={loading} type="button" onClick={()=>void load()} className="rounded-lg border border-white/15 p-2 text-slate-300 disabled:opacity-40" aria-label="Actualiser le programme"><RefreshCw size={16}/></button>
     {canWrite&&<button type="button" onClick={()=>setShowForm(x=>!x)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-black text-black" style={{backgroundColor:color}}><Plus size={15}/> Rencontre</button>}
    </div>
