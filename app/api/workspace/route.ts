@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { LEGACY_WORKSPACE } from "@/lib/platform/workspace";
-import { permittedRosters } from "@/lib/platform/rosters";
+import { permittedRosters, rostersWithLogos } from "@/lib/platform/rosters";
 
 /**
  * Contexte utilisateur (phase pilote).
@@ -14,7 +14,8 @@ export async function GET() {
   if (error) return error;
 
   const allowed = await permittedRosters(profile!);
-  const available = allowed.map(r => ({id:r.id,organisationId:"atyom-pilot",name:r.name,
+  const decorated = await rostersWithLogos(allowed);
+  const available = allowed.map((r,i) => ({id:r.id,logoUrl:decorated[i].logoUrl,organisationId:"atyom-pilot",name:r.name,
     game:"ea-fc" as const,gameEdition:r.game_edition,eaClubId:r.ea_club_id,status:"active" as const}));
   return NextResponse.json({
     workspace: { ...LEGACY_WORKSPACE, rosters: available,
