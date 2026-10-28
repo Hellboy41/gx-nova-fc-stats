@@ -69,8 +69,7 @@ export default function RosterPage(){
       <input type="color" value={value as string} onChange={e=>(setValue as (v:string)=>void)(e.target.value)}/></label>)}</div>
     <div className="flex flex-wrap gap-2">
      <button disabled={busy} onClick={()=>void save()} className="rounded-lg bg-[#FBD046] px-4 py-2 text-xs font-black text-black disabled:opacity-50">Enregistrer</button>
-     <button disabled={busy} onClick={()=>{if(window.confirm("Archiver ce roster ? Il disparaîtra des listes actives, sans supprimer ses résultats."))void save("archived");}}
-      className="rounded-lg border border-rose-500/40 px-4 py-2 text-xs text-rose-300">Archiver</button>
+
     </div>
    </div>}
   </section>}

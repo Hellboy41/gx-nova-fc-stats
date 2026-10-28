@@ -2905,7 +2905,7 @@ function SettingsDashboard() {
         </h2>
 
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
-          Gestion du compte connecté, des droits d'accès et des membres autorisés à utiliser le Performance Center GX NOVA.
+          Gestion du compte connecté, des droits d'accès et des membres autorisés sur la plateforme ATYOM.
         </p>
       </div>
 

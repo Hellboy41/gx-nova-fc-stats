@@ -78,7 +78,7 @@ export default function OrganisationPage() {
                 <h2 className="mt-1 text-xl font-black" style={{color:branding.structure.primaryColor}}>{branding.structure.name}</h2>
                 <p className="mt-1 text-xs text-slate-400">Identité de la structure · Membre : {payload.membership.displayName} · {payload.membership.role.toUpperCase()}</p>
               </div>
-              <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure pilote</span>
+              <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure ATYOM</span>
             </div>
           </section>
 
