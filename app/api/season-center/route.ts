@@ -292,39 +292,26 @@ export async function GET(
         )
       );
 
-    const {
-      data: playerData,
-      error: playerError,
-    } =
-      await admin
-        .from(
-          "match_players"
-        )
-        .select(`
-          match_id,
-          player_ea_id,
-          player_name,
-          position,
-          rating,
-          goals,
-          assists,
-          shots,
-          passes_made,
-          pass_attempts,
-          tackles_made,
-          tackle_attempts,
-          saves,
-          red_cards
-        `)
-        .in(
-          "match_id",
-          matchIds
-        );
-
-    if (
-      playerError
-    ) {
-      throw playerError;
+    // Le plafond de 1 000 lignes de l'API Supabase ne doit pas
+    // tronquer le bilan d'une saison si l'effectif grandit.
+    const playerData: PlayerRow[] = [];
+    const pageSize = 1000;
+    for (const ids of Array.from({ length: Math.ceil(matchIds.length / 80) }, (_, i) => matchIds.slice(i * 80, i * 80 + 80))) {
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error: playerError } = await admin
+          .from("match_players")
+          .select(`
+            id, match_id, player_ea_id, player_name, position, rating,
+            goals, assists, shots, passes_made, pass_attempts,
+            tackles_made, tackle_attempts, saves, red_cards
+          `)
+          .in("match_id", ids)
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (playerError) throw playerError;
+        playerData.push(...((data ?? []) as PlayerRow[]));
+        if ((data ?? []).length < pageSize) break;
+      }
     }
 
     const archivedPlayerKeys =
@@ -334,7 +321,7 @@ export async function GET(
 
     const performances = await applyStaffPerformanceCorrections(
       CLUB_ID,
-      (playerData ?? []) as PlayerRow[]
+      playerData
     );
 
     performances.sort(
