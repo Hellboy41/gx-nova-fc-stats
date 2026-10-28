@@ -5,6 +5,7 @@ import { ArrowLeft, Building2, CheckCircle2, Layers3, LockKeyhole, ShieldCheck, 
 import type { StaffRole } from "@/lib/auth/require-staff";
 import type { WorkspaceContext } from "@/lib/platform/workspace";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
+import { StructureOverview } from "@/components/organisation/StructureOverview";
 
 type WorkspacePayload = {
   workspace: WorkspaceContext;
@@ -79,6 +80,8 @@ export default function OrganisationPage() {
               <span className="rounded-xl border border-yellow-400/25 bg-yellow-400/[0.05] px-3 py-2 text-xs font-black text-yellow-200">Structure pilote</span>
             </div>
           </section>
+
+          <StructureOverview />
 
           <section className="rounded-2xl border border-white/10 bg-[#101010] p-6">
             <div className="mb-4 flex items-center justify-between gap-3">

@@ -27,7 +27,10 @@ type NavigationGroup = {
 const NAVIGATION: NavigationGroup[] = [
   {
     name: "home", title: "Accueil", icon: Home, firstTab: "overview",
-    entries: [{ title: "Vue d'ensemble", icon: Home, tab: "overview" }],
+    entries: [
+      { title: "Vue d'ensemble", icon: Home, tab: "overview" },
+      { title: "Vue globale ATYOM", icon: Layers3, href: "/organisation" },
+    ],
   },
   {
     name: "rosters", title: "Rosters", icon: Users, firstTab: "roster",
@@ -102,7 +105,7 @@ export function WorkspaceNavigation({
     <div className={variant === "sidebar"
       ? "mt-2 space-y-1 border-t border-white/10 px-4 pb-4 pt-4"
       : "flex min-w-max items-center gap-1 border-t border-white/10 px-2 pb-2 pt-2"}>
-      {current.entries.filter(entry => accessScope !== "rosters" || entry.href !== "/personnalisation").map((entry) => {
+      {current.entries.filter(entry => (entry.href !== "/organisation" || accessScope === "structure") && (accessScope !== "rosters" || entry.href !== "/personnalisation")).map((entry) => {
         const Icon = entry.icon;
         const selected = "tab" in entry && entry.tab === activeTab;
         const cls = variant === "sidebar"
