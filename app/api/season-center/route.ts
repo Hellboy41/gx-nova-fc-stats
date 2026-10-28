@@ -116,6 +116,10 @@ export async function GET(
             "id",
             seasonId
           )
+          .eq(
+            "club_id",
+            CLUB_ID
+          )
           .maybeSingle(),
 
         admin
@@ -155,6 +159,10 @@ export async function GET(
           )
           .select(
             "id, name, short_name"
+          )
+          .eq(
+            "club_id",
+            CLUB_ID
           ),
       ]);
 
