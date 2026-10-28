@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { activeRosterById,rosterOutput } from "@/lib/platform/rosters";
+import { activeRosterById,rosterWithLogo } from "@/lib/platform/rosters";
 export const dynamic="force-dynamic";
 const NO_CACHE={"Cache-Control":"private, no-store"};
 type RouteContext={params:Promise<{id:string}>};
@@ -30,7 +30,7 @@ export async function GET(_request:Request,ctx:RouteContext){
   const matches=(data??[]).map(m=>({matchId:m.ea_match_id,playedAt:m.played_at,opponent:m.opponent_name,
    goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result}));
   const totals=matches.reduce((a,m)=>{a.played++;if(m.result==="V")a.wins++;if(m.result==="N")a.draws++;if(m.result==="D")a.losses++;return a;},{played:0,wins:0,draws:0,losses:0});
-  return NextResponse.json({roster:rosterOutput(r),matches,storedCount:stored??0,shownCount:matches.length,form:matches.slice(0,5).map(m=>m.result),totals,
+  return NextResponse.json({roster:await rosterWithLogo(r),matches,storedCount:stored??0,shownCount:matches.length,form:matches.slice(0,5).map(m=>m.result),totals,
    note:r.workspace_mode==="legacy"?"Historique GX NØVA (base historique).":"Historique indépendant : derniers matchs EA synchronisés, sans correction tactique des matchs."},{headers:NO_CACHE});
  }catch(e){console.error("Roster results:",e);return NextResponse.json({error:"Résultats indisponibles."},{status:500,headers:NO_CACHE});}
 }

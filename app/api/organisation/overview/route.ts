@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { activeRosters } from "@/lib/platform/rosters";
+import { activeRosters, rostersWithLogos } from "@/lib/platform/rosters";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 type Result = "V" | "N" | "D";
@@ -25,6 +25,8 @@ export async function GET(){
  try{
   const admin=createAdminClient();
   const registry=await activeRosters();
+  const signed = await rostersWithLogos(registry);
+  const logoMap = new Map(signed.map(roster => [roster.id,roster.logoUrl]));
   const rosters=registry.map(r=>({id:r.id,name:r.name,gameEdition:r.game_edition,eaClubId:r.ea_club_id,workspaceMode:r.workspace_mode}));
   const ids=rosters.map(r=>r.eaClubId);
   const now=parisNow(), start=new Date(Date.now()-30*86400000).toISOString();
@@ -48,7 +50,7 @@ export async function GET(){
     const matches=(recent.data??[]) as Array<Omit<Match,"id"|"competition_id">&{ea_match_id:string}>;
     const period=(recent30.data??[]) as Array<Omit<Match,"id"|"competition_id">&{ea_match_id:string}>;
     const totals=summarize(period.map((m,i)=>({...m,id:i,competition_id:null})));
-    return {id:roster.id,name:roster.name,gameEdition:roster.gameEdition,matches30:totals,capped:period.length>=1000,
+    return {id:roster.id,name:roster.name,gameEdition:roster.gameEdition,logoUrl:logoMap.get(roster.id)??null,matches30:totals,capped:period.length>=1000,
       form:matches.slice(0,5).map(m=>m.result),lastMatchAt:matches[0]?.played_at??null,
       results:matches.map(m=>({id:m.ea_match_id,rosterId:roster.id,rosterName:roster.name,playedAt:m.played_at,
        opponent:m.opponent_name,goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result,competition:"EA Clubs"}))};
@@ -61,7 +63,7 @@ export async function GET(){
    ]);
    if(recent.error||recent30.error)throw recent.error||recent30.error;
    const matches=(recent.data??[]) as Match[], period=(recent30.data??[]) as Match[];
-   return {id:roster.id,name:roster.name,gameEdition:roster.gameEdition,matches30:summarize(period),capped:period.length>=1000,
+   return {id:roster.id,name:roster.name,gameEdition:roster.gameEdition,logoUrl:logoMap.get(roster.id)??null,matches30:summarize(period),capped:period.length>=1000,
     form:matches.slice(0,5).map(m=>m.result),lastMatchAt:matches[0]?.played_at??null,
     results:matches.map(m=>({id:String(m.id),rosterId:roster.id,rosterName:roster.name,playedAt:m.played_at,opponent:m.opponent_name,
      goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result,competition:m.competition_id?(titles.get(roster.eaClubId)?.get(m.competition_id)??"Compétition"):"Non classé"}))};
@@ -84,6 +86,24 @@ export async function GET(){
      next.push({rosterId:roster.id,rosterName:roster.name,eventDate:date,time,opponent,
       competition:competition??(event.type==="tournament"?"Tournoi":"Événement")});
     }
+   }
+  }
+  // Calendrier des nouveaux rosters : table isolée de weekly_programs GX NØVA.
+  const newRosterIds=rosters.filter(r=>r.workspaceMode==="monitoring").map(r=>r.id);
+  if(newRosterIds.length){
+   const {data:additional,error:eventError}=await admin.from("atyom_roster_events")
+     .select("roster_id,event_date,event_time,competition,opponent_name")
+     .in("roster_id",newRosterIds).gte("event_date",now.date).lte("event_date",addDays(now.date,7))
+     .order("event_date",{ascending:true}).order("event_time",{ascending:true}).limit(1000);
+   if(eventError)throw eventError;
+   const rosterById=new Map(rosters.map(r=>[r.id,r]));
+   for(const e of additional??[]){
+    const roster=rosterById.get(e.roster_id);
+    if(!roster||!e.event_date||!e.event_time)continue;
+    const time=String(e.event_time).slice(0,5);
+    if(e.event_date===now.date&&time<now.time)continue;
+    next.push({rosterId:roster.id,rosterName:roster.name,eventDate:e.event_date,time,
+     opponent:e.opponent_name,competition:e.competition});
    }
   }
   next.sort((a,b)=>(a.eventDate+a.time).localeCompare(b.eventDate+b.time));

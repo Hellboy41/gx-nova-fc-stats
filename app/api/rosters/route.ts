@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { permittedRosters, rosterOutput, type AtyomRoster } from "@/lib/platform/rosters";
+import { permittedRosters, rosterOutput, rostersWithLogos, type AtyomRoster } from "@/lib/platform/rosters";
 
 export const dynamic="force-dynamic";
 const HEADERS={"Cache-Control":"private, no-store"};
@@ -18,7 +18,7 @@ export async function GET(){
  if(auth.error)return auth.error;
  try{
   const rosters=await permittedRosters(auth.profile!);
-  return NextResponse.json({rosters:rosters.map(rosterOutput),canCreate:auth.profile!.role==="admin"&&auth.profile!.accessScope==="structure"},{headers:HEADERS});
+  return NextResponse.json({rosters:await rostersWithLogos(rosters),canCreate:auth.profile!.role==="admin"&&auth.profile!.accessScope==="structure"},{headers:HEADERS});
  }catch{return NextResponse.json({error:"Catalogue des rosters indisponible."},{status:500,headers:HEADERS});}
 }
 export async function POST(request:Request){

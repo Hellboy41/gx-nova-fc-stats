@@ -21,6 +21,7 @@ export type EsportRoster = {
   game: "ea-fc";
   gameEdition: string;
   eaClubId: string;
+  logoUrl?: string | null;
   status: "active" | "archived";
 };
 

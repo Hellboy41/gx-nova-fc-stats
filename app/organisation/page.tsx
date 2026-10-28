@@ -96,7 +96,7 @@ export default function OrganisationPage() {
             <div className="grid gap-3 md:grid-cols-2">
               {rosters.map((roster) => <div key={roster.id} className="rounded-xl border border-cyan-400/20 bg-black/20 p-4">
                 <div className="flex items-center gap-3">
-                  {roster.id === "gx-nova-legacy" && branding.roster.logoUrl ? <img src={branding.roster.logoUrl} alt={branding.roster.name} className="h-12 w-12 object-contain"/> : <Users size={32} className="text-[#FBD046]"/>}
+                  {roster.id === "gx-nova-legacy" && branding.roster.logoUrl ? <img src={branding.roster.logoUrl} alt={branding.roster.name} className="h-12 w-12 object-contain"/> : roster.logoUrl ? <img src={roster.logoUrl} alt={roster.name} className="h-12 w-12 object-contain"/> : <Users size={32} className="text-[#FBD046]"/>}
                   <div className="flex-1">
                     <h3 className="font-black">{roster.id === payload.workspace.activeRosterId ? branding.roster.name : roster.name}</h3>
                     <p className="mt-1 text-xs text-slate-400">{roster.gameEdition} · EA Club ID {roster.eaClubId}</p>

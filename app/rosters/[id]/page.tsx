@@ -2,7 +2,9 @@
 import {useParams} from "next/navigation";
 import {useCallback,useEffect,useState} from "react";
 import {ArrowLeft,CheckCircle2,LoaderCircle,RefreshCw,Shield,LockKeyhole} from "lucide-react";
-type Roster={id:string;name:string;eaClubId:string;gameEdition:string;workspaceMode:string;primaryColor:string;secondaryColor:string;status:string};
+import { RosterProgramme } from "@/components/rosters/RosterProgramme";
+import { RosterLogoForm } from "@/components/rosters/RosterLogoForm";
+type Roster={id:string;name:string;eaClubId:string;gameEdition:string;workspaceMode:string;primaryColor:string;secondaryColor:string;status:string;logoUrl?:string|null};
 type Match={matchId:string;playedAt:string;opponent:string;goalsFor:number;goalsAgainst:number;result:"V"|"N"|"D"};
 type Payload={roster:Roster;matches:Match[];storedCount:number;shownCount:number;form:string[];totals:{played:number;wins:number;draws:number;losses:number};note:string};
 const format=(s:string)=>new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Paris"}).format(new Date(s));
@@ -36,7 +38,7 @@ export default function RosterPage(){
   {loading&&!data&&<p role="status" className="rounded-xl border border-white/10 p-5">Chargement…</p>}
   {error&&<p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-300">{error}</p>}
   {data&&<><header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-[#111] p-6" style={{borderColor:data.roster.primaryColor+"66"}}>
-   <div className="flex items-center gap-4"><Shield size={36} style={{color:data.roster.primaryColor}}/>
+   <div className="flex items-center gap-4">{data.roster.logoUrl?<img src={data.roster.logoUrl} alt={"Logo "+data.roster.name} className="h-16 w-16 shrink-0 rounded-xl object-contain"/>:<Shield size={36} style={{color:data.roster.primaryColor}}/>}
     <div><p className="text-xs font-black uppercase tracking-widest text-[#FBD046]">ATYOM · Roster</p>
      <h1 className="mt-1 text-3xl font-black">{data.roster.name}</h1>
      <p className="mt-2 text-sm text-slate-400">{data.roster.gameEdition} · Identifiant EA {data.roster.eaClubId}</p></div>
@@ -50,6 +52,7 @@ export default function RosterPage(){
    {[["Matchs enregistrés",data.storedCount],["Victoires (50 derniers)",data.totals.wins],["Nuls (50 derniers)",data.totals.draws],["Défaites (50 derniers)",data.totals.losses]].map(([label,value])=>
     <div key={String(label)} className="rounded-xl border border-white/10 bg-[#111] p-4"><p className="text-xs text-slate-400">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></div>)}
   </div>
+  {data.roster.workspaceMode==="monitoring"&&<RosterProgramme rosterId={id} rosterName={data.roster.name} color={data.roster.primaryColor}/>}
   <section className="overflow-hidden rounded-xl border border-white/10 bg-[#111]">
    <h2 className="border-b border-white/10 p-5 font-black">Derniers résultats EA</h2>
    {data.matches.length===0?<p className="p-5 text-sm text-slate-400">Aucun résultat. Vérifie l'identifiant EA et lance la synchronisation.</p>:
@@ -63,6 +66,7 @@ export default function RosterPage(){
   {canEdit&&data.roster.workspaceMode==="monitoring"&&<section className="rounded-xl border border-white/10 bg-[#111] p-5">
    <button className="flex items-center gap-2 text-sm font-bold text-[#FBD046]" onClick={()=>setEditing(v=>!v)}><LockKeyhole size={16}/> Paramètres du roster</button>
    {editing&&<div className="mt-4 space-y-3">
+    <RosterLogoForm id={id} onChanged={()=>void load()}/>
     <label className="block text-xs text-slate-400">Nom<input value={name} onChange={e=>setName(e.target.value)} maxLength={80} className="mt-1 w-full rounded-lg border border-white/15 bg-black p-3 text-sm text-white"/></label>
     <div className="flex gap-4">{[[primary,setPrimary,"Principale"],[secondary,setSecondary,"Accent"]].map(([value,setValue,label])=>
      <label key={String(label)} className="flex items-center gap-2 text-xs text-slate-400">{String(label)}
