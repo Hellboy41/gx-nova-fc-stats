@@ -1953,6 +1953,14 @@ export default function Home() {
               Programme semaine
             </a>
 
+            <a
+              href="/preparation-match"
+              className="flex w-full items-center gap-4 rounded-xl border border-yellow-400/15 bg-yellow-400/[0.04] px-4 py-3 text-left text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/10"
+            >
+              <Shield size={19} />
+              Préparation des matchs
+            </a>
+
 
             <p className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-[0.19em] text-slate-500">Équipe</p>
             <SidebarItem
@@ -2293,6 +2301,13 @@ export default function Home() {
                 className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-gray-500 transition hover:border-yellow-400/50 hover:text-yellow-300"
               >
                 PROGRAMME
+              </a>
+
+              <a
+                href="/preparation-match"
+                className="flex h-[72px] shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 text-center text-sm font-bold text-yellow-300 transition hover:border-yellow-400/50 hover:text-white"
+              >
+                PRÉPA MATCH
               </a>
 
               <TopTab
