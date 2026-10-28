@@ -1,6 +1,7 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const CLUB_ID = "1663";
+
 const PLATFORM = "common-gen5";
 const MATCH_TYPE = "friendlyMatch";
 const FULL_MATCH_SECONDS = 90 * 60;

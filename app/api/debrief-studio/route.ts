@@ -1,10 +1,11 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { isEveningDate, sanitizeDebriefChapters } from "@/lib/debrief-studio";
 import { DEBRIEF_MEDIA_BUCKET, DEBRIEF_MEDIA_URL_TTL, isValidDebriefMediaPath } from "@/lib/debrief-media";
 
-const CLUB_ID = "1663";
+
 
 export async function GET(request: Request) {
   const authorization = await requireActiveStaff();

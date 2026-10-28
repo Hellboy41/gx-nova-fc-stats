@@ -1,10 +1,11 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyStaffPerformanceCorrections } from "@/lib/stats/apply-staff-corrections";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { getArchivedPlayerKeys, getPlayerKey } from "@/lib/players/status";
 
-const CLUB_ID = "1663";
+
 const PARIS_TIME_ZONE = "Europe/Paris";
 
 type MatchRow = {

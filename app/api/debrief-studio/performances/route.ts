@@ -1,3 +1,4 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
@@ -7,7 +8,7 @@ import {
   sanitizePerformanceOverrides, withOverrides,
 } from "@/lib/debrief-performances";
 
-const CLUB_ID = "1663";
+
 
 type MatchRow = {
   id: number;
