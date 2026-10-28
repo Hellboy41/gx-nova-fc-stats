@@ -63,7 +63,7 @@ export async function GET(){
    const matches=(recent.data??[]) as Match[], period=(recent30.data??[]) as Match[];
    return {id:roster.id,name:roster.name,gameEdition:roster.gameEdition,matches30:summarize(period),capped:period.length>=1000,
     form:matches.slice(0,5).map(m=>m.result),lastMatchAt:matches[0]?.played_at??null,
-    results:matches.map(m=>({id:m.id,rosterId:roster.id,rosterName:roster.name,playedAt:m.played_at,opponent:m.opponent_name,
+    results:matches.map(m=>({id:String(m.id),rosterId:roster.id,rosterName:roster.name,playedAt:m.played_at,opponent:m.opponent_name,
      goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result,competition:m.competition_id?(titles.get(roster.eaClubId)?.get(m.competition_id)??"Compétition"):"Non classé"}))};
   }));
   const all30=summarize([]);for(const r of rosterBreakdown){for(const k of ["played","wins","draws","losses","goalsFor","goalsAgainst"] as const)all30[k]+=r.matches30[k];}
