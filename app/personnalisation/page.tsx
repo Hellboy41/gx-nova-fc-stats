@@ -60,6 +60,7 @@ export default function PersonnalisationPage() {
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -85,7 +86,7 @@ export default function PersonnalisationPage() {
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   const select = (next: BrandingScope) => {
-    if (next === scope || saving) return;
+    if (next === scope || saving || detecting) return;
     if (dirty && !window.confirm("Les modifications non enregistrées seront perdues. Continuer ?")) return;
     setScope(next); setInfo(""); setError("");
     setPreview(null);
@@ -108,6 +109,7 @@ export default function PersonnalisationPage() {
     setRemoveLogo(false);
     setPreview(URL.createObjectURL(nextFile));
     setDirty(true);
+    setDetecting(true);
     try {
       const palette = await colorsFromFile(nextFile);
       if (palette) {
@@ -117,6 +119,7 @@ export default function PersonnalisationPage() {
         setInfo("Logo prêt à être enregistré. Choisis les couleurs manuellement si nécessaire.");
       }
     } catch { setInfo("Logo prêt à être enregistré. Analyse automatique des couleurs indisponible."); }
+    finally { setDetecting(false); }
   }
   const reset = () => {
     const original = stored?.[scope] ?? blankDraft(scope);
@@ -127,7 +130,7 @@ export default function PersonnalisationPage() {
   const valid = draft.name.trim().length >= 2 && draft.name.trim().length <= 80 &&
     HEX.test(draft.primaryColor) && HEX.test(draft.secondaryColor);
   async function save() {
-    if (!valid || !dirty || !stored?.canEdit || saving) return;
+    if (!valid || !dirty || !stored?.canEdit || saving || detecting) return;
     setSaving(true); setError(""); setInfo("");
     try {
       const form = new FormData();
@@ -207,10 +210,10 @@ export default function PersonnalisationPage() {
               {info && <p role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-sm text-emerald-200">{info}</p>}
               {!stored?.canEdit && <p className="flex items-center gap-2 text-xs text-amber-200"><LockKeyhole size={15}/> Seul un administrateur peut enregistrer les couleurs et logos.</p>}
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={!stored?.canEdit || !dirty || saving || !valid} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-black text-[#071321] disabled:cursor-not-allowed disabled:opacity-40">
-                  {saving ? <LoaderCircle className="animate-spin" size={18}/> : <Save size={18}/>} {saving ? "Enregistrement…" : "Enregistrer les modifications"}
+                <button type="button" disabled={!stored?.canEdit || !dirty || saving || detecting || !valid} onClick={() => void save()} className="flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-black text-[#071321] disabled:cursor-not-allowed disabled:opacity-40">
+                  {saving ? <LoaderCircle className="animate-spin" size={18}/> : <Save size={18}/>} {saving ? "Enregistrement…" : detecting ? "Analyse du logo…" : "Enregistrer les modifications"}
                 </button>
-                <button type="button" disabled={!dirty || saving} onClick={reset} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-xs font-black text-slate-300 disabled:opacity-40"><RotateCcw size={15}/> Annuler</button>
+                <button type="button" disabled={!dirty || saving || detecting} onClick={reset} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-xs font-black text-slate-300 disabled:opacity-40"><RotateCcw size={15}/> Annuler</button>
               </div>
             </div>}
           </section>
