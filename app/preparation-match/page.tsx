@@ -60,8 +60,12 @@ function normalized(name: string) {
 }
 function formFor(player: Player, reports: PlayerFormReport[]) {
   const eaKey = player.playerId.startsWith("ea:") ? player.playerId : "ea:" + player.playerId;
-  return reports.find((item) => item.key === eaKey) ??
-    reports.find((item) => normalized(item.name) === normalized(player.name));
+  const exact = reports.find((item) => item.key === eaKey ||
+    item.key === player.playerId);
+  if (exact) return exact;
+  // Une homonymie ne doit jamais attribuer la forme EA d'un autre joueur.
+  const sameName = reports.filter((item) => normalized(item.name) === normalized(player.name));
+  return sameName.length === 1 ? sameName[0] : undefined;
 }
 function trendLabel(report?: PlayerFormReport) {
   if (!report) return "Données EA indisponibles";
@@ -95,6 +99,11 @@ export default function PreparationMatchPage() {
   const [selectedAxes, setSelectedAxes] = useState<string[]>([]);
   const [instruction, setInstruction] = useState("");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("startDate");
+    if (fromUrl && isProgrammeDateKey(fromUrl)) setStart(fromUrl);
+  }, []);
 
   useEffect(() => {
     if (!isProgrammeDateKey(start)) return;
@@ -231,7 +240,13 @@ export default function PreparationMatchPage() {
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs font-bold text-slate-400">Période de 7 jours à partir du
-              <input type="date" value={start} onChange={(e) => { if (isProgrammeDateKey(e.target.value)) setStart(e.target.value); }}
+              <input type="date" value={start} onChange={(e) => {
+                if (isProgrammeDateKey(e.target.value)) {
+                  setStart(e.target.value);
+                  setSelectedAxes([]);
+                  setInstruction("");
+                }
+              }}
                 className="mt-1 block rounded-xl border border-white/10 bg-[#0b1d2d] px-3 py-2 text-sm text-white"/>
             </label>
             <button type="button" disabled={loading} onClick={() => setRefresh((n) => n + 1)}
