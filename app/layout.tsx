@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: `${INSTANCE_CONFIG.clubName} ${INSTANCE_CONFIG.gameEdition} — Centre de performance`,
-  description: `Programme, matchs et intelligence sportive du staff ${INSTANCE_CONFIG.clubName}.`,
+  title: `${INSTANCE_CONFIG.structureName} — Plateforme Esport`,
+  description: `Gestion des rosters, résultats, programmes et performances de la structure ${INSTANCE_CONFIG.structureName}.`,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

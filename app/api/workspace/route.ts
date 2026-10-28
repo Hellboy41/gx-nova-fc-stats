@@ -17,7 +17,8 @@ export async function GET() {
   const available = allowed.map(r => ({id:r.id,organisationId:"atyom-pilot",name:r.name,
     game:"ea-fc" as const,gameEdition:r.game_edition,eaClubId:r.ea_club_id,status:"active" as const}));
   return NextResponse.json({
-    workspace: { ...LEGACY_WORKSPACE, rosters: available },
+    workspace: { ...LEGACY_WORKSPACE, rosters: available,
+      activeRosterId: available.find(r => r.id === LEGACY_WORKSPACE.activeRosterId)?.id ?? available[0]?.id ?? "" },
     membership: {
       role: profile!.role,
       displayName: profile!.displayName,

@@ -96,7 +96,7 @@ async function readConfig(admin: ReturnType<typeof createAdminClient>, scope: Br
 }
 
 export async function GET() {
-  const auth = await requireActiveStaff();
+  const auth = await requireActiveStaff({profileOnly:true});
   if (auth.error) return auth.error;
   try {
     const admin = createAdminClient();
