@@ -1,3 +1,4 @@
+import { INSTANCE_CONFIG } from "@/lib/platform/instance-config";
 /** Contrat cible d'un espace multi-structure.
  * V9 conserve le périmètre historique GX NØVA ; aucun changement d'accès entre clubs
  * n'est autorisé tant que l'isolation serveur et la migration ne sont pas déployées.
@@ -35,21 +36,21 @@ export const LEGACY_WORKSPACE: WorkspaceContext = {
   mode: "single-club-pilot",
   organisation: {
     id: "team-gx-legacy",
-    name: "Team GX Esports",
+    name: INSTANCE_CONFIG.structureName,
     slug: "team-gx",
     branding: {
-      logoUrl: "/logo-gx-nova.png",
-      primaryColor: "#22d3ee",
-      secondaryColor: "#facc15",
+      logoUrl: INSTANCE_CONFIG.logoUrl,
+      primaryColor: INSTANCE_CONFIG.primaryColor,
+      secondaryColor: INSTANCE_CONFIG.secondaryColor,
     },
   },
   rosters: [{
     id: "gx-nova-legacy",
     organisationId: "team-gx-legacy",
-    name: "GX NØVA",
+    name: INSTANCE_CONFIG.clubName,
     game: "ea-fc",
-    gameEdition: "FC27",
-    eaClubId: "1663",
+    gameEdition: INSTANCE_CONFIG.gameEdition,
+    eaClubId: INSTANCE_CONFIG.eaClubId,
     status: "active",
   }],
   activeRosterId: "gx-nova-legacy",

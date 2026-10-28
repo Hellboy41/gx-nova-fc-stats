@@ -61,7 +61,7 @@ const NAVIGATION: NavigationGroup[] = [
     name: "admin", title: "Administration", icon: Settings2, firstTab: "settings",
     entries: [
       { title: "Paramètres et accès", icon: Settings2, tab: "settings" },
-      { title: "Structure et rosters", icon: Swords, href: "/organisation" },
+      { title: "Personnalisation du club", icon: Swords, href: "/personnalisation" },
     ],
   },
 ];

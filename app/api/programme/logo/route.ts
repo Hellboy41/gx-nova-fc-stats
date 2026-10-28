@@ -1,3 +1,4 @@
+import { CLUB_ID } from "@/lib/platform/server-club";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const extension = extensionFor(file.type);
-  const path = `club-1663/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const path = `club-${CLUB_ID}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
 
   const { error } = await admin.storage
