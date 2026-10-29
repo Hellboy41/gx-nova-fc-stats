@@ -6,7 +6,7 @@ import { RosterProgramme } from "@/components/rosters/RosterProgramme";
 import { RosterLogoForm } from "@/components/rosters/RosterLogoForm";
 import { RosterSquadStudio } from "@/components/rosters/RosterSquadStudio";
 type Roster={id:string;name:string;eaClubId:string;gameEdition:string;workspaceMode:string;primaryColor:string;secondaryColor:string;status:string;logoUrl?:string|null};
-type Match={matchId:string;playedAt:string;opponent:string;goalsFor:number;goalsAgainst:number;result:"V"|"N"|"D"};
+type Match={matchId:string;playedAt:string;opponent:string;goalsFor:number;goalsAgainst:number;result:"V"|"N"|"D";kind?:"ea"|"forfeit"|"administrative"};
 type Payload={roster:Roster;matches:Match[];storedCount:number;shownCount:number;form:string[];totals:{played:number;wins:number;draws:number;losses:number};note:string};
 const format=(s:string)=>new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Paris"}).format(new Date(s));
 export default function RosterPage(){
@@ -59,7 +59,7 @@ export default function RosterPage(){
    <h2 className="border-b border-white/10 p-5 font-black">Derniers résultats EA</h2>
    {data.matches.length===0?<p className="p-5 text-sm text-slate-400">Aucun résultat. Vérifie l'identifiant EA et lance la synchronisation.</p>:
    <div className="divide-y divide-white/10">{data.matches.map(m=><div key={m.matchId} className="flex items-center justify-between gap-3 px-5 py-3">
-    <div className="min-w-0"><p className="truncate text-sm font-semibold">{data.roster.name} vs {m.opponent}</p><p className="mt-1 text-xs text-slate-500">{format(m.playedAt)}</p></div>
+    <div className="min-w-0"><p className="truncate text-sm font-semibold">{data.roster.name} vs {m.opponent}</p><p className="mt-1 text-xs text-slate-500">{format(m.playedAt)} {m.kind&&m.kind!=="ea"?"· "+(m.kind==="forfeit"?"Forfait":"Résultat hors EA"):""}</p></div>
     <div className="flex items-center gap-2"><span className="whitespace-nowrap font-black">{m.goalsFor} - {m.goalsAgainst}</span>
      <span className={"rounded-md border px-2 py-1 text-xs font-black "+(m.result==="V"?"border-emerald-400/30 text-emerald-300":m.result==="D"?"border-rose-400/30 text-rose-300":"border-white/20 text-slate-300")}>{m.result}</span>
     </div></div>)}</div>}

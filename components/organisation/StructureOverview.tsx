@@ -4,7 +4,7 @@ import { ArrowUpRight, CalendarDays, ChevronRight, CircleAlert, Layers3, Refresh
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 type Result = "V" | "N" | "D";
 type Stats={played:number;wins:number;draws:number;losses:number;goalsFor:number;goalsAgainst:number;winRate:number;goalDifference:number};
-type Match={id:number;rosterId:string;rosterName:string;playedAt:string|null;opponent:string;goalsFor:number;goalsAgainst:number;result:Result;competition:string};
+type Match={id:string;rosterId:string;rosterName:string;playedAt:string|null;opponent:string;goalsFor:number;goalsAgainst:number;result:Result;competition:string;kind?:"forfeit"|"administrative"};
 type Roster={id:string;name:string;gameEdition:string;matches30:Stats;form:Result[];lastMatchAt:string|null;capped:boolean;logoUrl?:string|null};
 type Fixture={rosterId:string;rosterName:string;eventDate:string;time:string;opponent:string;competition:string};
 type Overview={activeRosters:number;activeMembers:number;totals:Stats;rosterBreakdown:Roster[];lastResults:Match[];
@@ -75,7 +75,7 @@ export function StructureOverview(){
       {data.lastResults.length===0?<p className="p-5 text-sm text-slate-400">Aucun résultat enregistré.</p>:
        <div className="divide-y divide-white/[0.07]">{data.lastResults.map(m=><div key={m.rosterId+"-"+m.id} className="flex items-center justify-between gap-3 px-5 py-3">
         <div className="min-w-0"><p className="truncate text-sm font-bold">{name(m.rosterId,m.rosterName)} <span className="font-normal text-slate-400">vs {m.opponent}</span></p>
-         <p className="mt-1 text-xs text-slate-500">{formatDate(m.playedAt)} · {m.competition}</p></div>
+         <p className="mt-1 text-xs text-slate-500">{formatDate(m.playedAt)} · {m.competition}{m.kind==="forfeit"?" · Forfait":m.kind==="administrative"?" · Hors EA":""}</p></div>
         <div className="flex shrink-0 items-center gap-2"><span className="text-lg font-black tabular-nums">{m.goalsFor} - {m.goalsAgainst}</span>
          <span title={RESULT_NAME[m.result]} className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-bold ${RESULT_STYLE[m.result]}`}>{m.result}</span></div>
        </div>)}</div>}
