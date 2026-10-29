@@ -1,5 +1,6 @@
 "use client";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
+import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 
 import {
   useCallback,
@@ -139,6 +140,7 @@ type ProgrammeSchedule = Record<string, ProgrammeItem[]>;
 type ProgrammeResponse = {
   weekStart: string;
   schedule: ProgrammeSchedule;
+  manualResults?: Record<string, ManualResult>;
   updatedAt: string | null;
   competitions: Competition[];
   aliases: OpponentAlias[];
@@ -416,6 +418,7 @@ export default function ProgrammePage() {
     toDateKey(getSunday())
   );
   const [schedule, setSchedule] = useState<ProgrammeSchedule>({});
+  const [manualResults, setManualResults] = useState<Record<string, ManualResult>>({});
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [aliases, setAliases] = useState<OpponentAlias[]>([]);
   const [plansByEventId, setPlansByEventId] = useState<Record<string, EventPlan>>({});
@@ -476,10 +479,10 @@ export default function ProgrammePage() {
       days.reduce(
         (total, day) =>
           total +
-          (schedule[day.key] ?? []).filter((item) => !item.linkedMatchId).length,
+          (schedule[day.key] ?? []).filter((item) => !item.linkedMatchId && !manualResults[item.id]).length,
         0
       ),
-    [days, schedule]
+    [days, schedule, manualResults]
   );
 
   const totalPlayedCount = useMemo(
@@ -487,10 +490,10 @@ export default function ProgrammePage() {
       days.reduce(
         (total, day) =>
           total +
-          (schedule[day.key] ?? []).filter((item) => Boolean(item.linkedMatchId)).length,
+          (schedule[day.key] ?? []).filter((item) => Boolean(item.linkedMatchId || manualResults[item.id])).length,
         0
       ),
-    [days, schedule]
+    [days, schedule, manualResults]
   );
 
   const visibleDays = useMemo(() => {
@@ -499,9 +502,9 @@ export default function ProgrammePage() {
     }
 
     return days.filter((day) =>
-      (schedule[day.key] ?? []).some((item) => !item.linkedMatchId)
+      (schedule[day.key] ?? []).some((item) => !item.linkedMatchId && !manualResults[item.id])
     );
-  }, [days, programmeView, schedule]);
+  }, [days, programmeView, schedule, manualResults]);
 
   function isDayCollapsed(dateKey: string, items: ProgrammeItem[]) {
     const override = dayCollapsedOverrides[dateKey];
@@ -571,6 +574,7 @@ export default function ProgrammePage() {
       }
 
       setSchedule(sortProgrammeSchedule(data.schedule ?? {}));
+      setManualResults(data.manualResults ?? {});
       setCompetitions(data.competitions ?? []);
       setAliases(data.aliases ?? []);
       setPlansByEventId(Object.fromEntries(
@@ -2145,19 +2149,19 @@ export default function ProgrammePage() {
               <div className="grid items-start gap-4 xl:grid-cols-2">
             {visibleDays.map((day) => {
               const items = sortProgrammeItemsByTime(schedule[day.key] ?? []);
-              const playedItems = items.filter((item) => Boolean(item.linkedMatchId));
-              const upcomingItems = items.filter((item) => !item.linkedMatchId);
+              const playedItems = items.filter((item) => Boolean(item.linkedMatchId || manualResults[item.id]));
+              const upcomingItems = items.filter((item) => !item.linkedMatchId && !manualResults[item.id]);
               const displayedItems =
                 programmeView === "prepare" ? upcomingItems : items;
               const collapsed =
                 programmeView === "prepare"
                   ? dayCollapsedOverrides[day.key] ?? false
                   : isDayCollapsed(day.key, items);
-              const wins = playedItems.filter((item) => item.result === "V").length;
-              const draws = playedItems.filter((item) => item.result === "N").length;
-              const losses = playedItems.filter((item) => item.result === "D").length;
-              const goalsFor = playedItems.reduce((total, item) => total + (item.goalsFor ?? 0), 0);
-              const goalsAgainst = playedItems.reduce((total, item) => total + (item.goalsAgainst ?? 0), 0);
+              const wins = playedItems.filter((item) => (manualResults[item.id]?.result ?? item.result) === "V").length;
+              const draws = playedItems.filter((item) => (manualResults[item.id]?.result ?? item.result) === "N").length;
+              const losses = playedItems.filter((item) => (manualResults[item.id]?.result ?? item.result) === "D").length;
+              const goalsFor = playedItems.reduce((total, item) => total + (manualResults[item.id]?.goalsFor ?? item.goalsFor ?? 0), 0);
+              const goalsAgainst = playedItems.reduce((total, item) => total + (manualResults[item.id]?.goalsAgainst ?? item.goalsAgainst ?? 0), 0);
               const upcomingTimes = upcomingItems
                 .map((item) => item.time)
                 .filter(Boolean)
@@ -2314,6 +2318,9 @@ export default function ProgrammePage() {
                           linking={linkingKey === `${day.key}::${item.id}`}
                           candidates={linkCandidates[`${day.key}::${item.id}`] ?? []}
                           plan={plansByEventId[item.id] ?? null}
+                          manualResult={manualResults[item.id] ?? null}
+                          dateKey={day.key}
+                          onManualSaved={() => { void loadProgramme(); }}
                           onOpenPlan={() => setPlanningEvent({ dateKey: day.key, item })}
                           onPatch={(patch) =>
                             patchItem(day.key, item.id, patch)
@@ -2449,6 +2456,9 @@ function ProgrammeEditorCard({
   linking,
   candidates,
   plan,
+  manualResult,
+  dateKey,
+  onManualSaved,
   onOpenPlan,
   onPatch,
   onRemove,
@@ -2463,6 +2473,9 @@ function ProgrammeEditorCard({
   linking: boolean;
   candidates: LinkCandidate[];
   plan: EventPlan | null;
+  manualResult: ManualResult | null;
+  dateKey: string;
+  onManualSaved: () => void;
   onOpenPlan: () => void;
   onPatch: (patch: Partial<ProgrammeItem>) => void;
   onRemove: () => void;
@@ -2747,6 +2760,8 @@ function ProgrammeEditorCard({
       </Field>
 
       <EventPlanSummary plan={plan} canEdit={canEdit} onOpen={onOpenPlan} />
+      <div className="mt-3"><ManualScoreEditor rosterId="gx-nova-legacy" dateKey={dateKey} eventId={item.id}
+        linkedToEa={Boolean(item.linkedMatchId)} manualResult={manualResult} canEdit={canEdit} onSaved={onManualSaved}/></div>
 
       {item.linkedMatchId ? (
         <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] p-4">
