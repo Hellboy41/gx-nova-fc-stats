@@ -39,7 +39,14 @@ export async function GET(_req:Request,ctx:Ctx){
    .gte("event_date",new Date(Date.now()-14*86400000).toISOString().slice(0,10))
    .order("event_date",{ascending:true}).order("event_time",{ascending:true}).limit(200);
   if(error)throw error;
-  return NextResponse.json({events:(data??[]).map(mapped),canWrite:access.canWrite},{headers:HEADER});
+  const eventIds=(data??[]).map(e=>e.id);
+  const {data:manual,error:manualError}=eventIds.length
+    ? await createAdminClient().from("atyom_manual_results")
+      .select("event_id,goals_for,goals_against,result,kind").eq("roster_id",access.rosterId!).in("event_id",eventIds)
+    : {data:[],error:null};
+  if(manualError)throw manualError;
+  const byEvent=new Map((manual??[]).map(m=>[m.event_id,{eventId:m.event_id,goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result,kind:m.kind}]));
+  return NextResponse.json({events:(data??[]).map(e=>({...mapped(e),manualResult:byEvent.get(e.id)??null})),canWrite:access.canWrite},{headers:HEADER});
  }catch(e){console.error("Roster programme GET:",e);return NextResponse.json({error:"Programme indisponible."},{status:500,headers:HEADER});}
 }
 export async function POST(req:Request,ctx:Ctx){

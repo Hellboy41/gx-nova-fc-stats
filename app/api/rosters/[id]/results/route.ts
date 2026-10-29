@@ -27,10 +27,24 @@ export async function GET(_request:Request,ctx:RouteContext){
   if(error)throw error;
   const {count:stored}=await admin.from(matchSource).select("ea_match_id",{head:true,count:"exact"})
     .eq(r.workspace_mode==="legacy"?"club_id":"roster_id",r.workspace_mode==="legacy"?r.ea_club_id:r.id);
+  const {data:manual,error:manualError}=await admin.from("atyom_manual_results")
+    .select("event_id,event_date,event_time,opponent_name,goals_for,goals_against,result,kind")
+    .eq("roster_id",r.id).order("event_date",{ascending:false}).limit(200);
+  if(manualError)throw manualError;
   const matches=(data??[]).map(m=>({matchId:m.ea_match_id,playedAt:m.played_at,opponent:m.opponent_name,
    goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result}));
   const totals=matches.reduce((a,m)=>{a.played++;if(m.result==="V")a.wins++;if(m.result==="N")a.draws++;if(m.result==="D")a.losses++;return a;},{played:0,wins:0,draws:0,losses:0});
-  return NextResponse.json({roster:await rosterWithLogo(r),matches,storedCount:stored??0,shownCount:matches.length,form:matches.slice(0,5).map(m=>m.result),totals,
+  const otherResults=(manual??[]).map(m=>({
+   matchId:"manual:"+m.event_id,
+   playedAt:m.event_date+"T"+String(m.event_time??"21:00").slice(0,5)+":00",
+   opponent:m.opponent_name,goalsFor:m.goals_for,goalsAgainst:m.goals_against,
+   result:m.result,kind:m.kind,
+  }));
+  const combined=[...matches.map(m=>({...m,kind:"ea"})),...otherResults]
+   .sort((a,b)=>(b.playedAt??"").localeCompare(a.playedAt??"")).slice(0,50);
+  const record=combined.reduce((out,m)=>{out.played++;if(m.result==="V")out.wins++;if(m.result==="N")out.draws++;if(m.result==="D")out.losses++;return out;},
+   {played:0,wins:0,draws:0,losses:0});
+  return NextResponse.json({roster:await rosterWithLogo(r),matches:combined,storedCount:(stored??0)+otherResults.length,shownCount:combined.length,form:combined.slice(0,5).map(m=>m.result),totals:record,
    note:r.workspace_mode==="legacy"?"Historique GX NØVA (base historique).":"Historique indépendant : derniers matchs EA synchronisés, sans correction tactique des matchs."},{headers:NO_CACHE});
  }catch(e){console.error("Roster results:",e);return NextResponse.json({error:"Résultats indisponibles."},{status:500,headers:NO_CACHE});}
 }
