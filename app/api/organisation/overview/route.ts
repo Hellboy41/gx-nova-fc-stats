@@ -68,6 +68,51 @@ export async function GET(){
     results:matches.map(m=>({id:String(m.id),rosterId:roster.id,rosterName:roster.name,playedAt:m.played_at,opponent:m.opponent_name,
      goalsFor:m.goals_for,goalsAgainst:m.goals_against,result:m.result,competition:m.competition_id?(titles.get(roster.eaClubId)?.get(m.competition_id)??"Compétition"):"Non classé"}))};
   }));
+  // Résultats officiels administratifs, séparés des matchs EA et des statistiques individuelles.
+  const {data:manualRows,error:manualError}=await admin.from("atyom_manual_results")
+    .select("roster_id,event_id,event_date,event_time,opponent_name,competition,goals_for,goals_against,result,kind")
+    .in("roster_id",rosters.map(r=>r.id)).order("event_date",{ascending:false}).limit(1000);
+  if(manualError)throw manualError;
+  const legacy=rosters.find(r=>r.id==="gx-nova-legacy");
+  const activeLegacy=new Set<string>();
+  if(legacy){
+   const {data:weeks,error:weekError}=await admin.from("weekly_programs").select("schedule")
+     .eq("club_id",legacy.eaClubId).gte("week_start",addDays(now.date,-375)).lte("week_start",addDays(now.date,7));
+   if(weekError)throw weekError;
+   for(const week of weeks??[]){
+    if(!week.schedule||Array.isArray(week.schedule)||typeof week.schedule!=="object")continue;
+    for(const [date,entries] of Object.entries(week.schedule as Record<string,unknown>)){
+     if(!Array.isArray(entries))continue;
+     for(const raw of entries){
+      if(!raw||typeof raw!=="object"||Array.isArray(raw))continue;
+      const e=raw as Record<string,unknown>;
+      if(typeof e.id==="string"&&!e.linkedMatchId&&!e.linkedEaMatchId)activeLegacy.add(date+"::"+e.id);
+     }
+    }
+   }
+  }
+  // Un match supprimé du programme, ou rattaché plus tard à EA, ne compte plus.
+  const validManual=(manualRows??[]).filter(r=>r.roster_id!=="gx-nova-legacy"||activeLegacy.has(r.event_date+"::"+r.event_id));
+  const manualEventSet=new Set(validManual.map(r=>r.roster_id+"::"+r.event_id));
+  for(const roster of rosterBreakdown){
+   const own=validManual.filter(m=>m.roster_id===roster.id);
+   for(const m of own.filter(m=>m.event_date>=start.slice(0,10)&&m.event_date<=now.date)){
+    const stats=roster.matches30;stats.played++;
+    if(m.result==="V")stats.wins++;else if(m.result==="N")stats.draws++;else stats.losses++;
+    stats.goalsFor+=m.goals_for;stats.goalsAgainst+=m.goals_against;
+   }
+   roster.matches30.winRate=roster.matches30.played?Math.round(roster.matches30.wins/roster.matches30.played*100):0;
+   roster.matches30.goalDifference=roster.matches30.goalsFor-roster.matches30.goalsAgainst;
+   roster.results.push(...own.map(m=>({
+    id:"manual:"+m.event_id,rosterId:roster.id,rosterName:roster.name,
+    playedAt:m.event_date+"T"+String(m.event_time??"21:00").slice(0,5)+":00",
+    opponent:m.opponent_name,goalsFor:m.goals_for,goalsAgainst:m.goals_against,
+    result:m.result as Result,competition:m.competition,kind:m.kind
+   })));
+   roster.results.sort((a,b)=>(b.playedAt??"").localeCompare(a.playedAt??""));
+   roster.form=roster.results.slice(0,5).map(m=>m.result);
+   roster.lastMatchAt=roster.results[0]?.playedAt??null;
+  }
   const all30=summarize([]);for(const r of rosterBreakdown){for(const k of ["played","wins","draws","losses","goalsFor","goalsAgainst"] as const)all30[k]+=r.matches30[k];}
   all30.winRate=all30.played?Math.round(all30.wins/all30.played*100):0;all30.goalDifference=all30.goalsFor-all30.goalsAgainst;
   const next:Array<{rosterId:string;rosterName:string;eventDate:string;time:string;opponent:string;competition:string}>=[];
@@ -80,7 +125,7 @@ export async function GET(){
     for(const raw of items){
      if(!raw||typeof raw!=="object"||Array.isArray(raw))continue;
      const event=raw as Record<string,unknown>, time=event.time;
-     if(typeof time!=="string"||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||(date===now.date&&time<now.time)||event.status==="played"||event.linkedMatchId!=null)continue;
+     if(typeof time!=="string"||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||(date===now.date&&time<now.time)||event.status==="played"||event.linkedMatchId!=null||manualEventSet.has(roster.id+"::"+event.id))continue;
      const opponent=typeof event.opponentName==="string"&&event.opponentName.trim()?event.opponentName.trim():(typeof event.title==="string"&&event.title.trim()?event.title.trim():"Adversaire à définir");
      const competition=typeof event.competitionId==="number"?titles.get(roster.eaClubId)?.get(event.competitionId):null;
      next.push({rosterId:roster.id,rosterName:roster.name,eventDate:date,time,opponent,
@@ -92,14 +137,14 @@ export async function GET(){
   const newRosterIds=rosters.filter(r=>r.workspaceMode==="monitoring").map(r=>r.id);
   if(newRosterIds.length){
    const {data:additional,error:eventError}=await admin.from("atyom_roster_events")
-     .select("roster_id,event_date,event_time,competition,opponent_name")
+     .select("id,roster_id,event_date,event_time,competition,opponent_name")
      .in("roster_id",newRosterIds).gte("event_date",now.date).lte("event_date",addDays(now.date,7))
      .order("event_date",{ascending:true}).order("event_time",{ascending:true}).limit(1000);
    if(eventError)throw eventError;
    const rosterById=new Map(rosters.map(r=>[r.id,r]));
    for(const e of additional??[]){
     const roster=rosterById.get(e.roster_id);
-    if(!roster||!e.event_date||!e.event_time)continue;
+    if(!roster||!e.event_date||!e.event_time||manualEventSet.has(roster.id+"::"+e.id))continue;
     const time=String(e.event_time).slice(0,5);
     if(e.event_date===now.date&&time<now.time)continue;
     next.push({rosterId:roster.id,rosterName:roster.name,eventDate:e.event_date,time,
