@@ -106,7 +106,7 @@ export async function GET() {
     const admin = createAdminClient();
     const now = parisDateParts();
     const currentWeekStart = sundayOfWeek(now.date);
-    const rangeStart = addDaysIso(currentWeekStart, -7);
+    const rangeStart = addDaysIso(currentWeekStart, -42);
     const rangeEnd = addDaysIso(currentWeekStart, 28);
 
     const [programmeResult, competitionsResult, plansResult] =
@@ -265,6 +265,21 @@ export async function GET() {
       }
     }
 
+    // Scores de forfait hors EA, sans performances individuelles fictives.
+    const {data:manual,error:manualError}=await admin.from("atyom_manual_results")
+      .select("event_id,event_date,event_time,opponent_name,goals_for,goals_against,result,kind")
+      .eq("roster_id","gx-nova-legacy").gte("event_date",addDaysIso(now.date,-30))
+      .lte("event_date",now.date).order("event_date",{ascending:false}).limit(200);
+    if(manualError)throw manualError;
+    const activeIds=new Set(events.filter(e=>!e.linkedMatchId).map(e=>e.eventId));
+    const manualMatches=(manual??[]).filter(m=>activeIds.has(m.event_id)).map(m=>{
+      const date=m.event_date+"T"+String(m.event_time??"21:00").slice(0,5)+":00Z";
+      return {matchId:"manual:"+m.event_id,timestamp:Math.floor(new Date(date).getTime()/1000),
+       date,club:"GX NØVA",opponent:m.opponent_name,goalsFor:m.goals_for,goalsAgainst:m.goals_against,
+       score:m.goals_for+" - "+m.goals_against,result:m.result,matchType:m.kind,
+       seasonId:null,competitionId:null};
+    });
+    const manuallyCompleted=new Set(manualMatches.map(m=>m.matchId.slice(7)));
     events.sort((a, b) => {
       const aKey = `${a.eventDate} ${a.time || "99:99"}`;
       const bKey = `${b.eventDate} ${b.time || "99:99"}`;
@@ -281,7 +296,7 @@ export async function GET() {
     );
 
     const upcomingEvents = events.filter((event) => {
-      if (event.status === "played") return false;
+      if (event.status === "played" || manuallyCompleted.has(event.eventId)) return false;
 
       const eventKey = `${event.eventDate} ${event.time || "99:99"}`;
       return eventKey >= nowKey;
@@ -289,6 +304,7 @@ export async function GET() {
 
     return NextResponse.json({
       currentWeekStart,
+      manualMatches,
       nextEvent: upcomingEvents[0] ?? null,
       weekEvents,
       upcomingEvents: upcomingEvents.slice(0, 12),

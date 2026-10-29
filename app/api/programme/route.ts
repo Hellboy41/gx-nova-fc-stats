@@ -184,7 +184,15 @@ export async function GET(request: Request) {
       ]))
     : rows.get(weekStart)?.schedule ?? {};
 
+  const endDate = requestedStart ? periodDates?.at(-1) ?? selectedStart : selectedStart;
+  const { data: manual, error: manualError } = await admin.from("atyom_manual_results")
+    .select("event_id,event_date,goals_for,goals_against,result,kind")
+    .eq("roster_id","gx-nova-legacy").gte("event_date",selectedStart).lte("event_date",endDate);
+  if(manualError)return NextResponse.json({error:"Impossible de charger les scores saisis manuellement."},{status:500});
+  const visibleIds = new Set(Object.values(schedule).flatMap(items=>items.map(item=>item.id)));
   return NextResponse.json({
+    manualResults: Object.fromEntries((manual??[]).filter(r=>visibleIds.has(r.event_id)).map(r=>[r.event_id,
+      {eventId:r.event_id,goalsFor:r.goals_for,goalsAgainst:r.goals_against,result:r.result,kind:r.kind}])),
     weekStart: selectedStart,
     schedule,
     updatedAt: (programmeResult.data ?? [])

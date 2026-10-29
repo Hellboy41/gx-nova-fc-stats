@@ -447,6 +447,11 @@ export async function POST(request: Request) {
         }
       }
 
+      const {data:manualRows,error:manualError}=await admin.from("atyom_manual_results")
+        .select("event_id").eq("roster_id","gx-nova-legacy")
+        .gte("event_date",weekStart).lte("event_date",addDateKey(weekStart,7));
+      if(manualError)throw manualError;
+      const manuallyFinalized=new Set((manualRows??[]).map(r=>r.event_id));
       const suggestions: Record<string, Candidate[]> = {};
       let autoLinked = 0;
       let probable = 0;
@@ -461,7 +466,7 @@ export async function POST(request: Request) {
 
       for (const ref of refs) {
         const { dateKey, item } = ref;
-        if (item.linkedMatchId || !item.time) continue;
+        if (item.linkedMatchId || !item.time || manuallyFinalized.has(item.id)) continue;
         const key = `${dateKey}::${item.id}`;
         const alias = item.opponentName
           ? aliasesByProgramme.get(normalizeName(item.opponentName))
@@ -544,6 +549,13 @@ export async function POST(request: Request) {
         );
         return NextResponse.json({ success: true, schedule: savedSchedule });
       }
+
+      const {data:existingManual,error:manualError}=await admin.from("atyom_manual_results")
+        .select("event_id").eq("roster_id","gx-nova-legacy").eq("event_id",itemId).maybeSingle();
+      if(manualError)throw manualError;
+      if(existingManual)return NextResponse.json({
+        error:"Ce match possède déjà un score administratif. Retire-le avant de le relier à EA."
+      },{status:409});
 
       const matchId = Number(body.matchId ?? 0);
       if (!Number.isInteger(matchId) || matchId <= 0) {

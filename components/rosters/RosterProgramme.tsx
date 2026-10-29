@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
-type Event = {id:string;date:string;time:string;competition:string;opponent:string;type:"competition"|"tournament"|"friendly"};
+import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
+type Event = {id:string;date:string;time:string;competition:string;opponent:string;type:"competition"|"tournament"|"friendly";manualResult?:ManualResult|null};
 type ApiResponse={events?:Event[];canWrite?:boolean;error?:string};
 const EVENT_TYPES=[
  {value:"competition",label:"Championnat / Coupe"},
@@ -49,7 +50,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   if(!events.length)return;
   const lines=[
    "📅 PROGRAMME — "+rosterName,
-   ...events.slice(0,50).map(e=>`• ${dateLabel(e.date)} ${e.time} — ${e.competition} | ${rosterName} vs ${e.opponent}`),
+   ...events.slice(0,50).map(e=>`• ${dateLabel(e.date)} ${e.time} — ${e.competition} | ${rosterName} vs ${e.opponent}${e.manualResult?` · ${e.manualResult.goalsFor}-${e.manualResult.goalsAgainst} (${e.manualResult.kind==="forfeit"?"FORFAIT":"HORS EA"})`:""}`),
   ];
   try {
    await navigator.clipboard.writeText(lines.join("\n"));
@@ -104,11 +105,14 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   </form>}
   {loading&&events.length===0?<p role="status" className="px-5 py-6 text-sm text-slate-400">Chargement du programme…</p>:
    events.length===0?<p className="px-5 py-6 text-sm text-slate-400">Aucune rencontre programmée. {canWrite?"Ajoute la première rencontre de ce roster.":""}</p>:
-   <div className="divide-y divide-white/10">{events.map(e=><div key={e.id} className="flex items-center justify-between gap-3 px-5 py-3">
+   <div className="divide-y divide-white/10">{events.map(e=><div key={e.id} className="space-y-3 px-5 py-3"><div className="flex items-center justify-between gap-3">
     <div className="min-w-0"><p className="text-sm font-bold">{rosterName} vs {e.opponent}</p>
      <p className="mt-1 text-xs text-slate-400">{dateLabel(e.date)} · {e.time} · {e.competition}</p></div>
     {canWrite&&<button type="button" aria-label={"Supprimer la rencontre contre "+e.opponent} disabled={saving} onClick={()=>void remove(e.id)}
      className="rounded-lg border border-rose-400/20 p-2 text-rose-200 disabled:opacity-40"><Trash2 size={15}/></button>}
+   </div>
+    <ManualScoreEditor rosterId={rosterId} eventId={e.id} dateKey={e.date}
+      manualResult={e.manualResult} canEdit={canWrite} compact onSaved={()=>{void load();}}/>
    </div>)}</div>}
   {events.length>=200&&<p className="px-5 py-3 text-xs text-amber-200">La liste est limitée à 200 rencontres.</p>}
  </section>;
