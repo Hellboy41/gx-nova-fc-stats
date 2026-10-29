@@ -597,6 +597,7 @@ type DashboardResponse = {
   nextEvent: DashboardProgrammeEvent | null;
   weekEvents: DashboardProgrammeEvent[];
   upcomingEvents: DashboardProgrammeEvent[];
+  manualMatches?: Match[];
 };
 
 /* =========================================================
@@ -11086,17 +11087,20 @@ function OverviewDashboard({
         todayKey
     );
 
+  const teamResults = useMemo(() => [...matches, ...(dashboardData?.manualMatches ?? [])]
+    .sort((a,b)=>b.timestamp-a.timestamp),[matches,dashboardData?.manualMatches]);
+
   const recentFive =
     useMemo(
       () =>
         calculateWindowStats(
-          matches.slice(
+          teamResults.slice(
             0,
             5
           )
         ),
       [
-        matches,
+        teamResults,
       ]
     );
 
@@ -11104,13 +11108,13 @@ function OverviewDashboard({
     useMemo(
       () =>
         calculateWindowStats(
-          matches.slice(
+          teamResults.slice(
             5,
             10
           )
         ),
       [
-        matches,
+        teamResults,
       ]
     );
 
