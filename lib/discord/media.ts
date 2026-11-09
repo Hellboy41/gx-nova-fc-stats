@@ -10,7 +10,7 @@ async function storageImage(path:string){
  try{
   const {data,error}=await createAdminClient().storage.from(BRANDING_BUCKET).download(path);
   if(error||!data||data.size>MAX_BYTES)return null;
-  if(!["image/png","image/jpeg","image/webp"].includes(data.type))return null;
+  if(!["image/png","image/jpeg"].includes(data.type))return null;
   const bytes=new Uint8Array(await data.arrayBuffer());
   return bytes.length<=MAX_BYTES?asDataUri(bytes,data.type):null;
  }catch{return null;}
@@ -36,7 +36,7 @@ export async function rosterPosterLogo(roster:AtyomRoster){
 }
 /** URLs proposées dans les programmes : autoriser seulement des hébergeurs d'images connus. */
 export async function safeOpponentLogo(raw:string|null|undefined):Promise<string|null>{
- if(!raw||raw.length>800)return null;
+ if(!raw||raw.length>800||/\\.webp(?:\\?|$)/i.test(raw))return null;
  try{
   const url=new URL(raw);
   const storageHost=process.env.NEXT_PUBLIC_SUPABASE_URL?new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname:null;
@@ -47,7 +47,7 @@ export async function safeOpponentLogo(raw:string|null|undefined):Promise<string
   const response=await fetch(url.toString(),{redirect:"error",cache:"no-store",signal:AbortSignal.timeout(2500)});
   if(!response.ok)return null;
   const contentType=(response.headers.get("content-type")||"").split(";")[0].trim();
-  if(contentType!=="image/png"&&contentType!=="image/jpeg"&&contentType!=="image/webp")return null;
+  if(contentType!=="image/png"&&contentType!=="image/jpeg")return null;
   const advertised=Number(response.headers.get("content-length")||0);
   if(advertised>MAX_BYTES)return null;
   const reader=response.body?.getReader();
