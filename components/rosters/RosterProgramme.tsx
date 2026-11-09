@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
+import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
 type Event = {id:string;date:string;time:string;competition:string;opponent:string;type:"competition"|"tournament"|"friendly";manualResult?:ManualResult|null};
 type ApiResponse={events?:Event[];canWrite?:boolean;error?:string};
 const EVENT_TYPES=[
@@ -18,6 +19,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  const [error,setError]=useState("");
  const [message,setMessage]=useState("");
  const [showForm,setShowForm]=useState(false);
+ const [view,setView]=useState<"list"|"calendar">("list");
  const [date,setDate]=useState("");
  const [time,setTime]=useState("21:20");
  const [opponent,setOpponent]=useState("");
@@ -73,6 +75,10 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
    <div><h2 className="flex items-center gap-2 text-lg font-black"><CalendarDays size={20} style={{color}}/> Programme de {rosterName}</h2>
     <p className="mt-1 text-xs text-slate-400">Rencontres propres à ce roster · horaires en France</p></div>
    <div className="flex flex-wrap gap-2">
+    <div className="flex rounded-lg border border-white/10 bg-black/30 p-1">
+      <button type="button" onClick={()=>setView("list")} className={`rounded-md px-3 py-2 text-xs font-black ${view==="list"?"bg-white/15 text-white":"text-slate-400"}`}>Liste</button>
+      <button type="button" onClick={()=>setView("calendar")} className={`rounded-md px-3 py-2 text-xs font-black ${view==="calendar"?"bg-[#FBD046] text-black":"text-slate-400"}`}>Calendrier</button>
+    </div>
     {events.length>0&&<button type="button" onClick={()=>void copyDiscord()} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200">Copier Discord</button>}
     <button disabled={loading} type="button" onClick={()=>void load()} className="rounded-lg border border-white/15 p-2 text-slate-300 disabled:opacity-40" aria-label="Actualiser le programme"><RefreshCw size={16}/></button>
     {canWrite&&<button type="button" onClick={()=>setShowForm(x=>!x)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-black text-black" style={{backgroundColor:color}}><Plus size={15}/> Rencontre</button>}
@@ -103,7 +109,10 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
     {saving?<LoaderCircle className="animate-spin" size={15}/>:<Plus size={15}/>} Ajouter au programme
    </button>
   </form>}
-  {loading&&events.length===0?<p role="status" className="px-5 py-6 text-sm text-slate-400">Chargement du programme…</p>:
+  {view==="calendar"?<ProgrammeCalendar rosterId={rosterId} rosterName={rosterName} canEdit={canWrite}
+    initialDate={new Date().toISOString().slice(0,10)} color={color}
+    onMoved={()=>{void load();}}/>:
+  loading&&events.length===0?<p role="status" className="px-5 py-6 text-sm text-slate-400">Chargement du programme…</p>:
    events.length===0?<p className="px-5 py-6 text-sm text-slate-400">Aucune rencontre programmée. {canWrite?"Ajoute la première rencontre de ce roster.":""}</p>:
    <div className="divide-y divide-white/10">{events.map(e=><div key={e.id} className="space-y-3 px-5 py-3"><div className="flex items-center justify-between gap-3">
     <div className="min-w-0"><p className="text-sm font-bold">{rosterName} vs {e.opponent}</p>
