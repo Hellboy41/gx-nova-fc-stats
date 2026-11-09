@@ -70,7 +70,7 @@ export async function readDiscordWeek(roster:AtyomRoster,monday:string):Promise<
      programme.push({
       id:e.id,date,time:typeof e.time==="string"&&timeRegex.test(e.time)?e.time:"--:--",
       opponent:typeof e.opponentName==="string"&&e.opponentName.trim()?e.opponentName.trim():
-       typeof e.title==="string"&&e.title.trim()?e.title.trim():"Adversaire à confirmer",
+       e.type==="tournament"&&typeof e.title==="string"&&e.title.trim()?e.title.trim():"Adversaire à confirmer",
       competition:competition??(typeof e.title==="string"&&e.title.trim()?e.title.trim():"Événement"),
       score,status:man?.kind==="forfeit"?"forfeit":
        typeof sourceResult==="string"&&["V","N","D"].includes(sourceResult)?resultStatus(sourceResult):"upcoming",
