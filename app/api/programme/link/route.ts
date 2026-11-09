@@ -1,5 +1,6 @@
 import { CLUB_ID } from "@/lib/platform/server-club";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 
@@ -507,6 +508,7 @@ export async function POST(request: Request) {
         authorization.profile?.userId
       );
 
+      after(() => refreshDiscordPublications("gx-nova-legacy",[weekStart]));
       return NextResponse.json({
         success: true,
         schedule: savedSchedule,
@@ -547,7 +549,8 @@ export async function POST(request: Request) {
           schedule,
           authorization.profile?.userId
         );
-        return NextResponse.json({ success: true, schedule: savedSchedule });
+        after(() => refreshDiscordPublications("gx-nova-legacy",[dateKey]));
+      return NextResponse.json({ success: true, schedule: savedSchedule });
       }
 
       const {data:existingManual,error:manualError}=await admin.from("atyom_manual_results")
@@ -619,6 +622,7 @@ export async function POST(request: Request) {
         authorization.profile?.userId
       );
 
+      after(() => refreshDiscordPublications("gx-nova-legacy",[dateKey]));
       return NextResponse.json({ success: true, schedule: savedSchedule });
     }
 
