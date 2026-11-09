@@ -1,8 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
+import { EveningTemplates } from "@/components/programme/EveningTemplates";
+import { weekdayOf, type TemplateSlot } from "@/lib/programme-templates";
+import { addProgrammeDays } from "@/lib/programme-period";
 import { DiscordPublishing } from "@/components/discord/DiscordPublishing";
 type Event = {id:string;date:string;time:string;competition:string;opponent:string;type:"competition"|"tournament"|"friendly";manualResult?:ManualResult|null};
 type ApiResponse={events?:Event[];canWrite?:boolean;error?:string};
@@ -21,12 +24,27 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  const [message,setMessage]=useState("");
  const [showForm,setShowForm]=useState(false);
  const [view,setView]=useState<"list"|"calendar">("list");
+ const [editingId,setEditingId]=useState<string|null>(null);
+ const [editingOpponent,setEditingOpponent]=useState("");
+ const [weekStart]=useState(()=>{
+  const date=new Date();
+  const paris=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
+  const base=/^\\d{4}-\\d{2}-\\d{2}$/.test(paris)?paris:date.toISOString().slice(0,10);
+  const weekday=weekdayOf(base);
+  return addProgrammeDays(base,-weekday);
+ });
  const [date,setDate]=useState("");
  const [time,setTime]=useState("21:20");
  const [opponent,setOpponent]=useState("");
  const [competition,setCompetition]=useState("");
  const [type,setType]=useState<Event["type"]>("competition");
  const base="/api/rosters/"+encodeURIComponent(rosterId)+"/events";
+ const sourceTemplateSlots=useMemo<TemplateSlot[]>(()=>events.filter(event=>
+    event.date>=weekStart && event.date<=addProgrammeDays(weekStart,6) && !event.manualResult)
+   .map(event=>({
+    weekday:weekdayOf(event.date),time:event.time,type:event.type,
+    competition:event.competition,competitionId:null,
+   })),[events,weekStart]);
  const load=useCallback(async(signal?:AbortSignal)=>{
   setLoading(true);
   try{
@@ -47,6 +65,19 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
    setMessage("Rencontre ajoutée.");setOpponent("");setShowForm(false);
    await load();
   }catch(e){setError(e instanceof Error?e.message:"Enregistrement impossible.");}
+  finally{setSaving(false);}
+ }
+ async function saveOpponent(eventId:string){
+  if(!canWrite||editingOpponent.trim().length<2){setError("Renseigne un adversaire (2 caractères minimum).");return;}
+  setSaving(true);setError("");setMessage("");
+  try{
+   const response=await fetch(base,{method:"PATCH",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({eventId,opponent:editingOpponent.trim()})});
+   const data=await response.json() as {error?:string};
+   if(!response.ok)throw new Error(data.error??"Modification impossible.");
+   setEditingId(null);setEditingOpponent("");
+   setMessage("Adversaire enregistré.");await load();
+  }catch(e){setError(e instanceof Error?e.message:"Modification impossible.");}
   finally{setSaving(false);}
  }
  async function copyDiscord(){
@@ -85,6 +116,8 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
     {canWrite&&<button type="button" onClick={()=>setShowForm(x=>!x)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-black text-black" style={{backgroundColor:color}}><Plus size={15}/> Rencontre</button>}
    </div>
   </div>
+  <div className="m-4"><EveningTemplates rosterId={rosterId} mode="roster" canEdit={canWrite}
+   startDate={weekStart} sourceSlots={sourceTemplateSlots} onRosterApplied={()=>load()}/></div>
   <div className="m-4"><DiscordPublishing rosterId={rosterId} initialDate={new Date().toISOString().slice(0,10)}/></div>
   {error&&<p role="alert" className="m-4 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-xs text-rose-200">{error}</p>}
   {message&&<p role="status" className="mx-5 mt-3 text-xs text-emerald-300">{message}</p>}
@@ -117,11 +150,25 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   loading&&events.length===0?<p role="status" className="px-5 py-6 text-sm text-slate-400">Chargement du programme…</p>:
    events.length===0?<p className="px-5 py-6 text-sm text-slate-400">Aucune rencontre programmée. {canWrite?"Ajoute la première rencontre de ce roster.":""}</p>:
    <div className="divide-y divide-white/10">{events.map(e=><div key={e.id} className="space-y-3 px-5 py-3"><div className="flex items-center justify-between gap-3">
-    <div className="min-w-0"><p className="text-sm font-bold">{rosterName} vs {e.opponent}</p>
+    <div className="min-w-0"><p className="text-sm font-bold">{rosterName} vs <span className={e.opponent==="À définir"?"text-amber-300":""}>{e.opponent}</span></p>
      <p className="mt-1 text-xs text-slate-400">{dateLabel(e.date)} · {e.time} · {e.competition}</p></div>
+    {canWrite&&!e.manualResult&&<button type="button" disabled={saving}
+     onClick={()=>{setEditingId(editingId===e.id?null:e.id);setEditingOpponent(e.opponent==="À définir"?"":e.opponent);}}
+     className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-slate-200 disabled:opacity-40">
+     {e.opponent==="À définir"?"Renseigner":"Modifier"}
+    </button>}
     {canWrite&&<button type="button" aria-label={"Supprimer la rencontre contre "+e.opponent} disabled={saving} onClick={()=>void remove(e.id)}
      className="rounded-lg border border-rose-400/20 p-2 text-rose-200 disabled:opacity-40"><Trash2 size={15}/></button>}
    </div>
+    {editingId===e.id&&canWrite&&<div className="flex flex-wrap gap-2 rounded-xl border border-white/10 bg-black/20 p-3">
+     <input type="text" maxLength={120} autoFocus value={editingOpponent}
+      onChange={event=>setEditingOpponent(event.target.value)} placeholder="Nom de l'adversaire"
+      className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#090909] px-3 py-2 text-sm text-white"/>
+     <button type="button" disabled={saving||editingOpponent.trim().length<2}
+      onClick={()=>void saveOpponent(e.id)}
+      className="rounded-lg bg-[#FBD046] px-3 py-2 text-xs font-black text-black disabled:opacity-50">Valider</button>
+     <button type="button" onClick={()=>setEditingId(null)} className="rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-300">Annuler</button>
+    </div>}
     <ManualScoreEditor rosterId={rosterId} eventId={e.id} dateKey={e.date}
       manualResult={e.manualResult} canEdit={canWrite} compact onSaved={()=>{void load();}}/>
    </div>)}</div>}
