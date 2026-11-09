@@ -29,7 +29,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  const [weekStart]=useState(()=>{
   const date=new Date();
   const paris=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
-  const base=/^\\d{4}-\\d{2}-\\d{2}$/.test(paris)?paris:date.toISOString().slice(0,10);
+  const base=/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(paris)?paris:date.toISOString().slice(0,10);
   const weekday=weekdayOf(base);
   return addProgrammeDays(base,-weekday);
  });
