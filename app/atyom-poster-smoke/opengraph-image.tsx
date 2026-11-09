@@ -12,27 +12,20 @@ export default async function Image(){
  const roster=await activeRosterById("gx-nova-legacy");
  if(!roster)throw new Error("Roster absent pendant le test.");
  const week=await readDiscordWeek(roster,"2026-11-09");
- const noLogos={...week,
-  programme:week.programme.map(item=>({...item,opponentLogoUrl:null})),
-  results:week.results.map(item=>({...item,opponentLogoUrl:null}))};
- const noRosterLogo={...roster,workspace_mode:"monitoring" as const,logo_path:null};
- const withOnlyExt=(extension:string)=>({...week,
-  programme:week.programme.map(item=>({...item,opponentLogoUrl:item.opponentLogoUrl?.split("?")[0].toLowerCase().endsWith("."+extension)?item.opponentLogoUrl:null})),
-  results:week.results.map(item=>({...item,opponentLogoUrl:item.opponentLogoUrl?.split("?")[0].toLowerCase().endsWith("."+extension)?item.opponentLogoUrl:null}))
- });
- const scenarios=[
-  {name:"PNG logos only",r:noRosterLogo,data:withOnlyExt("png"),kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"JPG logos only",r:noRosterLogo,data:withOnlyExt("jpg"),kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"WebP logos only",r:noRosterLogo,data:withOnlyExt("webp"),kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"results with all logos",r:noRosterLogo,data:week,kind:"results" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"day with all logos",r:noRosterLogo,data:week,kind:"programme" as const,period:"day" as const,date:"2026-11-09"}
+ const tests=[
+  {kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
+  {kind:"programme" as const,period:"day" as const,date:"2026-11-09"},
+  {kind:"results" as const,period:"week" as const,date:"2026-11-09"},
+  {kind:"results" as const,period:"day" as const,date:"2026-11-09"}
  ];
- for(const t of scenarios){
+ for(const t of tests){
+  const data=filterDiscordData(week,t.period,t.date);
   try{
-   const filtered=filterDiscordData(t.data,t.period,t.date);
-   await renderDiscordImage(t.r,t.kind,t.period,t.date,filtered);
-   console.log("ATYOM diagnostic PASS:",t.name);
-  }catch(error){console.error("ATYOM diagnostic FAIL:",t.name,error instanceof Error?error.message:String(error));}
+   const png=await renderDiscordImage(roster,t.kind,t.period,t.date,data);
+   if(png.length<1000||png[0]!==137||png[1]!==80||png[2]!==78||png[3]!==71)
+    throw new Error("PNG vide ou signature incorrecte.");
+   console.log("ATYOM PNG smoke PASS:",t.kind,t.period);
+  }catch(e){console.error("ATYOM PNG smoke FAIL:",t.kind,t.period,e);throw e;}
  }
  return new ImageResponse(
   <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",backgroundColor:"#08121D",color:"#FBD046",fontSize:56,fontWeight:700}}>
