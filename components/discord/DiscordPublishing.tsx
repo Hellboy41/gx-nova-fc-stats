@@ -107,9 +107,9 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
      <p className="text-sm font-black text-white">{kind==="programme"?"Programme":"Résultats"} {period==="day"?"du jour":"de la semaine"}</p>
      <p className="mt-1 text-xs text-slate-400">{period==="day"?"Visuel d’une journée":"Affiche paysage, journées en colonnes"}</p>
      <div className="mt-3 flex flex-wrap gap-2">
-      <button type="button" disabled={!weekDate} onClick={()=>window.open("/api/discord/preview?"+
-       new URLSearchParams({rosterId,kind,period,date:weekDate}),"_blank","noopener,noreferrer")}
-       className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-black text-cyan-200 disabled:opacity-40">Aperçu PNG</button>
+      {weekDate&&<a href={"/api/discord/preview?"+new URLSearchParams({rosterId,kind,period,date:weekDate}).toString()}
+       target="_blank" rel="noopener noreferrer"
+       className="inline-flex items-center rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-black text-cyan-200 hover:bg-cyan-400/10">Aperçu PNG</a>}
       {canPublish&&channel&&<button type="button" disabled={busy||pendingChanges||!weekDate} onClick={()=>void publish(kind)}
        className="flex items-center gap-2 rounded-lg bg-[#FBD046] px-3 py-2 text-xs font-black text-black disabled:opacity-40">
        {busy?<LoaderCircle size={14} className="animate-spin"/>:<Send size={14}/>} Publier / actualiser
