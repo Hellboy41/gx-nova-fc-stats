@@ -37,9 +37,14 @@ export async function GET(request:Request){
   const events:CalendarMatch[]=[];
   if(roster.workspace_mode==="legacy"){
    const weeks=[...new Set(Array.from({length:42},(_,i)=>programmeCanonicalWeek(addProgrammeDays(first,i))))];
-   const {data:rows,error}=await admin.from("weekly_programs")
-    .select("week_start,schedule").eq("club_id",roster.ea_club_id).in("week_start",weeks);
-   if(error)throw error;
+   const [weekResult,compResult]=await Promise.all([
+    admin.from("weekly_programs").select("week_start,schedule")
+      .eq("club_id",roster.ea_club_id).in("week_start",weeks),
+    admin.from("competitions").select("id,name,short_name").eq("club_id",roster.ea_club_id)
+   ]);
+   if(weekResult.error||compResult.error)throw weekResult.error??compResult.error;
+   const rows=weekResult.data;
+   const competitionLabels=new Map((compResult.data??[]).map(c=>[c.id,c.short_name??c.name]));
    for(const row of rows??[]){
     const schedule=row.schedule;
     if(!schedule||typeof schedule!=="object"||Array.isArray(schedule))continue;
@@ -54,7 +59,9 @@ export async function GET(request:Request){
       const status:Status=isEA?"ea":manual?(manual.kind==="forfeit"?"forfeit":"administrative"):"upcoming";
       const opponent=typeof item.opponentName==="string"&&item.opponentName.trim()
         ?item.opponentName.trim():(typeof item.title==="string"&&item.title.trim()?item.title.trim():"Adversaire à définir");
-      const competition=typeof item.title==="string"&&item.title.trim()?item.title.trim():item.type==="tournament"?"Tournoi":"Compétition";
+      const competition=typeof item.title==="string"&&item.title.trim()?item.title.trim():
+        item.type==="tournament"?"Tournoi":typeof item.competitionId==="number"?
+        (competitionLabels.get(item.competitionId)??"Compétition"):"Compétition";
       const time=typeof item.time==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)?item.time:"";
       const goalsFor=manual?manual.goals_for:typeof item.goalsFor==="number"?item.goalsFor:null;
       const goalsAgainst=manual?manual.goals_against:typeof item.goalsAgainst==="number"?item.goalsAgainst:null;
