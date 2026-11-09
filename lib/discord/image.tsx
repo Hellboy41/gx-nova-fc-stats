@@ -121,7 +121,7 @@ function WeekPoster({roster,kind,day,items,logo,logos,accent,gold,data}:{
     {cols.map((groups,i)=><div key={i} style={{display:"flex",flexDirection:"column",flex:1,minWidth:0,border:"2px solid "+accent,
       borderRadius:17,padding:"9px 8px",background:"linear-gradient(180deg,#041A2EEA 0%,#020D1ECC 100%)",gap:8}}>
       {groups.length===0?<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-       flex:1,color:"#6B93AE",fontSize:15,letterSpacing:2}}>ATYOM ESPORT</div>:groups.map((group,j)=>
+       flex:1,color:"#6B93AE",fontSize:15,letterSpacing:2}}>{roster.name.toUpperCase().slice(0,24)}</div>:groups.map((group,j)=>
        <div key={group.date} style={{display:"flex",flexDirection:"column",gap:6}}>
         <div style={{display:"flex",height:more?44:69,alignItems:"center",justifyContent:"space-between",borderRadius:10,
           background:"linear-gradient(90deg,#082C3A,#061625)",padding:"4px 10px"}}>
@@ -141,7 +141,7 @@ function WeekPoster({roster,kind,day,items,logo,logos,accent,gold,data}:{
    </div>
    <div style={{display:"flex",height:47,alignItems:"center",justifyContent:"space-between",
     borderTop:"2px solid "+gold,marginTop:12,padding:"8px 18px 0"}}>
-    <span style={{fontSize:16,fontWeight:800,color:"#DAEAF6"}}>{roster.name.toUpperCase()} • {kind==="programme"?"PROGRAMME OFFICIEL":"RÉSULTATS OFFICIELS"} • ATYOM</span>
+    <span style={{fontSize:16,fontWeight:800,color:"#DAEAF6"}}>{roster.name.toUpperCase()} • {kind==="programme"?"PROGRAMME OFFICIEL":"RÉSULTATS OFFICIELS"}</span>
     <span style={{fontSize:17,fontWeight:900,color:gold}}>
      {kind==="results"?`${data.wins} V  •  ${data.draws} N  •  ${data.losses} D`:
       `${items.length} MATCHS`}{hidden?"  •  "+hidden+" hors affichage":""}
@@ -197,11 +197,11 @@ function DayPoster({roster,kind,date,items,logo,logos,accent,gold,data}:{
       <OpponentBadge line={line} logos={logos} size={63}/>
      </div>):<div style={{display:"flex",flex:1,alignItems:"center",justifyContent:"center",
       fontSize:28,fontWeight:800,color:"#91ABC6"}}>AUCUNE RENCONTRE {kind==="programme"?"PRÉVUE":"ENREGISTRÉE"}</div>}
-    {hidden>0?<span style={{fontSize:17,fontWeight:750,color:gold}}>+ {hidden} autre(s) rencontre(s) · détails sur ATYOM</span>:null}
+    {hidden>0?<span style={{fontSize:17,fontWeight:750,color:gold}}>+ {hidden} autre(s) rencontre(s) · détails auprès du club</span>:null}
    </div>
    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",height:76,marginTop:19,
     borderTop:"2px solid "+gold,padding:"8px 4px 0"}}>
-    <span style={{fontSize:17,fontWeight:900,color:"#F7F9FB"}}>ATYOM ESPORT • VISUEL OFFICIEL</span>
+    <span style={{fontSize:17,fontWeight:900,color:"#F7F9FB"}}>{roster.name.toUpperCase()} • VISUEL OFFICIEL</span>
     <span style={{fontSize:19,fontWeight:900,color:gold}}>
      {kind==="results"?`${data.wins} V / ${data.draws} N / ${data.losses} D`:"UNITÉ. PASSION. PERFORMANCE."}
     </span>
