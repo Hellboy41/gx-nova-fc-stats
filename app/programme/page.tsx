@@ -1,6 +1,7 @@
 "use client";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
+import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
 
 import {
   useCallback,
@@ -447,7 +448,8 @@ export default function ProgrammePage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [dayCollapsedOverrides, setDayCollapsedOverrides] = useState<Record<string, boolean>>({});
-  const [programmeView, setProgrammeView] = useState<"prepare" | "week">("prepare");
+  const [programmeView, setProgrammeView] = useState<"prepare" | "week" | "calendar">("prepare");
+  const [unsavedProgramme, setUnsavedProgramme] = useState(false);
 
   const canEdit = role === "admin" || role === "staff";
   const todayKey = toDateKey(new Date());
@@ -575,6 +577,7 @@ export default function ProgrammePage() {
 
       setSchedule(sortProgrammeSchedule(data.schedule ?? {}));
       setManualResults(data.manualResults ?? {});
+      setUnsavedProgramme(false);
       setCompetitions(data.competitions ?? []);
       setAliases(data.aliases ?? []);
       setPlansByEventId(Object.fromEntries(
@@ -658,6 +661,7 @@ export default function ProgrammePage() {
   }
 
   function updateDay(dateKey: string, items: ProgrammeItem[]) {
+    setUnsavedProgramme(true);
     setSchedule((current) => ({
       ...current,
       [dateKey]: sortProgrammeItemsByTime(items),
@@ -1048,6 +1052,7 @@ export default function ProgrammePage() {
 
       setSchedule(sortProgrammeSchedule(data.schedule ?? schedule));
       setMessage("Programme de la semaine enregistré.");
+      setUnsavedProgramme(false);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Erreur d'enregistrement."
@@ -2003,6 +2008,22 @@ export default function ProgrammePage() {
                     {totalUpcomingCount + totalPlayedCount}
                   </span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if(unsavedProgramme){setError("Enregistre d'abord les modifications du programme avant d'ouvrir le calendrier.");return;}
+                    setProgrammeView("calendar");setError("");
+                  }}
+                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition ${
+                    programmeView === "calendar"
+                      ? "bg-[#FBD046] text-[#071321]"
+                      : "text-[#FBD046] hover:bg-[#FBD046]/10"
+                  }`}
+                  title="Afficher toutes les rencontres dans un calendrier mensuel"
+                >
+                  <CalendarDays size={15} />
+                  <span>Calendrier</span>
+                </button>
               </div>
 
               <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
@@ -2122,7 +2143,20 @@ export default function ProgrammePage() {
           </section>
         )}
 
-        {loading ? (
+        {programmeView === "calendar" ? (
+          <ProgrammeCalendar
+            rosterId="gx-nova-legacy"
+            rosterName={branding.roster.name}
+            canEdit={canEdit}
+            initialDate={weekStart}
+            color={branding.roster.primaryColor}
+            onOpenDate={(date) => {setWeekStart(date);setProgrammeView("week");}}
+            onMoved={(date) => {
+              setMessage("Match reporté : sa préparation et les autres informations ont été conservées.");
+              if(date===weekStart)void loadProgramme();else setWeekStart(date);
+            }}
+          />
+        ) : loading ? (
           <div className="rounded-3xl border border-white/10 bg-[#091626] p-20 text-center text-gray-500">
             Chargement du programme...
           </div>
