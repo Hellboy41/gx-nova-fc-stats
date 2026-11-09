@@ -93,7 +93,7 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mo
   }
 
   async function applyTemplate() {
-    if (!canEdit || !selected || busy || !/^\\d{4}-\\d{2}-\\d{2}$/.test(effectiveDate)) return;
+    if (!canEdit || !selected || busy || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(effectiveDate)) return;
     setBusy(true); setError(""); setNotice("");
     const names = sortedSlots.map((_, i) => (opponents[i] ?? "").trim());
     try {
