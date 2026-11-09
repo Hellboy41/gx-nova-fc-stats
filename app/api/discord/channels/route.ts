@@ -23,7 +23,7 @@ export async function GET(req:Request){
  if(error)return fail("Canaux Discord indisponibles.",500);
  const ids=(data??[]).map(ch=>ch.id);
  const {data:posts,error:postsError}=ids.length?await admin.from("atyom_discord_publications")
-  .select("channel_id,kind,week_start,message_id,last_synced_at,last_error")
+  .select("channel_id,kind,period,date_key,week_start,message_id,last_synced_at,last_error")
   .in("channel_id",ids).order("week_start",{ascending:false}).limit(100):{data:[],error:null};
  if(postsError)return fail("Publications Discord indisponibles.",500);
  return NextResponse.json({canManage:auth.profile!.role==="admin"&&auth.profile!.accessScope==="structure",
@@ -32,7 +32,7 @@ export async function GET(req:Request){
    id:c.id,label:c.label,discordChannelId:c.discord_channel_id,
    autoProgramme:c.auto_programme,autoResults:c.auto_results,createdAt:c.created_at,
    publications:(posts??[]).filter(p=>p.channel_id===c.id).map(p=>({
-    kind:p.kind,weekStart:p.week_start,lastSyncedAt:p.last_synced_at,error:p.last_error,messageId:p.message_id
+    kind:p.kind,period:p.period,dateKey:p.date_key,weekStart:p.week_start,lastSyncedAt:p.last_synced_at,error:p.last_error,messageId:p.message_id
    }))
   }))},{headers:H});
 }
