@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { activeRosterById } from "@/lib/platform/rosters";
@@ -50,6 +51,7 @@ async function mutation(req:Request,method:"PUT"|"DELETE"){
  if(method==="DELETE"){
   const {error}=await admin.from("atyom_manual_results").delete().eq("roster_id",roster.id).eq("event_id",raw.eventId);
   if(error)throw error;
+  after(() => refreshDiscordPublications(roster.id,[eventDate]));
   return NextResponse.json({success:true},{headers:H});
  }
  if(!scoreOk(raw.goalsFor)||!scoreOk(raw.goalsAgainst)||!["forfeit","administrative"].includes(raw.kind??""))
@@ -63,6 +65,7 @@ async function mutation(req:Request,method:"PUT"|"DELETE"){
   kind:raw.kind,created_by:auth.profile!.userId,updated_at:new Date().toISOString()
  },{onConflict:"roster_id,event_id"}).select("event_id,goals_for,goals_against,result,kind").single();
  if(error)throw error;
+ after(() => refreshDiscordPublications(roster.id,[eventDate]));
  return NextResponse.json({success:true,manualResult:{eventId:data.event_id,goalsFor:data.goals_for,goalsAgainst:data.goals_against,result:data.result,kind:data.kind}},{headers:H});
 }
 export async function PUT(req:Request){try{return await mutation(req,"PUT");}catch(e){console.error("Manual score PUT:",e);return invalid("Enregistrement du score impossible.",500);}}
