@@ -713,8 +713,10 @@ export default function ProgrammePage() {
         skipped++;
         return;
       }
-      const validCompetitionId = slot.competitionId &&
-        competitions.some(competition => competition.id === slot.competitionId) ? slot.competitionId : null;
+      const foundCompetition = competitions.find(competition =>
+        competition.id === slot.competitionId || competition.name.toLowerCase() === slot.competition.toLowerCase() ||
+        competition.short_name?.toLowerCase() === slot.competition.toLowerCase());
+      const validCompetitionId = foundCompetition?.id ?? null;
       updated[date] = [...items, {
         ...newItem(slot.type === "friendly" ? "competition" : slot.type),
         competitionId: validCompetitionId,
@@ -2086,6 +2088,7 @@ export default function ProgrammePage() {
         <div className="mb-5">
           <EveningTemplates rosterId="gx-nova-legacy" canEdit={canEdit}
             startDate={weekStart} sourceSlots={sourceTemplateSlots}
+            competitionChoices={competitions.map(competition => ({ id: competition.id, name: competition.name }))}
             mode="legacy" onApplyLegacy={applyEveningTemplate}/>
         </div>
 
