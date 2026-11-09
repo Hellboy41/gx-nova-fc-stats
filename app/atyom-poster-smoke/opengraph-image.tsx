@@ -1,26 +1,31 @@
 import { renderDiscordImage } from "@/lib/discord/image";
-import type { AtyomRoster } from "@/lib/platform/rosters";
-import type { DiscordWeekData } from "@/lib/discord/data";
+import { activeRosterById } from "@/lib/platform/rosters";
+import { readDiscordWeek,filterDiscordData } from "@/lib/discord/data";
+import { ImageResponse } from "next/og";
 export const dynamic="force-static";
-export const alt="Test interne du rendu graphique ATYOM";
-export const size={width:1600,height:900};
+export const alt="Test statique interne ATYOM : aucun contenu client publié";
+export const size={width:1200,height:630};
 export const contentType="image/png";
 export default async function Image(){
- const roster:AtyomRoster={id:"roster-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",organisation_id:"atyom-pilot",
-  name:"ATYOM DEMONSTRATION",ea_club_id:"demo",game_edition:"FC27",workspace_mode:"monitoring",
-  status:"active",primary_color:"#22D3EE",secondary_color:"#FACC15",logo_path:null};
- const dates=["2026-11-09","2026-11-11","2026-11-12","2026-11-15"];
- const programme=dates.flatMap((date,i)=>Array.from({length:4},(_,j)=>({
-  id:"t"+i+"-"+j,date,time:["21:20","21:40","22:00","22:20"][j],
-  opponent:["BLAZE X FC","X CAVIAR","ASTRA SOCCER","FCVB ESPORT"][j],
-  competition:["VPG FRANCE","ZEWONKA","VPG SUISSE","VPG FRANCE"][j],
-  score:null,status:"upcoming" as const
- })));
- const results=programme.map((e,i)=>({...e,score:i%2?"2 - 0":"0 - 1",status:i%2?"win" as const:"loss" as const}));
- const data:DiscordWeekData={programme,results,wins:8,draws:0,losses:8};
- await renderDiscordImage(roster,"programme","day","2026-11-09",{...data,programme:programme.filter(e=>e.date==="2026-11-09")});
- await renderDiscordImage(roster,"results","day","2026-11-11",{...data,results:results.filter(e=>e.date==="2026-11-11")});
- await renderDiscordImage(roster,"results","week","2026-11-09",data);
- const png=await renderDiscordImage(roster,"programme","week","2026-11-09",data);
- return new Response(Uint8Array.from(png).buffer,{headers:{"Content-Type":"image/png"}});
+ // Exercice du même trajet de rendu que l'aperçu réel. Les PNG contenant
+ // des matchs réels sont jetés : la seule sortie servie est un visuel neutre.
+ const roster=await activeRosterById("gx-nova-legacy");
+ if(!roster)throw new Error("Roster absent pendant le test.");
+ const week=await readDiscordWeek(roster,"2026-11-09");
+ const targets=[
+  {kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
+  {kind:"programme" as const,period:"day" as const,date:"2026-11-09"},
+  {kind:"results" as const,period:"week" as const,date:"2026-11-09"},
+  {kind:"results" as const,period:"day" as const,date:"2026-11-09"}
+ ];
+ for(const target of targets){
+  const data=filterDiscordData(week,target.period,target.date);
+  try{await renderDiscordImage(roster,target.kind,target.period,target.date,data);}
+  catch(error){console.error("ATYOM poster build diagnostic:",target.kind,target.period,error);throw error;}
+ }
+ return new ImageResponse(
+  <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",backgroundColor:"#08121D",color:"#FBD046",fontSize:56,fontWeight:700}}>
+   ATYOM SMOKE OK
+  </div>,
+  {width:1200,height:630});
 }
