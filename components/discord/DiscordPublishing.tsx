@@ -100,7 +100,11 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
    </div>
    {channel&&<>
     <div className="flex flex-wrap gap-2">
-     {canPublish&&(["programme","results"] as Kind[]).map(kind=><button key={kind} type="button"
+     <button type="button" onClick={()=>window.open("/api/discord/preview?"+new URLSearchParams({rosterId,kind:"programme",date:weekDate}),"_blank","noopener,noreferrer")}
+      className="rounded-xl border border-white/15 px-4 py-3 text-xs font-black text-slate-200">Aperçu programme PNG</button>
+    <button type="button" onClick={()=>window.open("/api/discord/preview?"+new URLSearchParams({rosterId,kind:"results",date:weekDate}),"_blank","noopener,noreferrer")}
+      className="rounded-xl border border-white/15 px-4 py-3 text-xs font-black text-slate-200">Aperçu résultats PNG</button>
+    {canPublish&&(["programme","results"] as Kind[]).map(kind=><button key={kind} type="button"
       disabled={busy||pendingChanges||!weekDate} onClick={()=>void publish(kind)}
       className="flex items-center gap-2 rounded-xl bg-[#FBD046] px-4 py-3 text-xs font-black text-black disabled:opacity-40">
       {busy?<LoaderCircle size={15} className="animate-spin"/>:<Send size={15}/>}
