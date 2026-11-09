@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { activeRosterById } from "@/lib/platform/rosters";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -64,6 +65,7 @@ export async function POST(req:Request){
     throw error;
    }
    if(!data)return bad("Ce match a été modifié depuis l'affichage. Actualise le calendrier.",409);
+   after(() => refreshDiscordPublications(rosterId,[fromDate,toDate]));
    return NextResponse.json({success:true,date:data.event_date,time:String(data.event_time).slice(0,5)},{headers:H});
   }
 
@@ -161,6 +163,7 @@ export async function POST(req:Request){
     return bad("Déplacement annulé : impossible de mettre à jour les disponibilités et la composition.",500);
    }
   }
+  after(() => refreshDiscordPublications(rosterId,[fromDate,toDate]));
   return NextResponse.json({success:true,date:toDate,time:toTime,planPreserved:Boolean(plan)},{headers:H});
  }catch(e){
   console.error("ATYOM calendar move:",e);

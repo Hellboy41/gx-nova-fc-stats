@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
+import { parisDay } from "@/lib/discord/week";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeRosterById,rosterWithLogo } from "@/lib/platform/rosters";
@@ -93,6 +95,7 @@ export async function POST(request:Request,ctx:RouteContext){
    const {error}=await createAdminClient().from("atyom_roster_results").upsert(Array.from(rows.values()),{onConflict:"roster_id,ea_match_id"});
    if(error)throw error;
   }
+  if(rows.size)after(() => refreshDiscordPublications(roster.id,[...rows.values()].map(m=>parisDay(new Date(m.played_at))),["results"]));
   return NextResponse.json({success:true,imported:rows.size,roster:roster.name},{headers:NO_CACHE});
  }catch(e){console.error("EA roster sync:",e);return NextResponse.json({error:"Synchronisation EA impossible. Vérifie l'identifiant ou réessaie ultérieurement."},{status:502,headers:NO_CACHE});}
 }

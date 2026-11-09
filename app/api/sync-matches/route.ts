@@ -1,4 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
+import { parisDay } from "@/lib/discord/week";
+import { addProgrammeDays } from "@/lib/programme-period";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import {
   EaSyncError,
@@ -25,6 +28,10 @@ export async function POST() {
     const result = await syncEaMatches();
 
     await finishEaSyncRunSuccess(run, result);
+    const today=parisDay(new Date());
+    after(() => refreshDiscordPublications("gx-nova-legacy",
+      [today,addProgrammeDays(today,-7),addProgrammeDays(today,-14),addProgrammeDays(today,-21)],["results"]));
+
 
     return NextResponse.json({
       ...result,

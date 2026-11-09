@@ -1,5 +1,6 @@
 import { CLUB_ID } from "@/lib/platform/server-club";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { isProgrammeDateKey, programmeCanonicalWeek, programmePeriodDates, programmePeriodWeeks } from "@/lib/programme-period";
@@ -273,6 +274,7 @@ export async function PUT(request: Request) {
         }, { status: 500 });
       }
     }
+    after(() => refreshDiscordPublications("gx-nova-legacy", periodDates));
     return NextResponse.json({
       success: true,
       weekStart: selectedStart,
@@ -306,6 +308,7 @@ export async function PUT(request: Request) {
     );
   }
 
+  after(() => refreshDiscordPublications("gx-nova-legacy", Object.keys(schedule)));
   return NextResponse.json({
     success: true,
     weekStart: data.week_start,

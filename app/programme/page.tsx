@@ -2,6 +2,7 @@
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
+import { DiscordPublishing } from "@/components/discord/DiscordPublishing";
 
 import {
   useCallback,
@@ -2115,6 +2116,8 @@ export default function ProgrammePage() {
             </div>
           </div>
         </section>
+
+        <div className="mb-5"><DiscordPublishing rosterId="gx-nova-legacy" initialDate={weekStart} pendingChanges={unsavedProgramme}/></div>
 
         {discordExportText && (
           <section className="mb-5 rounded-2xl border border-cyan-400/20 bg-[#091626] p-5">

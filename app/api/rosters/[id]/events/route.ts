@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeRosterById } from "@/lib/platform/rosters";
@@ -66,6 +67,7 @@ export async function POST(req:Request,ctx:Ctx){
    competition:b.competition.trim(),event_type:b.type,created_by:access.userId,
   }).select(selected).single();
   if(error)return NextResponse.json({error:error.code==="23505"?"Une rencontre est déjà prévue à cet horaire.":"Impossible d'ajouter la rencontre."},{status:error.code==="23505"?409:500,headers:HEADER});
+  after(() => refreshDiscordPublications(access.rosterId!,[data.event_date]));
   return NextResponse.json({event:mapped(data)},{status:201,headers:HEADER});
  }catch(e){console.error("Roster programme POST:",e);return NextResponse.json({error:"Programme indisponible."},{status:500,headers:HEADER});}
 }
@@ -78,8 +80,9 @@ export async function DELETE(req:Request,ctx:Ctx){
   if(!b||typeof b.eventId!=="string"||!/^[0-9a-f-]{36}$/i.test(b.eventId))
    return NextResponse.json({error:"Rencontre invalide."},{status:400,headers:HEADER});
   const {data,error}=await createAdminClient().from("atyom_roster_events").delete()
-   .eq("id",b.eventId).eq("roster_id",access.rosterId!).select("id").maybeSingle();
+   .eq("id",b.eventId).eq("roster_id",access.rosterId!).select("id,event_date").maybeSingle();
   if(error||!data)return NextResponse.json({error:"Rencontre introuvable."},{status:error?500:404,headers:HEADER});
+  after(() => refreshDiscordPublications(access.rosterId!,[data.event_date]));
   return NextResponse.json({success:true},{headers:HEADER});
  }catch(e){console.error("Roster programme DELETE:",e);return NextResponse.json({error:"Suppression impossible."},{status:500,headers:HEADER});}
 }
