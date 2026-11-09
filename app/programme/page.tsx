@@ -36,6 +36,8 @@ import {
   Shield,
   Sparkles,
   Trash2,
+  MoreHorizontal,
+  Send,
   Trophy,
   Unlink,
   X,
@@ -269,11 +271,11 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function getSunday(date = new Date()) {
+function getMonday(date = new Date()) {
   const result = new Date(date);
   result.setHours(12, 0, 0, 0);
-  const day = result.getDay();
-  result.setDate(result.getDate() - day);
+  const daysSinceMonday = (result.getDay() + 6) % 7;
+  result.setDate(result.getDate() - daysSinceMonday);
   return result;
 }
 
@@ -417,7 +419,7 @@ export default function ProgrammePage() {
   const branding = useClubBranding();
   const currentClubLogo = branding.roster.logoUrl || CLUB_LOGO;
   const [weekStart, setWeekStart] = useState(() =>
-    toDateKey(getSunday())
+    toDateKey(getMonday())
   );
   const [schedule, setSchedule] = useState<ProgrammeSchedule>({});
   const [manualResults, setManualResults] = useState<Record<string, ManualResult>>({});
@@ -451,6 +453,8 @@ export default function ProgrammePage() {
   const [dayCollapsedOverrides, setDayCollapsedOverrides] = useState<Record<string, boolean>>({});
   const [programmeView, setProgrammeView] = useState<"prepare" | "week" | "calendar">("prepare");
   const [unsavedProgramme, setUnsavedProgramme] = useState(false);
+  const [sharingOpen, setSharingOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const canEdit = role === "admin" || role === "staff";
   const todayKey = toDateKey(new Date());
@@ -653,12 +657,18 @@ export default function ProgrammePage() {
     weekStart,
   ]);
 
+  function selectPeriod(nextDate: string) {
+    if (!isProgrammeDateKey(nextDate) || nextDate === weekStart) return;
+    if (unsavedProgramme && !window.confirm("Des modifications ne sont pas enregistrées. Changer de période sans les conserver ?")) return;
+    setWeekStart(nextDate);
+  }
+
   function changeWeek(offset: number) {
-    setWeekStart(toDateKey(addDays(periodStart, offset * 7)));
+    selectPeriod(toDateKey(addDays(periodStart, offset * 7)));
   }
 
   function goCurrentWeek() {
-    setWeekStart(toDateKey(getSunday()));
+    selectPeriod(toDateKey(getMonday()));
   }
 
   function updateDay(dateKey: string, items: ProgrammeItem[]) {
@@ -1901,223 +1911,136 @@ export default function ProgrammePage() {
           </div>
         )}
 
-        <section className="mb-6 rounded-3xl border border-yellow-400/15 bg-gradient-to-r from-yellow-400/[0.07] via-[#091626] to-[#07111f] p-5 lg:p-6">
-          <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
-            <div>
-              <div className="flex items-center gap-2 text-yellow-400">
-                <CalendarDays size={19} />
-                <p className="text-xs font-black uppercase tracking-[0.2em]">
-                  Période sélectionnée
-                </p>
-              </div>
-              <p className="mt-2 text-2xl font-black">{weekLabel}</p>
-              <p className="mt-2 text-sm text-gray-500">
-                Planifie les compétitions et tournois sur 7 jours consécutifs, puis exporte les 2 affiches PNG et le texte pour Discord.
-              </p>
-              <p className="mt-2 text-xs font-bold text-cyan-300/70">
-                Le mode « À préparer » masque automatiquement les matchs déjà joués pour garder uniquement les actions à venir.
+        <section className="mb-5 rounded-3xl border border-white/10 bg-[#0A1625] p-4 shadow-lg sm:p-5">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#FBD046]">Votre planning</p>
+              <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{weekLabel}</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                {totalUpcomingCount} rencontre{totalUpcomingCount > 1 ? "s" : ""} à venir
+                {totalPlayedCount > 0 && <span> · {totalPlayedCount} résultat{totalPlayedCount > 1 ? "s" : ""} enregistré{totalPlayedCount > 1 ? "s" : ""}</span>}
               </p>
             </div>
-
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex flex-col gap-1 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.05] px-3 py-1.5 text-xs font-bold text-yellow-200">
-                Début des 7 jours
-                <input
-                  type="date"
-                  value={weekStart}
-                  onChange={(event) => {
-                    if (isProgrammeDateKey(event.target.value)) {
-                      setWeekStart(event.target.value);
-                    }
-                  }}
-                  aria-label="Choisir le premier jour de la période de 7 jours"
-                  className="min-w-[142px] bg-transparent text-sm font-black text-white outline-none [color-scheme:dark]"
-                />
+              <button type="button" onClick={() => changeWeek(-1)} aria-label="Période précédente"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10">
+                <ChevronLeft size={19}/>
+              </button>
+              <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#060E19] px-3 py-2">
+                <CalendarDays size={16} className="text-[#FBD046]"/>
+                <span className="sr-only">Début de la période de sept jours</span>
+                <input type="date" value={weekStart}
+                  onChange={(event) => selectPeriod(event.target.value)}
+                  aria-label="Choisir le premier jour du planning"
+                  className="w-[129px] bg-transparent text-sm font-bold text-white outline-none [color-scheme:dark]"/>
               </label>
-              <button
-                type="button"
-                onClick={() => changeWeek(-1)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-              >
-                <ChevronLeft size={19} />
+              <button type="button" onClick={() => changeWeek(1)} aria-label="Période suivante"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10">
+                <ChevronRight size={19}/>
               </button>
-              <button
-                type="button"
-                onClick={goCurrentWeek}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-gray-300 hover:bg-white/10"
-              >
-                Cette semaine
-              </button>
-              <a
-                href={`/preparation-match?startDate=${encodeURIComponent(weekStart)}`}
-                className="inline-flex items-center gap-2 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-black text-yellow-200 hover:bg-yellow-400/15"
-              >
-                Prépa coaching
-                <ArrowLeft size={15} className="rotate-135"/>
-              </a>
-              <button
-                type="button"
-                onClick={() => changeWeek(1)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-              >
-                <ChevronRight size={19} />
-              </button>
-
-              <div className="flex items-center gap-1 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-1">
-                <button
-                  type="button"
-                  onClick={() => setProgrammeView("prepare")}
-                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition ${
-                    programmeView === "prepare"
-                      ? "bg-cyan-400 text-[#03111b]"
-                      : "text-cyan-300 hover:bg-cyan-400/10"
-                  }`}
-                  title="Afficher uniquement les matchs qui restent à préparer"
-                >
-                  <ClipboardList size={15} />
-                  <span>À préparer</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[9px] ${
-                      programmeView === "prepare"
-                        ? "bg-black/10 text-[#03111b]"
-                        : "bg-cyan-400/10 text-cyan-200"
-                    }`}
-                  >
-                    {totalUpcomingCount}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setProgrammeView("week")}
-                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition ${
-                    programmeView === "week"
-                      ? "bg-white text-[#071321]"
-                      : "text-gray-400 hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                  title="Afficher tous les matchs de la semaine"
-                >
-                  <CalendarDays size={15} />
-                  <span className="hidden sm:inline">Toute la semaine</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[9px] ${
-                      programmeView === "week"
-                        ? "bg-black/10 text-[#071321]"
-                        : "bg-white/[0.05] text-gray-500"
-                    }`}
-                  >
-                    {totalUpcomingCount + totalPlayedCount}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if(unsavedProgramme){setError("Enregistre d'abord les modifications du programme avant d'ouvrir le calendrier.");return;}
-                    setProgrammeView("calendar");setError("");
-                  }}
-                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition ${
-                    programmeView === "calendar"
-                      ? "bg-[#FBD046] text-[#071321]"
-                      : "text-[#FBD046] hover:bg-[#FBD046]/10"
-                  }`}
-                  title="Afficher toutes les rencontres dans un calendrier mensuel"
-                >
-                  <CalendarDays size={15} />
-                  <span>Calendrier</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
-                <button
-                  type="button"
-                  onClick={() => setAllDaysCollapsed(true)}
-                  className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-black text-gray-400 transition hover:bg-white/[0.06] hover:text-white"
-                  title="Réduire toutes les journées"
-                >
-                  <ChevronUp size={15} />
-                  <span className="hidden sm:inline">Tout réduire</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAllDaysCollapsed(false)}
-                  className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-black text-gray-400 transition hover:bg-white/[0.06] hover:text-white"
-                  title="Déplier toutes les journées"
-                >
-                  <ChevronDown size={15} />
-                  <span className="hidden sm:inline">Tout déplier</span>
-                </button>
-              </div>
-
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => void scanEaMatches()}
-                  disabled={matching || loading}
-                  className="ml-0 flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50 xl:ml-3"
-                >
-                  <RefreshCw size={17} className={matching ? "animate-spin" : ""} />
-                  {matching ? "Recherche EA..." : "Rechercher matchs EA"}
-                </button>
-              )}
-
-              {canEdit && (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.04] p-1.5">
-                  <label className="flex items-center gap-2 text-xs font-bold text-yellow-200">
-                    Journée
-                    <select
-                      value={exportDayKey}
-                      onChange={(event) => setSelectedExportDay(event.target.value)}
-                      disabled={loading || exporting || exportingSingleDay}
-                      aria-label="Choisir la journée à exporter"
-                      className="max-w-[180px] rounded-lg border border-white/10 bg-[#071321] px-3 py-2 text-xs font-bold text-white outline-none focus:border-yellow-400/50"
-                    >
-                      {days.map((day) => (
-                        <option key={day.key} value={day.key}>
-                          {day.name} {formatDayDate(day.date)} ({(schedule[day.key] ?? []).length})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void exportDiscordPoster(exportDayKey)}
-                    disabled={exporting || exportingSingleDay || loading || !exportDayKey}
-                    className="flex items-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2.5 text-xs font-black text-yellow-200 transition hover:bg-yellow-400/20 disabled:opacity-50"
-                  >
-                    <Download size={16}/>
-                    {exportingSingleDay ? "Création de l'affiche..." : "Exporter la journée (PNG + texte)"}
-                  </button>
-                </div>
-              )}
-
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => void exportDiscordPoster()}
-                  disabled={exporting || exportingSingleDay || loading}
-                  className="ml-0 flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-sm font-black text-blue-300 transition hover:bg-blue-400/15 disabled:opacity-50 xl:ml-3"
-                >
-                  <Download size={17} />
-                  {exporting ? "Création des 2 affiches..." : "Exporter Discord (2 affiches + texte)"}
-                </button>
-              )}
-
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => void saveProgramme()}
-                  disabled={saving || loading}
-                  className="flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-3 text-sm font-black text-black transition hover:bg-yellow-300 disabled:opacity-50"
-                >
-                  <Save size={17} />
-                  {saving ? "Enregistrement..." : "Enregistrer"}
-                </button>
-              )}
+              <button type="button" onClick={goCurrentWeek}
+                className="h-10 rounded-xl border border-white/10 px-3 text-xs font-bold text-slate-200 hover:bg-white/10">Cette semaine</button>
             </div>
           </div>
+
+          <div className="mt-5 flex flex-col justify-between gap-4 border-t border-white/10 pt-4 xl:flex-row xl:items-center">
+            <div role="group" aria-label="Affichage du programme"
+              className="inline-flex w-full flex-wrap gap-1 rounded-xl bg-[#06101B] p-1 sm:w-auto">
+              <button type="button" onClick={() => setProgrammeView("prepare")}
+                aria-pressed={programmeView === "prepare"}
+                className={programmeView === "prepare" ? "rounded-lg bg-cyan-400 px-4 py-2.5 text-sm font-black text-[#03111b]" : "rounded-lg px-4 py-2.5 text-sm font-bold text-slate-400 hover:bg-white/10 hover:text-white"}>
+                À préparer <span className="ml-1 text-xs opacity-70">{totalUpcomingCount}</span>
+              </button>
+              <button type="button" onClick={() => setProgrammeView("week")}
+                aria-pressed={programmeView === "week"}
+                className={programmeView === "week" ? "rounded-lg bg-white px-4 py-2.5 text-sm font-black text-[#03111b]" : "rounded-lg px-4 py-2.5 text-sm font-bold text-slate-400 hover:bg-white/10 hover:text-white"}>
+                Tous les matchs
+              </button>
+              <button type="button" onClick={() => {
+                  if (unsavedProgramme) {setError("Enregistre d'abord le programme pour ouvrir le calendrier.");return;}
+                  setError("");setProgrammeView("calendar");
+                }}
+                aria-pressed={programmeView === "calendar"}
+                className={programmeView === "calendar" ? "rounded-lg bg-[#FBD046] px-4 py-2.5 text-sm font-black text-[#03111b]" : "rounded-lg px-4 py-2.5 text-sm font-bold text-slate-400 hover:bg-white/10 hover:text-white"}>
+                Calendrier
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {canEdit && <button type="button" onClick={() => void saveProgramme()} disabled={saving || loading}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#FBD046] px-4 py-2.5 text-sm font-black text-[#071321] hover:bg-yellow-300 disabled:opacity-50">
+                <Save size={17}/>{saving ? "Enregistrement…" : "Enregistrer"}
+                {unsavedProgramme && !saving && <span className="h-2 w-2 rounded-full bg-amber-700" aria-label="Modifications en attente"/>}
+              </button>}
+              <button type="button" onClick={() => {setSharingOpen(v => !v);setAdvancedOpen(false);}}
+                aria-expanded={sharingOpen}
+                className={sharingOpen ? "inline-flex items-center gap-2 rounded-xl border border-cyan-300/50 bg-cyan-400/15 px-4 py-2.5 text-sm font-bold text-cyan-200" : "inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 px-4 py-2.5 text-sm font-bold text-cyan-300 hover:bg-cyan-400/10"}>
+                <Send size={16}/> Partager sur Discord {sharingOpen ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+              </button>
+              <button type="button" onClick={() => {setAdvancedOpen(v => !v);setSharingOpen(false);}}
+                aria-expanded={advancedOpen}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-sm font-bold text-slate-300 hover:bg-white/10">
+                <MoreHorizontal size={18}/> Outils {advancedOpen ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+              </button>
+            </div>
+          </div>
+          {unsavedProgramme && canEdit && <p role="status" className="mt-3 flex items-center gap-2 text-xs font-semibold text-amber-300">
+            <AlertTriangle size={14}/> Modifications en attente. Enregistre avant de changer de période ou de publier sur Discord.
+          </p>}
+
+          {advancedOpen && <div className="mt-5 rounded-2xl border border-white/10 bg-[#07111E] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-white">Outils de gestion</h3>
+                <p className="mt-1 text-xs text-slate-400">Import EA, préparation du coaching et exports téléchargeables.</p>
+              </div>
+              <a href={"/preparation-match?startDate="+encodeURIComponent(weekStart)}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#FBD046]/25 px-3 py-2 text-xs font-black text-[#FBD046] hover:bg-[#FBD046]/10">
+                <ClipboardList size={15}/> Prépa coaching <ExternalLink size={13}/>
+              </a>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {programmeView !== "calendar" && <>
+                <button type="button" onClick={() => setAllDaysCollapsed(true)}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10">
+                  <ChevronUp size={14} className="mr-1 inline"/> Réduire les journées
+                </button>
+                <button type="button" onClick={() => setAllDaysCollapsed(false)}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10">
+                  <ChevronDown size={14} className="mr-1 inline"/> Déplier les journées
+                </button>
+              </>}
+              {canEdit && <button type="button" onClick={() => void scanEaMatches()} disabled={matching || loading}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/20 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-400/10 disabled:opacity-50">
+                <RefreshCw size={14} className={matching ? "animate-spin" : ""}/>
+                {matching ? "Recherche EA…" : "Rapprocher les résultats EA"}
+              </button>}
+            </div>
+            {canEdit && <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-white/10 pt-4">
+              <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
+                Télécharger une journée
+                <select value={exportDayKey} onChange={e => setSelectedExportDay(e.target.value)}
+                  disabled={loading || exporting || exportingSingleDay}
+                  className="rounded-lg border border-white/10 bg-[#06101B] px-3 py-2.5 text-xs text-white">
+                  {days.map(day => <option key={day.key} value={day.key}>{day.name} {formatDayDate(day.date)} ({(schedule[day.key] ?? []).length})</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={() => void exportDiscordPoster(exportDayKey)}
+                disabled={loading || exporting || exportingSingleDay || !exportDayKey}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-xs font-bold text-slate-200 hover:bg-white/10 disabled:opacity-50">
+                <Download size={15}/>{exportingSingleDay ? "Création…" : "Exporter le jour (PNG + texte)"}
+              </button>
+              <button type="button" onClick={() => void exportDiscordPoster()}
+                disabled={loading || exporting || exportingSingleDay}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-xs font-bold text-slate-200 hover:bg-white/10 disabled:opacity-50">
+                <Download size={15}/>{exporting ? "Création…" : "Exporter la semaine (2 PNG + texte)"}
+              </button>
+            </div>}
+          </div>}
         </section>
 
-        <div className="mb-5"><DiscordPublishing rosterId="gx-nova-legacy" initialDate={weekStart} pendingChanges={unsavedProgramme}/></div>
+        {sharingOpen && <div className="mb-5">
+          <DiscordPublishing rosterId="gx-nova-legacy" initialDate={weekStart} pendingChanges={unsavedProgramme}/>
+        </div>}
 
         {discordExportText && (
           <section className="mb-5 rounded-2xl border border-cyan-400/20 bg-[#091626] p-5">
@@ -2420,7 +2343,11 @@ export default function ProgrammePage() {
         )}
 
         {!!aliases.length && (
-          <section className="mt-6 rounded-3xl border border-cyan-400/15 bg-[#071321] p-5 lg:p-6">
+          <details className="mt-6 rounded-2xl border border-white/10 bg-[#071321]">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-slate-400 hover:text-white">
+              Correspondances des adversaires EA · {aliases.length} enregistrée{aliases.length>1?"s":""}
+            </summary>
+            <div className="border-t border-white/10 p-5">
             <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
               <div>
                 <div className="flex items-center gap-2 text-cyan-300">
@@ -2457,7 +2384,8 @@ export default function ProgrammePage() {
                 </div>
               ))}
             </div>
-          </section>
+            </div>
+          </details>
         )}
       </div>
 
@@ -2523,11 +2451,51 @@ function ProgrammeEditorCard({
   const branding = useClubBranding();
   const isCompetition = item.type === "competition";
   const [showPlayedDetails, setShowPlayedDetails] = useState(false);
+  const [showEditor, setShowEditor] = useState(() => !item.opponentName.trim());
 
   const planEntries = Object.values(plan?.availability ?? {});
   const planAvailable = planEntries.filter((entry) => entry.status === "available").length;
   const planAbsent = planEntries.filter((entry) => entry.status === "absent").length;
   const planLineupCount = plan?.lineup.length ?? 0;
+
+  // Vue par défaut : on lit la rencontre avant de choisir ce qu'on souhaite modifier.
+  // Une rencontre nouvellement créée ouvre son formulaire pour être complétée.
+  if (!item.linkedMatchId && !showEditor) {
+    return (
+      <article className="rounded-2xl border border-white/10 bg-[#0C1927] p-3.5 transition hover:border-cyan-400/20 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex w-[66px] shrink-0 flex-col items-center justify-center rounded-xl bg-cyan-400/[0.07] py-2 text-lg font-black text-[#FBD046]">
+              <Clock3 size={13} className="mb-0.5 text-slate-500"/>
+              {item.time || "--:--"}
+            </div>
+            {item.opponentLogoUrl && <img src={item.opponentLogoUrl} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-[#06101B] object-contain p-1"/>}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-black text-white">{item.opponentName || "Adversaire à définir"}</p>
+              <p className="mt-1 truncate text-xs font-semibold text-slate-400">{competitionLabel(item, competitions)}</p>
+              {item.notes && <p className="mt-1 truncate text-[11px] text-slate-500" title={item.notes}>{item.notes}</p>}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {manualResult && <span className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-xs font-black text-amber-300">
+              {manualResult.kind === "forfeit" ? "Forfait" : "Hors EA"} · {manualResult.goalsFor}–{manualResult.goalsAgainst}
+            </span>}
+            {plan && <span className="rounded-lg bg-cyan-400/[0.07] px-2 py-1.5 text-xs font-bold text-cyan-200">
+              Compo {planLineupCount}/11
+            </span>}
+            <button type="button" onClick={onOpenPlan}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/20 px-3 py-2 text-xs font-black text-cyan-300 hover:bg-cyan-400/10">
+              <Users size={14}/> {plan ? "Composition" : "Préparer"}
+            </button>
+            <button type="button" onClick={() => setShowEditor(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10">
+              <ChevronDown size={14}/> {canEdit ? "Modifier" : "Détails"}
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   if (item.linkedMatchId && !showPlayedDetails) {
     return (
@@ -2656,7 +2624,7 @@ function ProgrammeEditorCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {item.linkedMatchId && (
+          {item.linkedMatchId ? (
             <button
               type="button"
               onClick={() => setShowPlayedDetails(false)}
@@ -2665,6 +2633,11 @@ function ProgrammeEditorCard({
             >
               <ChevronUp size={14} />
               Réduire
+            </button>
+          ) : (
+            <button type="button" onClick={() => setShowEditor(false)}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs font-black text-slate-300 hover:bg-white/10">
+              <ChevronUp size={14}/> Réduire
             </button>
           )}
 

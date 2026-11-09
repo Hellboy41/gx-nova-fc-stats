@@ -11,6 +11,7 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
  const [canManage,setCanManage]=useState(false),[canPublish,setCanPublish]=useState(false);
  const [selected,setSelected]=useState(""),[weekDate,setWeekDate]=useState(initialDate);
  const [period,setPeriod]=useState<Period>("week");
+ const [publicationKind,setPublicationKind]=useState<Kind>("programme");
  const [name,setName]=useState(""),[url,setUrl]=useState("");
  const [showAdd,setShowAdd]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
  const [error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -67,84 +68,115 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
    await load();
   }catch(e){setError(e instanceof Error?e.message:"Publication impossible.");}finally{setBusy(false);}
  }
- return <section className="rounded-2xl border border-[#FBD046]/25 bg-[#101925] p-5">
+ return <section className="rounded-2xl border border-cyan-400/20 bg-[#101925] p-4 sm:p-5">
   <div className="flex flex-wrap items-center justify-between gap-3">
-   <div><h3 className="flex items-center gap-2 text-base font-black text-white"><Picture size={19} className="text-[#FBD046]"/> Affiches Discord synchronisées</h3>
-    <p className="mt-1 text-xs text-slate-400">Programme et résultats en PNG · publications au nom du club, mises à jour automatiquement.</p></div>
-   <div className="flex gap-2">
-    <button type="button" aria-label="Rafraîchir les canaux Discord" onClick={()=>void load()} className="rounded-lg border border-white/15 p-2 text-slate-300"><RefreshCw size={16}/></button>
-    {canManage&&<button type="button" onClick={()=>setShowAdd(v=>!v)} className="rounded-lg border border-[#FBD046]/40 px-3 py-2 text-xs font-black text-[#FBD046]"><Link2 size={13} className="mr-1 inline"/> Associer un salon</button>}
+   <div>
+    <h3 className="flex items-center gap-2 text-base font-black text-white"><Picture size={19} className="text-cyan-300"/> Partager sur Discord</h3>
+    <p className="mt-1 text-xs text-slate-400">Choisis le visuel, la date et le salon. ATYOM actualisera ensuite les messages publiés.</p>
    </div>
+   {channel&&<span className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2 text-[11px] font-bold text-emerald-300">
+    Salon connecté
+   </span>}
   </div>
-  {loading&&<p className="mt-3 text-xs text-slate-400">Chargement des salons…</p>}
+  {loading&&<p role="status" className="mt-3 text-xs text-slate-400">Chargement des salons…</p>}
   {error&&<p role="alert" className="mt-3 flex items-center gap-2 text-xs text-rose-300"><CircleAlert size={15}/>{error}</p>}
   {notice&&<p role="status" className="mt-3 flex items-center gap-2 text-xs text-emerald-300"><CheckCircle2 size={15}/>{notice}</p>}
-  {canManage&&showAdd&&<form onSubmit={add} className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
-    <label className="text-xs text-slate-300">Nom du salon
-     <input required minLength={2} maxLength={60} value={name} onChange={e=>setName(e.target.value)}
-      placeholder="Ex. Discord GX NØVA" className="mt-1 w-full rounded-lg border border-white/15 bg-[#060E17] p-3 text-sm text-white"/></label>
-    <label className="text-xs text-slate-300">URL du webhook Discord
-     <input required type="password" autoComplete="off" value={url} onChange={e=>setUrl(e.target.value)}
-      placeholder="https://discord.com/api/webhooks/…" className="mt-1 w-full rounded-lg border border-white/15 bg-[#060E17] p-3 text-sm text-white"/></label>
-    <p className="text-xs text-slate-400 sm:col-span-2">Discord → Paramètres du salon → Intégrations → Webhooks → Nouveau webhook → Copier l'URL. Ne partage jamais cette URL publiquement.</p>
-    <button type="submit" disabled={busy} className="rounded-lg bg-[#FBD046] px-4 py-3 text-xs font-black text-black disabled:opacity-50 sm:col-span-2">Connecter ce salon</button>
-   </form>}
-  <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
-   <div className="grid gap-3 sm:grid-cols-2">
-    <label className="text-xs font-semibold text-slate-300">Type de période
-     <select value={period} onChange={e=>setPeriod(e.target.value as Period)}
-      className="mt-1 block w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-3 text-sm text-white">
-      <option value="week">Semaine entière · paysage 16:9</option>
-      <option value="day">Un seul jour · affiche verticale</option>
-     </select></label>
-    <label className="text-xs font-semibold text-slate-300">{period==="day"?"Date de la journée":"Choisir un jour de la semaine"}
-     <input type="date" value={weekDate} onChange={e=>setWeekDate(e.target.value)}
-      className="mt-1 block w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-3 text-sm text-white [color-scheme:dark]"/></label>
-   </div>
-   <div className="grid gap-3 sm:grid-cols-2">
-    {(["programme","results"] as Kind[]).map(kind=><div key={kind}
-     className="rounded-xl border border-cyan-400/20 bg-[#071E30] p-3">
-     <p className="text-sm font-black text-white">{kind==="programme"?"Programme":"Résultats"} {period==="day"?"du jour":"de la semaine"}</p>
-     <p className="mt-1 text-xs text-slate-400">{period==="day"?"Visuel d’une journée":"Affiche paysage, journées en colonnes"}</p>
-     <div className="mt-3 flex flex-wrap gap-2">
-      {weekDate&&<a href={"/api/discord/preview?"+new URLSearchParams({rosterId,kind,period,date:weekDate}).toString()}
-       target="_blank" rel="noopener noreferrer"
-       className="inline-flex items-center rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-black text-cyan-200 hover:bg-cyan-400/10">Aperçu PNG</a>}
-      {canPublish&&channel&&<button type="button" disabled={busy||pendingChanges||!weekDate} onClick={()=>void publish(kind)}
-       className="flex items-center gap-2 rounded-lg bg-[#FBD046] px-3 py-2 text-xs font-black text-black disabled:opacity-40">
-       {busy?<LoaderCircle size={14} className="animate-spin"/>:<Send size={14}/>} Publier / actualiser
-      </button>}
+
+  <div className="mt-4 rounded-2xl border border-white/10 bg-[#071522] p-4">
+   <div className="grid gap-4 md:grid-cols-2">
+    <div>
+     <p className="mb-2 text-xs font-bold text-slate-300">1. Que veux-tu publier ?</p>
+     <div role="group" aria-label="Contenu de la publication" className="inline-flex w-full gap-1 rounded-lg bg-[#050E19] p-1">
+      <button type="button" onClick={()=>setPublicationKind("programme")} aria-pressed={publicationKind==="programme"}
+       className={publicationKind==="programme"?"flex-1 rounded-md bg-cyan-400 px-3 py-2.5 text-sm font-black text-[#071321]":"flex-1 rounded-md px-3 py-2.5 text-sm font-bold text-slate-400 hover:bg-white/10"}>
+       Programme</button>
+      <button type="button" onClick={()=>setPublicationKind("results")} aria-pressed={publicationKind==="results"}
+       className={publicationKind==="results"?"flex-1 rounded-md bg-cyan-400 px-3 py-2.5 text-sm font-black text-[#071321]":"flex-1 rounded-md px-3 py-2.5 text-sm font-bold text-slate-400 hover:bg-white/10"}>
+       Résultats</button>
      </div>
-    </div>)}
+    </div>
+    <div>
+     <label className="block text-xs font-bold text-slate-300">2. Quelle période ?
+      <select value={period} onChange={e=>setPeriod(e.target.value as Period)}
+       className="mt-2 block w-full rounded-lg border border-white/15 bg-[#050E19] px-3 py-3 text-sm text-white">
+       <option value="week">Toute la semaine · format paysage</option>
+       <option value="day">Un seul jour · format vertical</option>
+      </select>
+     </label>
+    </div>
+    <label className="block text-xs font-bold text-slate-300">3. {period==="day"?"Quelle journée ?":"Quelle semaine ?"}
+     <input type="date" value={weekDate} onChange={e=>setWeekDate(e.target.value)}
+      className="mt-2 block w-full rounded-lg border border-white/15 bg-[#050E19] px-3 py-3 text-sm text-white [color-scheme:dark]"/>
+    </label>
+    <label className="block text-xs font-bold text-slate-300">4. Dans quel salon ?
+     {channels.length>0?
+      <select value={selected} onChange={e=>setSelected(e.target.value)}
+       className="mt-2 block w-full rounded-lg border border-white/15 bg-[#050E19] px-3 py-3 text-sm text-white">
+       {channels.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+      </select>:
+      <p className="mt-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-3 text-xs text-amber-200">
+       Aucun salon connecté. Ouvre « Paramètres Discord » pour en associer un.
+      </p>}
+    </label>
    </div>
+   <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+    {weekDate&&<a
+     href={"/api/discord/preview?"+new URLSearchParams({rosterId,kind:publicationKind,period,date:weekDate}).toString()}
+     target="_blank" rel="noopener noreferrer"
+     className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/30 px-4 py-2.5 text-sm font-black text-cyan-200 hover:bg-cyan-400/10">
+     <Picture size={16}/> Voir l'aperçu PNG</a>}
+    {canPublish&&<button type="button" disabled={busy||pendingChanges||!weekDate||!channel}
+     onClick={()=>void publish(publicationKind)}
+     className="inline-flex items-center gap-2 rounded-lg bg-[#FBD046] px-4 py-2.5 text-sm font-black text-black disabled:opacity-40">
+     {busy?<LoaderCircle size={15} className="animate-spin"/>:<Send size={15}/>} Publier / actualiser</button>}
+    {!canPublish&&<p className="text-xs text-slate-400">Accès en lecture seule : un membre du staff peut publier.</p>}
+   </div>
+   {pendingChanges&&<p className="mt-3 text-xs font-bold text-amber-300">Enregistre d’abord les modifications du programme avant la publication.</p>}
   </div>
-  {channels.length>0&&<div className="mt-4 space-y-3">
-   <label className="block text-xs font-semibold text-slate-300">Salon Discord de destination
-    <select value={selected} onChange={e=>setSelected(e.target.value)}
-     className="mt-1 block w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-3 text-sm text-white">
-     {channels.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-    </select>
-   </label>
-   {channel&&<>
-    {pendingChanges&&<p className="text-xs text-amber-200">Enregistre d'abord les modifications du programme sur ATYOM avant de publier.</p>}
-    {canManage&&<div className="flex flex-wrap items-center gap-4 border-t border-white/10 pt-3 text-xs text-slate-300">
+
+  <details className="mt-4 rounded-xl border border-white/10 bg-[#091521]">
+   <summary className="cursor-pointer select-none px-4 py-3 text-sm font-bold text-slate-300 hover:text-white">
+    Paramètres Discord et historique des publications
+   </summary>
+   <div className="space-y-4 border-t border-white/10 p-4">
+    <div className="flex flex-wrap gap-2">
+     <button type="button" onClick={()=>void load()}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10">
+      <RefreshCw size={14}/> Actualiser les salons
+     </button>
+     {canManage&&<button type="button" onClick={()=>setShowAdd(v=>!v)}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-[#FBD046]/30 px-3 py-2 text-xs font-black text-[#FBD046] hover:bg-[#FBD046]/10">
+      <Link2 size={14}/> Associer un salon
+     </button>}
+    </div>
+    {canManage&&showAdd&&<form onSubmit={add} className="grid gap-3 rounded-xl border border-white/10 bg-[#050F19] p-3 sm:grid-cols-2">
+     <label className="text-xs text-slate-300">Nom du salon
+      <input required minLength={2} maxLength={60} value={name} onChange={e=>setName(e.target.value)}
+       placeholder="Ex. Discord GX NØVA" className="mt-1 w-full rounded-lg border border-white/15 bg-[#060E17] p-3 text-sm text-white"/></label>
+     <label className="text-xs text-slate-300">URL du webhook Discord
+      <input required type="password" autoComplete="off" value={url} onChange={e=>setUrl(e.target.value)}
+       placeholder="https://discord.com/api/webhooks/…" className="mt-1 w-full rounded-lg border border-white/15 bg-[#060E17] p-3 text-sm text-white"/></label>
+     <p className="text-xs text-slate-400 sm:col-span-2">Discord → Paramètres du salon → Intégrations → Webhooks. Ne partage pas cette URL.</p>
+     <button type="submit" disabled={busy} className="rounded-lg bg-[#FBD046] px-4 py-2.5 text-xs font-black text-black disabled:opacity-40 sm:col-span-2">Connecter le salon</button>
+    </form>}
+    {channel&&canManage&&<div className="flex flex-wrap gap-4 text-xs text-slate-300">
      <label className="flex items-center gap-2"><input type="checkbox" checked={channel.autoProgramme} disabled={busy}
-      onChange={e=>void changeConfig(channel,"programme",e.target.checked)}/> Actualiser automatiquement le programme</label>
+      onChange={e=>void changeConfig(channel,"programme",e.target.checked)}/> Synchroniser automatiquement le programme</label>
      <label className="flex items-center gap-2"><input type="checkbox" checked={channel.autoResults} disabled={busy}
-      onChange={e=>void changeConfig(channel,"results",e.target.checked)}/> Actualiser automatiquement les résultats</label>
-     <button type="button" disabled={busy} onClick={()=>void remove()} className="flex items-center gap-1 text-rose-300"><Trash2 size={14}/> Déconnecter</button>
+      onChange={e=>void changeConfig(channel,"results",e.target.checked)}/> Synchroniser automatiquement les résultats</label>
+     <button type="button" disabled={busy} onClick={()=>void remove()} className="inline-flex items-center gap-1 text-rose-300">
+      <Trash2 size={14}/> Déconnecter ce salon</button>
     </div>}
-    <div className="space-y-1 text-[11px] text-slate-400">
+    {channel&&<div className="space-y-1 text-xs text-slate-400">
+     <p className="font-bold text-slate-300">Dernières publications</p>
+     {channel.publications.length===0&&<p>Aucune publication enregistrée pour ce salon.</p>}
      {channel.publications.slice(0,12).map(p=><p key={p.kind+p.period+p.dateKey}>
-      {p.kind==="programme"?"Programme":"Résultats"} · {p.period==="day"?"jour du":"semaine du"} {p.dateKey} · {p.lastSyncedAt?"mise à jour "+new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"short"}).format(new Date(p.lastSyncedAt)):"publication en attente"}
+      {p.kind==="programme"?"Programme":"Résultats"} · {p.period==="day"?"jour du":"semaine du"} {p.dateKey} · {p.lastSyncedAt?"Actualisé le "+new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"short"}).format(new Date(p.lastSyncedAt)):"En attente"}
       {p.error&&<span className="ml-2 text-rose-300">Erreur : {p.error}</span>}
      </p>)}
-    </div>
-   </>}
-  </div>}
-  {!loading&&channels.length===0&&<p className="mt-4 text-sm text-slate-400">
-   Aucun salon connecté. {canManage?"Ajoute un webhook Discord pour publier la première affiche.":"Demande à un Admin ATYOM d'associer un salon Discord."}
-  </p>}
-  <p className="mt-3 text-[11px] text-slate-500">Les quatre formats ont chacun leur message Discord, envoyé sous le nom du club. Une première publication manuelle est nécessaire pour chaque date et format. Ensuite, les images sont remplacées automatiquement selon les options choisies. Le nom d’auteur des anciens messages Discord ne peut pas être modifié par une simple actualisation.</p>
+    </div>}
+    <p className="text-[11px] text-slate-500">La première publication se fait manuellement. Ensuite, l'image du même message Discord est actualisée si la synchronisation est activée.</p>
+   </div>
+  </details>
  </section>;
 }
