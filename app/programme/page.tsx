@@ -2446,11 +2446,51 @@ function ProgrammeEditorCard({
   const branding = useClubBranding();
   const isCompetition = item.type === "competition";
   const [showPlayedDetails, setShowPlayedDetails] = useState(false);
+  const [showEditor, setShowEditor] = useState(() => !item.opponentName.trim());
 
   const planEntries = Object.values(plan?.availability ?? {});
   const planAvailable = planEntries.filter((entry) => entry.status === "available").length;
   const planAbsent = planEntries.filter((entry) => entry.status === "absent").length;
   const planLineupCount = plan?.lineup.length ?? 0;
+
+  // Vue par défaut : on lit la rencontre avant de choisir ce qu'on souhaite modifier.
+  // Une rencontre nouvellement créée ouvre son formulaire pour être complétée.
+  if (!item.linkedMatchId && !showEditor) {
+    return (
+      <article className="rounded-2xl border border-white/10 bg-[#0C1927] p-3.5 transition hover:border-cyan-400/20 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex w-[66px] shrink-0 flex-col items-center justify-center rounded-xl bg-cyan-400/[0.07] py-2 text-lg font-black text-[#FBD046]">
+              <Clock3 size={13} className="mb-0.5 text-slate-500"/>
+              {item.time || "--:--"}
+            </div>
+            {item.opponentLogoUrl && <img src={item.opponentLogoUrl} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-[#06101B] object-contain p-1"/>}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-black text-white">{item.opponentName || "Adversaire à définir"}</p>
+              <p className="mt-1 truncate text-xs font-semibold text-slate-400">{competitionLabel(item, competitions)}</p>
+              {item.notes && <p className="mt-1 truncate text-[11px] text-slate-500" title={item.notes}>{item.notes}</p>}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {manualResult && <span className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-xs font-black text-amber-300">
+              {manualResult.kind === "forfeit" ? "Forfait" : "Hors EA"} · {manualResult.goalsFor}–{manualResult.goalsAgainst}
+            </span>}
+            {plan && <span className="rounded-lg bg-cyan-400/[0.07] px-2 py-1.5 text-xs font-bold text-cyan-200">
+              Compo {planLineupCount}/11
+            </span>}
+            <button type="button" onClick={onOpenPlan}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/20 px-3 py-2 text-xs font-black text-cyan-300 hover:bg-cyan-400/10">
+              <Users size={14}/> {plan ? "Composition" : "Préparer"}
+            </button>
+            <button type="button" onClick={() => setShowEditor(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10">
+              <ChevronDown size={14}/> {canEdit ? "Modifier" : "Détails"}
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   if (item.linkedMatchId && !showPlayedDetails) {
     return (
@@ -2579,7 +2619,7 @@ function ProgrammeEditorCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {item.linkedMatchId && (
+          {item.linkedMatchId ? (
             <button
               type="button"
               onClick={() => setShowPlayedDetails(false)}
@@ -2588,6 +2628,11 @@ function ProgrammeEditorCard({
             >
               <ChevronUp size={14} />
               Réduire
+            </button>
+          ) : (
+            <button type="button" onClick={() => setShowEditor(false)}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs font-black text-slate-300 hover:bg-white/10">
+              <ChevronUp size={14}/> Réduire
             </button>
           )}
 
