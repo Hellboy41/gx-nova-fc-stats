@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, ChevronDown, ChevronUp, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import {
-  dateForTemplateWeekday, type EveningTemplate, type TemplateSlot,
+  dateForTemplateWeekday, validTemplateDate, type EveningTemplate, type TemplateSlot,
 } from "@/lib/programme-templates";
 
 type Props = {
@@ -55,6 +55,7 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, co
 
   const selected = useMemo(() => templates.find(template => template.id === selectedId) ?? null, [selectedId, templates]);
   const effectiveDate = mode === "legacy" ? startDate : targetDate;
+  const dateValid = validTemplateDate(effectiveDate);
   const sortedSlots = useMemo(() => selected?.slots ?? [], [selected]);
   const slotsToSave = draftSlots ?? sourceSlots;
   const createDisabled = !canEdit || busy || slotsToSave.length === 0 || slotsToSave.length > 42 ||
@@ -96,7 +97,7 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, co
   }
 
   async function applyTemplate() {
-    if (!canEdit || !selected || busy || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(effectiveDate)) return;
+    if (!canEdit || !selected || busy || !dateValid) { setError("Choisis une date valide."); return; }
     setBusy(true); setError(""); setNotice("");
     const names = sortedSlots.map((_, i) => (opponents[i] ?? "").trim());
     try {
@@ -162,7 +163,7 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, co
           </p>
           {sortedSlots.map((slot, index) => <label key={index} className="grid gap-2 rounded-lg border border-white/10 p-3 sm:grid-cols-[1fr_1fr] sm:items-center">
             <span className="min-w-0 text-xs font-semibold text-slate-200">
-              {LABELS[slot.weekday]} {dateForTemplateWeekday(effectiveDate, slot.weekday).split("-").reverse().join("/")} · {slot.time}
+              {LABELS[slot.weekday]} {dateValid ? dateForTemplateWeekday(effectiveDate, slot.weekday).split("-").reverse().join("/") : "date à choisir"} · {slot.time}
               <span className="mt-1 block truncate text-slate-400">{slot.competition}</span>
             </span>
             <input type="text" maxLength={120} value={opponents[index] ?? ""}
@@ -171,7 +172,7 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, co
               disabled={!canEdit || busy}
               className="w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-2.5 text-sm text-white placeholder:text-slate-500 disabled:opacity-50"/>
           </label>)}
-          {canEdit && <button type="button" onClick={() => void applyTemplate()} disabled={busy || !effectiveDate}
+          {canEdit && <button type="button" onClick={() => void applyTemplate()} disabled={busy || !dateValid}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FBD046] px-4 py-3 text-sm font-black text-[#071321] disabled:opacity-50">
             {busy ? <LoaderCircle size={16} className="animate-spin"/> : <Plus size={16}/>}
             Utiliser ce modèle pour la période
