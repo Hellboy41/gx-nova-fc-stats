@@ -16,7 +16,7 @@ export type EveningTemplate = {
   updatedAt: string;
 };
 
-const TIME_RE = /^([01]\\d|2[0-3]):[0-5]\\d$/;
+const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 
 export function weekdayOf(date: string): number {
   const day = new Date(date + "T12:00:00Z").getUTCDay();
@@ -48,7 +48,7 @@ export function sanitizeTemplateSlots(value: unknown, allowFriendly: boolean): T
     const uniqueKey = String(weekday) + ":" + time;
     if (unique.has(uniqueKey)) return null;
     unique.add(uniqueKey);
-    slots.push({ weekday, time, type, competition: competition.trim(), competitionId: competitionId ?? null });
+    slots.push({ weekday, time, type, competition: competition.trim(), competitionId: typeof competitionId === "number" ? competitionId : null });
   }
   const counts = new Map<number, number>();
   for (const slot of slots) {
