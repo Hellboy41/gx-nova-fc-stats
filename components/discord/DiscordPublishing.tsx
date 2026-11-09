@@ -70,7 +70,7 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
  return <section className="rounded-2xl border border-[#FBD046]/25 bg-[#101925] p-5">
   <div className="flex flex-wrap items-center justify-between gap-3">
    <div><h3 className="flex items-center gap-2 text-base font-black text-white"><Picture size={19} className="text-[#FBD046]"/> Affiches Discord synchronisées</h3>
-    <p className="mt-1 text-xs text-slate-400">Programme et résultats en PNG · même message Discord mis à jour automatiquement.</p></div>
+    <p className="mt-1 text-xs text-slate-400">Programme et résultats en PNG · publications au nom du club, mises à jour automatiquement.</p></div>
    <div className="flex gap-2">
     <button type="button" aria-label="Rafraîchir les canaux Discord" onClick={()=>void load()} className="rounded-lg border border-white/15 p-2 text-slate-300"><RefreshCw size={16}/></button>
     {canManage&&<button type="button" onClick={()=>setShowAdd(v=>!v)} className="rounded-lg border border-[#FBD046]/40 px-3 py-2 text-xs font-black text-[#FBD046]"><Link2 size={13} className="mr-1 inline"/> Associer un salon</button>}
@@ -145,6 +145,6 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
   {!loading&&channels.length===0&&<p className="mt-4 text-sm text-slate-400">
    Aucun salon connecté. {canManage?"Ajoute un webhook Discord pour publier la première affiche.":"Demande à un Admin ATYOM d'associer un salon Discord."}
   </p>}
-  <p className="mt-3 text-[11px] text-slate-500">Les quatre formats ont chacun leur message Discord : programme jour, programme semaine, résultats jour et résultats semaine. Une première publication manuelle est nécessaire pour chaque date et format. Ensuite, les images sont remplacées automatiquement selon les options choisies.</p>
+  <p className="mt-3 text-[11px] text-slate-500">Les quatre formats ont chacun leur message Discord, envoyé sous le nom du club. Une première publication manuelle est nécessaire pour chaque date et format. Ensuite, les images sont remplacées automatiquement selon les options choisies. Le nom d’auteur des anciens messages Discord ne peut pas être modifié par une simple actualisation.</p>
  </section>;
 }
