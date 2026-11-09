@@ -59,15 +59,21 @@ export async function readDiscordWeek(roster:AtyomRoster,monday:string):Promise<
      if(linked)linkedEventIds.add(e.id);
      const man=!linked?manual.get(e.id):null;
      const competition=typeof e.competitionId==="number"?competitionNames.get(e.competitionId):null;
-     const sourceResult=man?.result??(typeof e.result==="string"?e.result:"");
+     // Les 0-0 sont parfois enregistrés comme valeurs par défaut sur les matchs à venir.
+     // N'afficher un score EA que pour un match effectivement finalisé et lié.
+     const eaValidated=linked&&e.status==="played"&&
+      (e.result==="V"||e.result==="N"||e.result==="D")&&
+      typeof e.goalsFor==="number"&&typeof e.goalsAgainst==="number";
+     const sourceResult=man?.result??(eaValidated?e.result:null);
      const score=man?`${man.goals_for} - ${man.goals_against}`:
-      typeof e.goalsFor==="number"&&typeof e.goalsAgainst==="number"?`${e.goalsFor} - ${e.goalsAgainst}`:null;
+      eaValidated?`${e.goalsFor} - ${e.goalsAgainst}`:null;
      programme.push({
       id:e.id,date,time:typeof e.time==="string"&&timeRegex.test(e.time)?e.time:"--:--",
       opponent:typeof e.opponentName==="string"&&e.opponentName.trim()?e.opponentName.trim():
        typeof e.title==="string"&&e.title.trim()?e.title.trim():"Adversaire à confirmer",
       competition:competition??(typeof e.title==="string"&&e.title.trim()?e.title.trim():"Événement"),
-      score,status:man?.kind==="forfeit"?"forfeit":sourceResult?resultStatus(sourceResult):"upcoming",
+      score,status:man?.kind==="forfeit"?"forfeit":
+       typeof sourceResult==="string"&&["V","N","D"].includes(sourceResult)?resultStatus(sourceResult):"upcoming",
       opponentLogoUrl:typeof e.opponentLogoUrl==="string"?e.opponentLogoUrl:null,
      });
     }

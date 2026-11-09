@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
+import { parisDay } from "@/lib/discord/week";
 import { CLUB_ID } from "@/lib/platform/server-club";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
@@ -173,6 +175,8 @@ export async function POST(request: Request) {
       });
     if (saveError) throw saveError;
     const saved = await readConfig(admin, scope);
+    // Un logo ou une couleur modifiés doivent aussi actualiser les affiches Discord déjà publiées.
+    if(scope==="roster")after(() => refreshDiscordPublications("gx-nova-legacy",[parisDay(new Date())]));
     return NextResponse.json({ success: true, scope, settings: saved, environment: currentEnvironment().label }, { headers: NO_CACHE });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Enregistrement impossible." }, { status: 500, headers: NO_CACHE });
