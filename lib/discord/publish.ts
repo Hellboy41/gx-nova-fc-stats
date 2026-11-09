@@ -6,6 +6,7 @@ import { posterDate,type PosterKind,type PosterPeriod } from "@/lib/discord/peri
 import { isProgrammeDateKey } from "@/lib/programme-period";
 import { readDiscordWeek,filterDiscordData } from "@/lib/discord/data";
 import { renderDiscordImage } from "@/lib/discord/image";
+import { discordRosterName,discordPosterFilename } from "@/lib/discord/identity";
 type Channel={id:string;roster_id:string;webhook_ciphertext:string;auto_programme:boolean;auto_results:boolean};
 const selectChannel="id,roster_id,webhook_ciphertext,auto_programme,auto_results";
 export async function validateDiscordWebhook(raw:string){
@@ -22,12 +23,15 @@ function discordError(status:number){
  if(status===429)return "Discord limite temporairement les envois, réessaie ultérieurement.";
  return "La mise à jour Discord a échoué (HTTP "+status+").";
 }
-async function sendImage(apiUrl:string,method:"POST"|"PATCH",kind:PosterKind,period:PosterPeriod,filename:string,bytes:Uint8Array,messageId?:string){
+async function sendImage(apiUrl:string,method:"POST"|"PATCH",kind:PosterKind,period:PosterPeriod,filename:string,bytes:Uint8Array,rosterName:string,messageId?:string){
  const payload={
-  content:`**ATYOM · ${kind==="programme"?"Programme":"Résultats"} ${period==="day"?"du jour":"de la semaine"}** · Visuel synchronisé depuis ATYOM`,
-  username:"ATYOM",allowed_mentions:{parse:[] as string[]},
+  content:`**${discordRosterName(rosterName)} · ${kind==="programme"?"Programme":"Résultats"} ${period==="day"?"du jour":"de la semaine"}** · Visuel officiel du club`,
+  // Discord ne permet pas de changer l'auteur d'un message existant via PATCH :
+  // définir le nom du club dès la création avec POST.
+  ...(method==="POST"?{username:discordRosterName(rosterName)}:{}),
+  allowed_mentions:{parse:[] as string[]},
   embeds:[{image:{url:"attachment://"+filename}}],
-  attachments:[{id:0,filename,description:"Visuel ATYOM à jour"}]
+  attachments:[{id:0,filename,description:"Visuel officiel "+discordRosterName(rosterName)}]
  };
  const form=new FormData();
  form.set("payload_json",JSON.stringify(payload));
@@ -57,10 +61,10 @@ export async function publishDiscordImage(rosterId:string,channelId:string,kind:
  const weeklyData=await readDiscordWeek(roster,week);
  const poster=filterDiscordData(weeklyData,period,key);
  const image=await renderDiscordImage(roster,kind,period,key,poster);
- const filename=`atyom-${kind}-${period}-${key}.png`;
+ const filename=discordPosterFilename(roster.name,kind,period,key);
  try{
-  let id=previous?.message_id?await sendImage(apiUrl,"PATCH",kind,period,filename,image,previous.message_id):null;
-  if(!id)id=await sendImage(apiUrl,"POST",kind,period,filename,image);
+  let id=previous?.message_id?await sendImage(apiUrl,"PATCH",kind,period,filename,image,roster.name,previous.message_id):null;
+  if(!id)id=await sendImage(apiUrl,"POST",kind,period,filename,image,roster.name);
   const {error}=await admin.from("atyom_discord_publications").upsert({
    channel_id:channelId,kind,period,date_key:key,week_start:week,message_id:id,last_synced_at:new Date().toISOString(),
    last_error:null,updated_at:new Date().toISOString()
