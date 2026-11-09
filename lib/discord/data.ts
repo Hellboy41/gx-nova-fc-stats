@@ -88,7 +88,11 @@ export async function readDiscordWeek(roster:AtyomRoster,monday:string):Promise<
  }
  programme.sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
  const results:DiscordLine[]=[];
- for(const e of eaResult.data??[]){
+ const eaRows=(eaResult.data??[]) as unknown as Array<{
+   id?:number;ea_match_id?:string;played_at:string;opponent_name:string;
+   goals_for:number;goals_against:number;result:string;competition_id?:number|null;
+ }>;
+ for(const e of eaRows){
   const date=parisDay(new Date(e.played_at));
   if(date<monday||date>through)continue;
   const id="id" in e?String(e.id):String(e.ea_match_id);
