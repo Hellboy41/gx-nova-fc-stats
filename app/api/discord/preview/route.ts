@@ -4,6 +4,7 @@ import { discordWeek } from "@/lib/discord/week";
 import { posterDate,validPeriod } from "@/lib/discord/period";
 import { readDiscordWeek,filterDiscordData } from "@/lib/discord/data";
 import { renderDiscordImage } from "@/lib/discord/image";
+import { discordPosterFilename } from "@/lib/discord/identity";
 import { NextResponse } from "next/server";
 export const dynamic="force-dynamic";
 export async function GET(req:Request){
@@ -18,9 +19,10 @@ export async function GET(req:Request){
   const key=posterDate(date,period),week=discordWeek(date);
   const data=filterDiscordData(await readDiscordWeek(roster,week),period,key);
   const png=await renderDiscordImage(roster,kind as "programme"|"results",period,key,data);
+  const filename=discordPosterFilename(roster.name,kind as "programme"|"results",period,key);
   return new Response(Uint8Array.from(png).buffer,{headers:{
    "Content-Type":"image/png","Cache-Control":"private, no-store",
-   "Content-Disposition":"inline; filename=\"atyom-"+kind+"-"+period+"-"+key+".png\""
+   "Content-Disposition":"inline; filename=\""+filename+"\""
   }});
  }catch(e){console.error("ATYOM Discord preview",e);
   return NextResponse.json({error:"Aperçu indisponible."},{status:500});}
