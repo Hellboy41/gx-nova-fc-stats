@@ -271,11 +271,11 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function getSunday(date = new Date()) {
+function getMonday(date = new Date()) {
   const result = new Date(date);
   result.setHours(12, 0, 0, 0);
-  const day = result.getDay();
-  result.setDate(result.getDate() - day);
+  const daysSinceMonday = (result.getDay() + 6) % 7;
+  result.setDate(result.getDate() - daysSinceMonday);
   return result;
 }
 
@@ -419,7 +419,7 @@ export default function ProgrammePage() {
   const branding = useClubBranding();
   const currentClubLogo = branding.roster.logoUrl || CLUB_LOGO;
   const [weekStart, setWeekStart] = useState(() =>
-    toDateKey(getSunday())
+    toDateKey(getMonday())
   );
   const [schedule, setSchedule] = useState<ProgrammeSchedule>({});
   const [manualResults, setManualResults] = useState<Record<string, ManualResult>>({});
@@ -668,7 +668,7 @@ export default function ProgrammePage() {
   }
 
   function goCurrentWeek() {
-    selectPeriod(toDateKey(getSunday()));
+    selectPeriod(toDateKey(getMonday()));
   }
 
   function updateDay(dateKey: string, items: ProgrammeItem[]) {
