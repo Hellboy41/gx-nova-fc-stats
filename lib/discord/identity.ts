@@ -1,3 +1,6 @@
+import { addProgrammeDays } from "@/lib/programme-period";
+import type { PosterKind, PosterPeriod } from "@/lib/discord/period";
+
 /** Identité du roster affichée dans les messages Discord et leurs noms de fichier.
  * Ne pas confondre l'identité du club avec celle de la plateforme de gestion.
  */
@@ -14,8 +17,6 @@ export function discordPosterFilename(name:string,kind:"programme"|"results",per
  return `${slug}-${kind}-${period}-${date}.png`;
 }
 
-import { addProgrammeDays } from "@/lib/programme-period";
-import type { PosterKind, PosterPeriod } from "@/lib/discord/period";
 
 function frenchDate(dateKey:string):string{
  return new Intl.DateTimeFormat("fr-FR",{
