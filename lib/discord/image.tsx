@@ -219,13 +219,23 @@ export async function renderDiscordImage(roster:AtyomRoster,kind:PosterKind,peri
   Promise.all(unique.map(async url=>[url,await safeOpponentLogo(url)] as const))
  ]);
  const logos=new Map(loaded.filter((entry):entry is readonly [string,string]=>Boolean(entry[1])));
- const image=new ImageResponse(
-  period==="week"?
-   <WeekPoster roster={roster} kind={kind} day={key} items={items} logo={logo}
-    logos={logos} accent={accent} gold={gold} data={data}/>:
-   <DayPoster roster={roster} kind={kind} date={key} items={items} logo={logo}
-    logos={logos} accent={accent} gold={gold} data={data}/>,
-  {width:period==="week"?1600:1080,height:period==="week"?900:1350}
- );
- return new Uint8Array(await image.arrayBuffer());
+ const draw=async(activeLogo:string|null,activeLogos:Map<string,string>)=>{
+  const graphic=new ImageResponse(
+   period==="week"?
+    <WeekPoster roster={roster} kind={kind} day={key} items={items} logo={activeLogo}
+     logos={activeLogos} accent={accent} gold={gold} data={data}/>:
+    <DayPoster roster={roster} kind={kind} date={key} items={items} logo={activeLogo}
+     logos={activeLogos} accent={accent} gold={gold} data={data}/>,
+   {width:period==="week"?1600:1080,height:period==="week"?900:1350}
+  );
+  return new Uint8Array(await graphic.arrayBuffer());
+ };
+ try{
+  return await draw(logo,logos);
+ }catch(error){
+  // Un logo peut être illisible pour le moteur malgré une extension et un MIME valides.
+  if(!logo&&logos.size===0)throw error;
+  console.warn("ATYOM : logo incompatible ; génération de secours sans images.");
+  return await draw(null,new Map<string,string>());
+ }
 }
