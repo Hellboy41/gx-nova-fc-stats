@@ -96,7 +96,10 @@ export function ProgrammeCalendar({rosterId,rosterName,canEdit,initialDate,color
  }
  const monthLabel=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric",timeZone:"UTC"})
   .format(new Date(month+"-01T12:00:00Z"));
- const today=new Date().toLocaleDateString("en-CA",{timeZone:"Europe/Paris"});
+ const todayParts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"})
+  .formatToParts(new Date());
+ const parts=Object.fromEntries(todayParts.map(p=>[p.type,p.value]));
+ const today=parts.year+"-"+parts.month+"-"+parts.day;
  return <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#071321]">
   <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-[#0A1827] px-5 py-5">
    <div className="flex min-w-0 items-center gap-3">
@@ -185,7 +188,7 @@ export function ProgrammeCalendar({rosterId,rosterName,canEdit,initialDate,color
       <input type="time" required value={pending.time} onChange={e=>setPending(p=>p?{...p,time:e.target.value}:p)}
        className="mt-2 w-full rounded-xl border border-white/15 bg-[#050E18] px-3 py-3 text-sm text-white [color-scheme:dark]"/></label>
     </div>
-    <p className="mt-4 text-xs text-slate-400">L’adversaire, la compétition et les disponibilités/compositions déjà préparées sont conservés.</p>
+    <p className="mt-4 text-xs text-slate-400">L’adversaire, la compétition et les disponibilités/compositions déjà préparées sont conservés. Pense à régénérer tes annonces Discord après le report.</p>
     {error&&<p role="alert" className="mt-3 text-xs text-rose-300">{error}</p>}
     <div className="mt-6 flex flex-wrap justify-end gap-2">
      <button type="button" disabled={saving} onClick={()=>setPending(null)} className="rounded-lg border border-white/15 px-4 py-3 text-xs font-bold text-slate-300">Annuler</button>
