@@ -2343,7 +2343,11 @@ export default function ProgrammePage() {
         )}
 
         {!!aliases.length && (
-          <section className="mt-6 rounded-3xl border border-cyan-400/15 bg-[#071321] p-5 lg:p-6">
+          <details className="mt-6 rounded-2xl border border-white/10 bg-[#071321]">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-slate-400 hover:text-white">
+              Correspondances des adversaires EA · {aliases.length} enregistrée{aliases.length>1?"s":""}
+            </summary>
+            <div className="border-t border-white/10 p-5">
             <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
               <div>
                 <div className="flex items-center gap-2 text-cyan-300">
@@ -2380,7 +2384,8 @@ export default function ProgrammePage() {
                 </div>
               ))}
             </div>
-          </section>
+            </div>
+          </details>
         )}
       </div>
 
