@@ -11,13 +11,14 @@ type Props = {
   canEdit: boolean;
   startDate: string;
   sourceSlots: TemplateSlot[];
+  competitionChoices?: Array<{ id: number; name: string }>;
   mode: "legacy" | "roster";
   onApplyLegacy?: (template: EveningTemplate, opponents: string[]) => { inserted: number; skipped: number };
   onRosterApplied?: () => Promise<void> | void;
 };
 const LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mode, onApplyLegacy, onRosterApplied }: Props) {
+export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, competitionChoices = [], mode, onApplyLegacy, onRosterApplied }: Props) {
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<EveningTemplate[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -198,10 +199,20 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mo
                 <input type="time" aria-label={"Horaire du créneau " + (index + 1)} value={slot.time}
                   onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, time: event.target.value } : item) ?? [])}
                   className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-2 py-2 text-xs text-white [color-scheme:dark]"/>
-                <input type="text" maxLength={90} aria-label={"Compétition du créneau " + (index + 1)}
+                {mode === "legacy" && slot.type === "competition" ? <select
+                  aria-label={"Compétition du créneau " + (index + 1)} value={slot.competitionId ?? ""}
+                  onChange={event => {
+                    const choice = competitionChoices.find(candidate => candidate.id === Number(event.target.value));
+                    setDraftSlots(current => current?.map((item, i) => i === index ?
+                      { ...item, competition: choice?.name ?? "", competitionId: choice?.id ?? null } : item) ?? []);
+                  }}
+                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-2 py-2 text-xs text-white">
+                  <option value="">Choisir une compétition</option>
+                  {competitionChoices.map(choice => <option key={choice.id} value={choice.id}>{choice.name}</option>)}
+                </select> : <input type="text" maxLength={90} aria-label={"Compétition du créneau " + (index + 1)}
                   value={slot.competition} placeholder="Compétition / événement"
                   onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, competition: event.target.value, competitionId: null } : item) ?? [])}
-                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-3 py-2 text-xs text-white"/>
+                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-3 py-2 text-xs text-white"/>}
                 <select aria-label={"Type de rencontre " + (index + 1)} value={slot.type}
                   onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, type: event.target.value as TemplateSlot["type"], competitionId: null } : item) ?? [])}
                   className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-2 py-2 text-xs text-white">
