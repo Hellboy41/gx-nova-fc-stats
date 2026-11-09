@@ -28,6 +28,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  const [showForm,setShowForm]=useState(false);
  const [view,setView]=useState<"list"|"calendar">("list");
  const [editingId,setEditingId]=useState<string|null>(null);
+ const [focusId,setFocusId]=useState<string|null>(null);
  const [editingOpponent,setEditingOpponent]=useState("");
  const [weekStart,setWeekStart]=useState(()=>{
   const date=new Date();
@@ -66,11 +67,11 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  },[base]);
  useEffect(()=>{const c=new AbortController();void load(c.signal);return()=>c.abort();},[load]);
  useEffect(()=>{
-  if (!editingId || view !== "list") return;
-  const frame=window.requestAnimationFrame(()=>document.getElementById("roster-match-"+editingId)
+  if (!focusId || view !== "list") return;
+  const frame=window.requestAnimationFrame(()=>document.getElementById("roster-match-"+focusId)
    ?.scrollIntoView({behavior:"smooth",block:"center"}));
   return ()=>window.cancelAnimationFrame(frame);
- },[editingId,view]);
+ },[focusId,view]);
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();setSaving(true);setError("");setMessage("");
   try{
@@ -145,8 +146,9 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
      onSelect={match=>{
       const found=events.find(event=>event.id===match.id);
       setView("list");
+      if(found){setFocusId(found.id);}
       if(found && canWrite){setEditingId(found.id);setEditingOpponent(found.opponent==="À définir"?"":found.opponent);}
-      else if(found){document.getElementById("roster-match-"+found.id)?.scrollIntoView({behavior:"smooth",block:"center"});}
+      else setEditingId(null);
      }}/>
   </div>
   <div className="m-4"><DiscordPublishing rosterId={rosterId} initialDate={new Date().toISOString().slice(0,10)}/></div>
