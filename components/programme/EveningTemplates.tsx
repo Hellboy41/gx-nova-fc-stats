@@ -22,6 +22,7 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mo
   const [templates, setTemplates] = useState<EveningTemplate[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [newName, setNewName] = useState("");
+  const [draftSlots, setDraftSlots] = useState<TemplateSlot[] | null>(null);
   const [targetDate, setTargetDate] = useState(startDate);
   const [opponents, setOpponents] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,8 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mo
   const selected = useMemo(() => templates.find(template => template.id === selectedId) ?? null, [selectedId, templates]);
   const effectiveDate = mode === "legacy" ? startDate : targetDate;
   const sortedSlots = useMemo(() => selected?.slots ?? [], [selected]);
-  const createDisabled = !canEdit || busy || sourceSlots.length === 0 || sourceSlots.length > 42 ||
+  const slotsToSave = draftSlots ?? sourceSlots;
+  const createDisabled = !canEdit || busy || slotsToSave.length === 0 || slotsToSave.length > 42 ||
     newName.trim().length < 2 || newName.trim().length > 80;
 
   async function createTemplate() {
@@ -63,12 +65,12 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mo
     try {
       const response = await fetch("/api/programme/templates", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rosterId, name: newName.trim(), slots: sourceSlots }),
+        body: JSON.stringify({ rosterId, name: newName.trim(), slots: slotsToSave }),
       });
       const data = await response.json() as { template?: EveningTemplate; error?: string };
       if (!response.ok || !data.template) throw new Error(data.error ?? "Impossible de créer le modèle.");
       setTemplates(current => [...current, data.template!].sort((a, b) => a.name.localeCompare(b.name, "fr")));
-      setSelectedId(data.template.id); setNewName("");
+      setSelectedId(data.template.id); setNewName(""); setDraftSlots(null);
       setOpponents({}); setNotice("Modèle enregistré. Tu peux désormais l'utiliser chaque semaine.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Création impossible.");
@@ -176,10 +178,49 @@ export function EveningTemplates({ rosterId, canEdit, startDate, sourceSlots, mo
           <p className="text-xs text-slate-400">Les rencontres déjà présentes sont conservées. Les scores et compositions ne sont jamais repris.</p>
         </div>}
         {canEdit && <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-sm font-bold text-white">Enregistrer la période actuelle comme modèle</p>
+          <p className="text-sm font-bold text-white">Créer un modèle de soirée</p>
           <p className="mt-1 text-xs text-slate-400">
-            {sourceSlots.length} créneau(x) à reprendre (horaires et compétitions uniquement, sans adversaires).
+            {slotsToSave.length} créneau(x) prévu(s), sans adversaires, résultats ni compositions.
+            {draftSlots === null ? " Les horaires de la période affichée sont proposés." : " Tu personnalises les créneaux du nouveau modèle."}
           </p>
+          <div className="mt-3">
+            <button type="button" onClick={() => setDraftSlots(current => current === null ? sourceSlots.map(slot => ({ ...slot })) : null)}
+              className="text-xs font-bold text-[#FBD046] hover:underline">
+              {draftSlots === null ? "Personnaliser ou créer les créneaux" : "Reprendre les matchs de la période"}
+            </button>
+            {draftSlots !== null && <div className="mt-3 space-y-2">
+              {draftSlots.map((slot, index) => <div key={index} className="grid gap-2 rounded-xl border border-white/10 bg-black/20 p-3 sm:grid-cols-[110px_100px_1fr_120px_auto]">
+                <select aria-label={"Jour du créneau " + (index + 1)} value={slot.weekday}
+                  onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, weekday: Number(event.target.value) } : item) ?? [])}
+                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-2 py-2 text-xs text-white">
+                  {LABELS.map((label, day) => <option key={day} value={day}>{label}</option>)}
+                </select>
+                <input type="time" aria-label={"Horaire du créneau " + (index + 1)} value={slot.time}
+                  onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, time: event.target.value } : item) ?? [])}
+                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-2 py-2 text-xs text-white [color-scheme:dark]"/>
+                <input type="text" maxLength={90} aria-label={"Compétition du créneau " + (index + 1)}
+                  value={slot.competition} placeholder="Compétition / événement"
+                  onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, competition: event.target.value, competitionId: null } : item) ?? [])}
+                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-3 py-2 text-xs text-white"/>
+                <select aria-label={"Type de rencontre " + (index + 1)} value={slot.type}
+                  onChange={event => setDraftSlots(current => current?.map((item, i) => i === index ? { ...item, type: event.target.value as TemplateSlot["type"], competitionId: null } : item) ?? [])}
+                  className="min-w-0 rounded-lg border border-white/15 bg-[#06101B] px-2 py-2 text-xs text-white">
+                  <option value="competition">Compétition</option>
+                  <option value="tournament">Tournoi</option>
+                  {mode === "roster" && <option value="friendly">Amical</option>}
+                </select>
+                <button type="button" aria-label={"Retirer le créneau " + (index + 1)}
+                  onClick={() => setDraftSlots(current => current?.filter((_, i) => i !== index) ?? [])}
+                  className="rounded-lg border border-rose-400/20 p-2 text-rose-200"><Trash2 size={15}/></button>
+              </div>)}
+              <button type="button" disabled={draftSlots.length >= 42}
+                onClick={() => setDraftSlots(current => [...(current ?? []), { weekday: 0, time: "21:20", competition: "", competitionId: null, type: "competition" }])}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
+                <Plus size={14}/> Ajouter un créneau
+              </button>
+              <p className="text-xs text-slate-400">Jusqu'à 42 créneaux ; pas deux matchs au même horaire le même jour.</p>
+            </div>}
+          </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input type="text" maxLength={80} value={newName} onChange={event => setNewName(event.target.value)}
               placeholder="Ex. Soirée championnat du lundi" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-[#06101B] px-3 py-2.5 text-sm text-white"/>
