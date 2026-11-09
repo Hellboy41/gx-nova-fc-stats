@@ -16,13 +16,16 @@ export default async function Image(){
   programme:week.programme.map(item=>({...item,opponentLogoUrl:null})),
   results:week.results.map(item=>({...item,opponentLogoUrl:null}))};
  const noRosterLogo={...roster,workspace_mode:"monitoring" as const,logo_path:null};
+ const withOnlyExt=(extension:string)=>({...week,
+  programme:week.programme.map(item=>({...item,opponentLogoUrl:item.opponentLogoUrl?.split("?")[0].toLowerCase().endsWith("."+extension)?item.opponentLogoUrl:null})),
+  results:week.results.map(item=>({...item,opponentLogoUrl:item.opponentLogoUrl?.split("?")[0].toLowerCase().endsWith("."+extension)?item.opponentLogoUrl:null}))
+ });
  const scenarios=[
-  {name:"actual roster / no opponent logos",r:roster,data:noLogos,kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"no roster logo / no opponent logos",r:noRosterLogo,data:noLogos,kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"no roster logo / opponent logos",r:noRosterLogo,data:week,kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"actual roster / opponent logos",r:roster,data:week,kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"results no opponent logos",r:noRosterLogo,data:noLogos,kind:"results" as const,period:"week" as const,date:"2026-11-09"},
-  {name:"day no opponent logos",r:noRosterLogo,data:noLogos,kind:"programme" as const,period:"day" as const,date:"2026-11-09"}
+  {name:"PNG logos only",r:noRosterLogo,data:withOnlyExt("png"),kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
+  {name:"JPG logos only",r:noRosterLogo,data:withOnlyExt("jpg"),kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
+  {name:"WebP logos only",r:noRosterLogo,data:withOnlyExt("webp"),kind:"programme" as const,period:"week" as const,date:"2026-11-09"},
+  {name:"results with all logos",r:noRosterLogo,data:week,kind:"results" as const,period:"week" as const,date:"2026-11-09"},
+  {name:"day with all logos",r:noRosterLogo,data:week,kind:"programme" as const,period:"day" as const,date:"2026-11-09"}
  ];
  for(const t of scenarios){
   try{
