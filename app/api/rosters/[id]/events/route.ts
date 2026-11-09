@@ -71,6 +71,27 @@ export async function POST(req:Request,ctx:Ctx){
   return NextResponse.json({event:mapped(data)},{status:201,headers:HEADER});
  }catch(e){console.error("Roster programme POST:",e);return NextResponse.json({error:"Programme indisponible."},{status:500,headers:HEADER});}
 }
+export async function PATCH(req:Request,ctx:Ctx){
+ if(!originAllowed(req))return NextResponse.json({error:"Origine interdite."},{status:403,headers:HEADER});
+ try{
+  const access=await authorize(ctx,true);
+  if(access.error)return access.error;
+  const b=await req.json().catch(()=>null);
+  if(!b||typeof b.eventId!=="string"||!/^[0-9a-f-]{36}$/i.test(b.eventId)||!shape(b.opponent,120))
+   return NextResponse.json({error:"Sélectionne un match et renseigne un adversaire (2 à 120 caractères)."},{status:400,headers:HEADER});
+  const admin=createAdminClient();
+  const {data:manual,error:manualError}=await admin.from("atyom_manual_results")
+   .select("event_id").eq("roster_id",access.rosterId!).eq("event_id",b.eventId).limit(1);
+  if(manualError)return NextResponse.json({error:"Impossible de vérifier le résultat du match."},{status:500,headers:HEADER});
+  if(manual?.length)return NextResponse.json({error:"Ce match possède un résultat. La modification de l'adversaire est bloquée."},{status:409,headers:HEADER});
+  const {data,error}=await admin.from("atyom_roster_events")
+   .update({opponent_name:b.opponent.trim()}).eq("roster_id",access.rosterId!)
+   .eq("id",b.eventId).select(selected).maybeSingle();
+  if(error||!data)return NextResponse.json({error:"Rencontre introuvable ou modification impossible."},{status:error?500:404,headers:HEADER});
+  after(()=>refreshDiscordPublications(access.rosterId!,[data.event_date]));
+  return NextResponse.json({event:mapped(data)},{headers:HEADER});
+ }catch(e){console.error("Roster programme PATCH:",e);return NextResponse.json({error:"Modification impossible."},{status:500,headers:HEADER});}
+}
 export async function DELETE(req:Request,ctx:Ctx){
  if(!originAllowed(req))return NextResponse.json({error:"Origine interdite."},{status:403,headers:HEADER});
  try{

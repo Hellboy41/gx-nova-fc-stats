@@ -2,6 +2,8 @@
 import { useClubBranding } from "@/lib/platform/use-club-branding";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
+import { EveningTemplates } from "@/components/programme/EveningTemplates";
+import { dateForTemplateWeekday, weekdayOf, type EveningTemplate, type TemplateSlot } from "@/lib/programme-templates";
 import { DiscordPublishing } from "@/components/discord/DiscordPublishing";
 
 import {
@@ -356,7 +358,7 @@ function competitionLabel(
   return (
     competition?.short_name ??
     competition?.name ??
-    "Compétition"
+    (item.title.trim() || "Compétition")
   );
 }
 
@@ -502,6 +504,18 @@ export default function ProgrammePage() {
       ),
     [days, schedule, manualResults]
   );
+
+  const sourceTemplateSlots = useMemo<TemplateSlot[]>(() =>
+    days.flatMap(day => (schedule[day.key] ?? [])
+      .filter(item => !item.linkedMatchId && !manualResults[item.id])
+      .map(item => ({
+        weekday: weekdayOf(day.key),
+        time: item.time,
+        type: item.type,
+        competition: competitionLabel(item, competitions),
+        competitionId: item.competitionId,
+      }))
+    ), [days, schedule, manualResults, competitions]);
 
   const visibleDays = useMemo(() => {
     if (programmeView === "week") {
@@ -685,6 +699,39 @@ export default function ProgrammePage() {
   ) {
     if (!canEdit) return;
     updateDay(dateKey, [...(schedule[dateKey] ?? []), newItem(type)]);
+  }
+
+  function applyEveningTemplate(template: EveningTemplate, opponents: string[]) {
+    if (!canEdit) return { inserted: 0, skipped: template.slots.length };
+    const updated: ProgrammeSchedule = { ...schedule };
+    let inserted = 0;
+    let skipped = 0;
+    template.slots.forEach((slot, index) => {
+      const date = dateForTemplateWeekday(weekStart, slot.weekday);
+      const items = updated[date] ?? [];
+      if (items.length >= 12 || items.some(item => item.time === slot.time)) {
+        skipped++;
+        return;
+      }
+      const foundCompetition = competitions.find(competition =>
+        competition.id === slot.competitionId || competition.name.toLowerCase() === slot.competition.toLowerCase() ||
+        competition.short_name?.toLowerCase() === slot.competition.toLowerCase());
+      const validCompetitionId = foundCompetition?.id ?? null;
+      updated[date] = [...items, {
+        ...newItem(slot.type === "friendly" ? "competition" : slot.type),
+        competitionId: validCompetitionId,
+        title: slot.competition,
+        time: slot.time,
+        opponentName: opponents[index]?.trim().slice(0, 120) ?? "",
+      }];
+      inserted++;
+    });
+    if (inserted) {
+      setSchedule(sortProgrammeSchedule(updated));
+      setUnsavedProgramme(true);
+      setProgrammeView("week");
+    }
+    return { inserted, skipped };
   }
 
   function patchItem(
@@ -2037,6 +2084,13 @@ export default function ProgrammePage() {
             </div>}
           </div>}
         </section>
+
+        <div className="mb-5">
+          <EveningTemplates rosterId="gx-nova-legacy" canEdit={canEdit}
+            startDate={weekStart} sourceSlots={sourceTemplateSlots}
+            competitionChoices={competitions.map(competition => ({ id: competition.id, name: competition.name }))}
+            mode="legacy" onApplyLegacy={applyEveningTemplate}/>
+        </div>
 
         {sharingOpen && <div className="mb-5">
           <DiscordPublishing rosterId="gx-nova-legacy" initialDate={weekStart} pendingChanges={unsavedProgramme}/>
