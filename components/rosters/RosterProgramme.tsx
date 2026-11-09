@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
+import { DiscordPublishing } from "@/components/discord/DiscordPublishing";
 type Event = {id:string;date:string;time:string;competition:string;opponent:string;type:"competition"|"tournament"|"friendly";manualResult?:ManualResult|null};
 type ApiResponse={events?:Event[];canWrite?:boolean;error?:string};
 const EVENT_TYPES=[
@@ -84,6 +85,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
     {canWrite&&<button type="button" onClick={()=>setShowForm(x=>!x)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-black text-black" style={{backgroundColor:color}}><Plus size={15}/> Rencontre</button>}
    </div>
   </div>
+  <div className="m-4"><DiscordPublishing rosterId={rosterId} initialDate={new Date().toISOString().slice(0,10)}/></div>
   {error&&<p role="alert" className="m-4 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-xs text-rose-200">{error}</p>}
   {message&&<p role="status" className="mx-5 mt-3 text-xs text-emerald-300">{message}</p>}
   {canWrite&&showForm&&<form onSubmit={submit} className="grid gap-3 border-b border-white/10 bg-black/20 p-5 sm:grid-cols-2">
