@@ -4,6 +4,9 @@ import { CalendarDays, LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-reac
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
 import { EveningTemplates } from "@/components/programme/EveningTemplates";
+import { ProgrammeReadiness } from "@/components/programme/ProgrammeReadiness";
+import { validTemplateDate } from "@/lib/programme-templates";
+import type { ReadinessMatch } from "@/lib/programme-readiness";
 import { weekdayOf, type TemplateSlot } from "@/lib/programme-templates";
 import { addProgrammeDays } from "@/lib/programme-period";
 import { DiscordPublishing } from "@/components/discord/DiscordPublishing";
@@ -26,7 +29,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  const [view,setView]=useState<"list"|"calendar">("list");
  const [editingId,setEditingId]=useState<string|null>(null);
  const [editingOpponent,setEditingOpponent]=useState("");
- const [weekStart]=useState(()=>{
+ const [weekStart,setWeekStart]=useState(()=>{
   const date=new Date();
   const paris=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
   const base=/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(paris)?paris:date.toISOString().slice(0,10);
@@ -39,6 +42,12 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
  const [competition,setCompetition]=useState("");
  const [type,setType]=useState<Event["type"]>("competition");
  const base="/api/rosters/"+encodeURIComponent(rosterId)+"/events";
+ const readinessMatches=useMemo<ReadinessMatch[]>(()=>events.filter(event =>
+   event.date>=weekStart&&event.date<=addProgrammeDays(weekStart,6))
+   .map(event=>({
+    id:event.id,date:event.date,time:event.time,opponent:event.opponent,
+    competition:event.competition,finished:Boolean(event.manualResult),
+   })),[events,weekStart]);
  const sourceTemplateSlots=useMemo<TemplateSlot[]>(()=>events.filter(event=>
     event.date>=weekStart && event.date<=addProgrammeDays(weekStart,6) && !event.manualResult)
    .map(event=>({
@@ -56,6 +65,12 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   finally{if(!signal?.aborted)setLoading(false);}
  },[base]);
  useEffect(()=>{const c=new AbortController();void load(c.signal);return()=>c.abort();},[load]);
+ useEffect(()=>{
+  if (!editingId || view !== "list") return;
+  const frame=window.requestAnimationFrame(()=>document.getElementById("roster-match-"+editingId)
+   ?.scrollIntoView({behavior:"smooth",block:"center"}));
+  return ()=>window.cancelAnimationFrame(frame);
+ },[editingId,view]);
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();setSaving(true);setError("");setMessage("");
   try{
@@ -118,6 +133,22 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
   </div>
   <div className="m-4"><EveningTemplates rosterId={rosterId} mode="roster" canEdit={canWrite}
    startDate={weekStart} sourceSlots={sourceTemplateSlots} onRosterApplied={()=>load()}/></div>
+  <div className="mx-4 mb-4 space-y-2">
+   <label className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300">
+    Vérifier le programme de la semaine du
+    <input type="date" value={weekStart}
+      onChange={event=>{if(validTemplateDate(event.target.value))
+       setWeekStart(addProgrammeDays(event.target.value,-weekdayOf(event.target.value)));}}
+      className="rounded-lg border border-white/15 bg-[#090909] px-3 py-2 text-sm text-white [color-scheme:dark]"/>
+   </label>
+   <ProgrammeReadiness matches={readinessMatches} canEdit={canWrite}
+     onSelect={match=>{
+      const found=events.find(event=>event.id===match.id);
+      setView("list");
+      if(found && canWrite){setEditingId(found.id);setEditingOpponent(found.opponent==="À définir"?"":found.opponent);}
+      else if(found){document.getElementById("roster-match-"+found.id)?.scrollIntoView({behavior:"smooth",block:"center"});}
+     }}/>
+  </div>
   <div className="m-4"><DiscordPublishing rosterId={rosterId} initialDate={new Date().toISOString().slice(0,10)}/></div>
   {error&&<p role="alert" className="m-4 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-xs text-rose-200">{error}</p>}
   {message&&<p role="status" className="mx-5 mt-3 text-xs text-emerald-300">{message}</p>}
@@ -149,7 +180,7 @@ export function RosterProgramme({rosterId,rosterName,color}: {rosterId:string;ro
     onMoved={()=>{void load();}}/>:
   loading&&events.length===0?<p role="status" className="px-5 py-6 text-sm text-slate-400">Chargement du programme…</p>:
    events.length===0?<p className="px-5 py-6 text-sm text-slate-400">Aucune rencontre programmée. {canWrite?"Ajoute la première rencontre de ce roster.":""}</p>:
-   <div className="divide-y divide-white/10">{events.map(e=><div key={e.id} className="space-y-3 px-5 py-3"><div className="flex items-center justify-between gap-3">
+   <div className="divide-y divide-white/10">{events.map(e=><div key={e.id} id={"roster-match-"+e.id} className="scroll-mt-24 space-y-3 px-5 py-3"><div className="flex items-center justify-between gap-3">
     <div className="min-w-0"><p className="text-sm font-bold">{rosterName} vs <span className={e.opponent==="À définir"?"text-amber-300":""}>{e.opponent}</span></p>
      <p className="mt-1 text-xs text-slate-400">{dateLabel(e.date)} · {e.time} · {e.competition}</p></div>
     {canWrite&&!e.manualResult&&<button type="button" disabled={saving}
