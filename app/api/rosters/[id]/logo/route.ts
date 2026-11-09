@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { refreshDiscordPublications } from "@/lib/discord/publish";
+import { parisDay } from "@/lib/discord/week";
 import { requireActiveStaff } from "@/lib/auth/require-staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeRosterById, rosterWithLogo } from "@/lib/platform/rosters";
@@ -48,6 +50,7 @@ export async function POST(req:Request,ctx:Ctx){
     .eq("id",roster!.id).eq("organisation_id","atyom-pilot").eq("workspace_mode","monitoring")
     .select("id,organisation_id,name,ea_club_id,game_edition,workspace_mode,status,primary_color,secondary_color,logo_path").single();
   if(updateError)throw updateError;
+  after(() => refreshDiscordPublications(roster!.id,[parisDay(new Date())]));
   return NextResponse.json({roster:await rosterWithLogo(data),message:"Logo enregistré."},{headers:HEADER});
  }catch(e){console.error("Roster logo upload:",e);return NextResponse.json({error:"Impossible d'enregistrer le logo."},{status:500,headers:HEADER});}
 }
@@ -59,6 +62,7 @@ export async function DELETE(req:Request,ctx:Ctx){
   const {error:dbError}=await admin.from("atyom_rosters").update({logo_path:null,updated_at:new Date().toISOString()})
     .eq("id",roster!.id).eq("organisation_id","atyom-pilot").eq("workspace_mode","monitoring");
   if(dbError)throw dbError;
+  after(() => refreshDiscordPublications(roster!.id,[parisDay(new Date())]));
   return NextResponse.json({success:true},{headers:HEADER});
  }catch{return NextResponse.json({error:"Impossible de retirer le logo."},{status:500,headers:HEADER});}
 }
