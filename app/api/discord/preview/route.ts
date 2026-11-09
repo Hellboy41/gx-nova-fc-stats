@@ -22,6 +22,6 @@ export async function GET(req:Request){
    "Content-Type":"image/png","Cache-Control":"private, no-store",
    "Content-Disposition":"inline; filename=\"atyom-"+kind+"-"+period+"-"+key+".png\""
   }});
- }catch(e){console.error("ATYOM Discord preview",e instanceof Error?e.message:"Unknown");
+ }catch(e){console.error("ATYOM Discord preview",e);
   return NextResponse.json({error:"Aperçu indisponible."},{status:500});}
 }
