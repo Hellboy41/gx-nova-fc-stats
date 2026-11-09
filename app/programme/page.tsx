@@ -3,6 +3,8 @@ import { useClubBranding } from "@/lib/platform/use-club-branding";
 import { ManualScoreEditor, type ManualResult } from "@/components/programme/ManualScoreEditor";
 import { ProgrammeCalendar } from "@/components/programme/ProgrammeCalendar";
 import { EveningTemplates } from "@/components/programme/EveningTemplates";
+import { ProgrammeReadiness } from "@/components/programme/ProgrammeReadiness";
+import type { ReadinessMatch } from "@/lib/programme-readiness";
 import { dateForTemplateWeekday, weekdayOf, type EveningTemplate, type TemplateSlot } from "@/lib/programme-templates";
 import { DiscordPublishing } from "@/components/discord/DiscordPublishing";
 
@@ -457,6 +459,7 @@ export default function ProgrammePage() {
   const [unsavedProgramme, setUnsavedProgramme] = useState(false);
   const [sharingOpen, setSharingOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [focusedMatchId, setFocusedMatchId] = useState<string | null>(null);
 
   const canEdit = role === "admin" || role === "staff";
   const todayKey = toDateKey(new Date());
@@ -517,6 +520,20 @@ export default function ProgrammePage() {
       }))
     ), [days, schedule, manualResults, competitions]);
 
+  const readinessMatches = useMemo<ReadinessMatch[]>(() =>
+    days.flatMap(day => (schedule[day.key] ?? []).map(item => {
+      const plan = plansByEventId[item.id];
+      return {
+        id: item.id, date: day.key, time: item.time,
+        opponent: item.opponentName,
+        competition: competitionLabel(item, competitions),
+        finished: Boolean(item.linkedMatchId || manualResults[item.id]),
+        lineupCount: plan?.lineup.length ?? 0,
+        availabilityCount: plan
+          ? Object.values(plan.availability).filter(entry => entry.status !== "unknown").length : 0,
+      };
+    })), [days, schedule, competitions, plansByEventId, manualResults]);
+
   const visibleDays = useMemo(() => {
     if (programmeView === "week") {
       return days;
@@ -526,6 +543,18 @@ export default function ProgrammePage() {
       (schedule[day.key] ?? []).some((item) => !item.linkedMatchId && !manualResults[item.id])
     );
   }, [days, programmeView, schedule, manualResults]);
+
+  function openReadinessMatch(match: ReadinessMatch, action: "edit" | "coach") {
+    const item = (schedule[match.date] ?? []).find(candidate => candidate.id === match.id);
+    if (!item) return;
+    if (action === "coach") {
+      setPlanningEvent({ dateKey: match.date, item });
+      return;
+    }
+    setProgrammeView("week");
+    setDayCollapsedOverrides(current => ({ ...current, [match.date]: false }));
+    setFocusedMatchId(match.id);
+  }
 
   function isDayCollapsed(dateKey: string, items: ProgrammeItem[]) {
     const override = dayCollapsedOverrides[dateKey];
@@ -639,6 +668,16 @@ export default function ProgrammePage() {
   useEffect(() => {
     void loadProgramme();
   }, [loadProgramme]);
+
+  useEffect(() => {
+    if (!focusedMatchId || programmeView !== "week") return;
+    const frame = window.requestAnimationFrame(() =>
+      document.getElementById("programme-match-" + focusedMatchId)?.scrollIntoView({
+        behavior: "smooth", block: "center",
+      })
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedMatchId, programmeView, dayCollapsedOverrides]);
 
   useEffect(() => {
     if (
@@ -2092,6 +2131,10 @@ export default function ProgrammePage() {
             mode="legacy" onApplyLegacy={applyEveningTemplate}/>
         </div>
 
+        {!loading && <ProgrammeReadiness matches={readinessMatches}
+          canEdit={canEdit} pendingChanges={unsavedProgramme}
+          onSelect={openReadinessMatch}/>}
+
         {sharingOpen && <div className="mb-5">
           <DiscordPublishing rosterId="gx-nova-legacy" initialDate={weekStart} pendingChanges={unsavedProgramme}/>
         </div>}
@@ -2323,8 +2366,9 @@ export default function ProgrammePage() {
                   {!collapsed && (
                     <div className="space-y-4 p-4 lg:p-5">
                       {displayedItems.map((item) => (
+                        <div key={item.id} id={"programme-match-" + item.id} className="scroll-mt-24">
                         <ProgrammeEditorCard
-                          key={item.id}
+                          focusRequested={focusedMatchId === item.id}
                           item={item}
                           competitions={competitions}
                           canEdit={canEdit}
@@ -2348,6 +2392,7 @@ export default function ProgrammePage() {
                           }
                           onUnlink={() => void unlinkEaMatch(day.key, item.id)}
                         />
+                        </div>
                       ))}
 
                       {!displayedItems.length && (
@@ -2469,6 +2514,7 @@ export default function ProgrammePage() {
 
 function ProgrammeEditorCard({
   item,
+  focusRequested,
   competitions,
   canEdit,
   uploading,
@@ -2486,6 +2532,7 @@ function ProgrammeEditorCard({
   onUnlink,
 }: {
   item: ProgrammeItem;
+  focusRequested: boolean;
   competitions: Competition[];
   canEdit: boolean;
   uploading: boolean;
@@ -2506,6 +2553,10 @@ function ProgrammeEditorCard({
   const isCompetition = item.type === "competition";
   const [showPlayedDetails, setShowPlayedDetails] = useState(false);
   const [showEditor, setShowEditor] = useState(() => !item.opponentName.trim());
+
+  useEffect(() => {
+    if (focusRequested && !item.linkedMatchId) setShowEditor(true);
+  }, [focusRequested, item.linkedMatchId]);
 
   const planEntries = Object.values(plan?.availability ?? {});
   const planAvailable = planEntries.filter((entry) => entry.status === "available").length;
