@@ -1,14 +1,16 @@
 "use client";
 import { useCallback,useEffect,useMemo,useState,type FormEvent } from "react";
 import { CheckCircle2, CircleAlert, Link2, LoaderCircle, RefreshCw, Send, Trash2, Image as Picture } from "lucide-react";
-type Publication={kind:"programme"|"results";weekStart:string;lastSyncedAt:string|null;error:string|null;messageId:string};
+type Publication={kind:"programme"|"results";period:"day"|"week";dateKey:string;weekStart:string;lastSyncedAt:string|null;error:string|null;messageId:string};
 type Channel={id:string;label:string;discordChannelId:string|null;autoProgramme:boolean;autoResults:boolean;publications:Publication[]};
 type Payload={canManage:boolean;canPublish:boolean;channels:Channel[];error?:string};
 type Kind="programme"|"results";
+type Period="day"|"week";
 export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{rosterId:string;initialDate:string;pendingChanges?:boolean}){
  const [channels,setChannels]=useState<Channel[]>([]);
  const [canManage,setCanManage]=useState(false),[canPublish,setCanPublish]=useState(false);
  const [selected,setSelected]=useState(""),[weekDate,setWeekDate]=useState(initialDate);
+ const [period,setPeriod]=useState<Period>("week");
  const [name,setName]=useState(""),[url,setUrl]=useState("");
  const [showAdd,setShowAdd]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
  const [error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -58,10 +60,10 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
   setBusy(true);setError("");setNotice("");
   try{
    const r=await fetch("/api/discord/publish",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({rosterId,channelId:channel.id,kind,date:weekDate})});
+    body:JSON.stringify({rosterId,channelId:channel.id,kind,period,date:weekDate})});
    const data=await r.json() as {error?:string;success?:boolean};
    if(!r.ok||!data.success)throw new Error(data.error??"Publication Discord impossible.");
-   setNotice((kind==="programme"?"Programme":"Résultats")+" envoyé : l'affiche du même message sera remplacée après chaque changement enregistré.");
+   setNotice((kind==="programme"?"Programme":"Résultats")+" "+(period==="day"?"du jour":"de la semaine")+" publié : ce message sera actualisé après chaque changement enregistré.");
    await load();
   }catch(e){setError(e instanceof Error?e.message:"Publication impossible.");}finally{setBusy(false);}
  }
@@ -87,30 +89,43 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
     <p className="text-xs text-slate-400 sm:col-span-2">Discord → Paramètres du salon → Intégrations → Webhooks → Nouveau webhook → Copier l'URL. Ne partage jamais cette URL publiquement.</p>
     <button type="submit" disabled={busy} className="rounded-lg bg-[#FBD046] px-4 py-3 text-xs font-black text-black disabled:opacity-50 sm:col-span-2">Connecter ce salon</button>
    </form>}
-  {channels.length>0&&<div className="mt-4 space-y-3">
+  <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
    <div className="grid gap-3 sm:grid-cols-2">
-    <label className="text-xs font-semibold text-slate-300">Salon Discord
-     <select value={selected} onChange={e=>setSelected(e.target.value)}
+    <label className="text-xs font-semibold text-slate-300">Type de période
+     <select value={period} onChange={e=>setPeriod(e.target.value as Period)}
       className="mt-1 block w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-3 text-sm text-white">
-      {channels.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+      <option value="week">Semaine entière · paysage 16:9</option>
+      <option value="day">Un seul jour · affiche verticale</option>
      </select></label>
-    <label className="text-xs font-semibold text-slate-300">Semaine de publication
+    <label className="text-xs font-semibold text-slate-300">{period==="day"?"Date de la journée":"Choisir un jour de la semaine"}
      <input type="date" value={weekDate} onChange={e=>setWeekDate(e.target.value)}
       className="mt-1 block w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-3 text-sm text-white [color-scheme:dark]"/></label>
    </div>
+   <div className="grid gap-3 sm:grid-cols-2">
+    {(["programme","results"] as Kind[]).map(kind=><div key={kind}
+     className="rounded-xl border border-cyan-400/20 bg-[#071E30] p-3">
+     <p className="text-sm font-black text-white">{kind==="programme"?"Programme":"Résultats"} {period==="day"?"du jour":"de la semaine"}</p>
+     <p className="mt-1 text-xs text-slate-400">{period==="day"?"Visuel d’une journée":"Affiche paysage, journées en colonnes"}</p>
+     <div className="mt-3 flex flex-wrap gap-2">
+      <button type="button" disabled={!weekDate} onClick={()=>window.open("/api/discord/preview?"+
+       new URLSearchParams({rosterId,kind,period,date:weekDate}),"_blank","noopener,noreferrer")}
+       className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-black text-cyan-200 disabled:opacity-40">Aperçu PNG</button>
+      {canPublish&&channel&&<button type="button" disabled={busy||pendingChanges||!weekDate} onClick={()=>void publish(kind)}
+       className="flex items-center gap-2 rounded-lg bg-[#FBD046] px-3 py-2 text-xs font-black text-black disabled:opacity-40">
+       {busy?<LoaderCircle size={14} className="animate-spin"/>:<Send size={14}/>} Publier / actualiser
+      </button>}
+     </div>
+    </div>)}
+   </div>
+  </div>
+  {channels.length>0&&<div className="mt-4 space-y-3">
+   <label className="block text-xs font-semibold text-slate-300">Salon Discord de destination
+    <select value={selected} onChange={e=>setSelected(e.target.value)}
+     className="mt-1 block w-full rounded-lg border border-white/15 bg-[#06101B] px-3 py-3 text-sm text-white">
+     {channels.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+    </select>
+   </label>
    {channel&&<>
-    <div className="flex flex-wrap gap-2">
-     <button type="button" onClick={()=>window.open("/api/discord/preview?"+new URLSearchParams({rosterId,kind:"programme",date:weekDate}),"_blank","noopener,noreferrer")}
-      className="rounded-xl border border-white/15 px-4 py-3 text-xs font-black text-slate-200">Aperçu programme PNG</button>
-    <button type="button" onClick={()=>window.open("/api/discord/preview?"+new URLSearchParams({rosterId,kind:"results",date:weekDate}),"_blank","noopener,noreferrer")}
-      className="rounded-xl border border-white/15 px-4 py-3 text-xs font-black text-slate-200">Aperçu résultats PNG</button>
-    {canPublish&&(["programme","results"] as Kind[]).map(kind=><button key={kind} type="button"
-      disabled={busy||pendingChanges||!weekDate} onClick={()=>void publish(kind)}
-      className="flex items-center gap-2 rounded-xl bg-[#FBD046] px-4 py-3 text-xs font-black text-black disabled:opacity-40">
-      {busy?<LoaderCircle size={15} className="animate-spin"/>:<Send size={15}/>}
-      {kind==="programme"?"Publier / actualiser le programme":"Publier / actualiser les résultats"}
-     </button>)}
-    </div>
     {pendingChanges&&<p className="text-xs text-amber-200">Enregistre d'abord les modifications du programme sur ATYOM avant de publier.</p>}
     {canManage&&<div className="flex flex-wrap items-center gap-4 border-t border-white/10 pt-3 text-xs text-slate-300">
      <label className="flex items-center gap-2"><input type="checkbox" checked={channel.autoProgramme} disabled={busy}
@@ -120,8 +135,8 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
      <button type="button" disabled={busy} onClick={()=>void remove()} className="flex items-center gap-1 text-rose-300"><Trash2 size={14}/> Déconnecter</button>
     </div>}
     <div className="space-y-1 text-[11px] text-slate-400">
-     {channel.publications.slice(0,8).map(p=><p key={p.kind+p.weekStart}>
-      {p.kind==="programme"?"Programme":"Résultats"} · semaine du {p.weekStart} · {p.lastSyncedAt?"mise à jour "+new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"short"}).format(new Date(p.lastSyncedAt)):"publication en attente"}
+     {channel.publications.slice(0,12).map(p=><p key={p.kind+p.period+p.dateKey}>
+      {p.kind==="programme"?"Programme":"Résultats"} · {p.period==="day"?"jour du":"semaine du"} {p.dateKey} · {p.lastSyncedAt?"mise à jour "+new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"short"}).format(new Date(p.lastSyncedAt)):"publication en attente"}
       {p.error&&<span className="ml-2 text-rose-300">Erreur : {p.error}</span>}
      </p>)}
     </div>
@@ -130,6 +145,6 @@ export function DiscordPublishing({rosterId,initialDate,pendingChanges=false}:{r
   {!loading&&channels.length===0&&<p className="mt-4 text-sm text-slate-400">
    Aucun salon connecté. {canManage?"Ajoute un webhook Discord pour publier la première affiche.":"Demande à un Admin ATYOM d'associer un salon Discord."}
   </p>}
-  <p className="mt-3 text-[11px] text-slate-500">La première publication se fait manuellement. Après cela, ATYOM remplace l'image du même message lors des changements enregistrés. Les messages déjà publiés ne sont pas dupliqués.</p>
+  <p className="mt-3 text-[11px] text-slate-500">Les quatre formats ont chacun leur message Discord : programme jour, programme semaine, résultats jour et résultats semaine. Une première publication manuelle est nécessaire pour chaque date et format. Ensuite, les images sont remplacées automatiquement selon les options choisies.</p>
  </section>;
 }

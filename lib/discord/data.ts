@@ -2,10 +2,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { programmePeriodWeeks, addProgrammeDays } from "@/lib/programme-period";
 import { discordWeekDates, parisDay } from "@/lib/discord/week";
 import type { AtyomRoster } from "@/lib/platform/rosters";
+import type { PosterPeriod } from "@/lib/discord/period";
 
 export type DiscordLine={
  id:string;date:string;time:string;opponent:string;competition:string;
  score:string|null;status:"upcoming"|"win"|"draw"|"loss"|"forfeit";
+ opponentLogoUrl?:string|null;
 };
 export type DiscordWeekData={
  programme:DiscordLine[];results:DiscordLine[];wins:number;draws:number;losses:number;
@@ -66,6 +68,7 @@ export async function readDiscordWeek(roster:AtyomRoster,monday:string):Promise<
        typeof e.title==="string"&&e.title.trim()?e.title.trim():"Adversaire à confirmer",
       competition:competition??(typeof e.title==="string"&&e.title.trim()?e.title.trim():"Événement"),
       score,status:man?.kind==="forfeit"?"forfeit":sourceResult?resultStatus(sourceResult):"upcoming",
+      opponentLogoUrl:typeof e.opponentLogoUrl==="string"?e.opponentLogoUrl:null,
      });
     }
    }
@@ -108,9 +111,28 @@ export async function readDiscordWeek(roster:AtyomRoster,monday:string):Promise<
    status:resultStatus(m.result,m.kind==="forfeit")});
  }
  results.sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+ // Logo uniquement lorsque le match du résultat correspond exactement à un événement planifié.
+ const logos=new Map(programme.filter(p=>p.opponentLogoUrl).map(p=>[p.date+"|"+p.opponent.trim().toLocaleLowerCase("fr-FR"),p.opponentLogoUrl]));
+ for(const item of results){
+  item.opponentLogoUrl=logos.get(item.date+"|"+item.opponent.trim().toLocaleLowerCase("fr-FR"))??null;
+ }
  return {programme,results,
   wins:results.filter(m=>m.status==="win"||m.status==="forfeit"&&Number(m.score?.split("-")[0])>Number(m.score?.split("-")[1])).length,
   draws:results.filter(m=>m.status==="draw").length,
   losses:results.filter(m=>m.status==="loss"||m.status==="forfeit"&&Number(m.score?.split("-")[0])<Number(m.score?.split("-")[1])).length
  };
+}
+
+/** Les chiffres et les résultats du jour sont calculés après le filtrage, sans mélange de périodes. */
+export function filterDiscordData(data:DiscordWeekData,period:PosterPeriod,date:string):DiscordWeekData{
+ if(period==="week")return data;
+ const programme=data.programme.filter(m=>m.date===date);
+ const results=data.results.filter(m=>m.date===date);
+ const parsed=(m:DiscordLine)=>{
+  const parts=(m.score??"").split("-").map(v=>Number(v.trim()));
+  return parts.length===2&&parts.every(Number.isFinite)?parts:null;
+ };
+ const wins=results.filter(m=>m.status==="win"||(m.status==="forfeit"&&((parsed(m)?.[0]??0)>(parsed(m)?.[1]??0)))).length;
+ const draws=results.filter(m=>m.status==="draw").length;
+ return {programme,results,wins,draws,losses:results.length-wins-draws};
 }
