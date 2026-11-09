@@ -36,7 +36,7 @@ export async function rosterPosterLogo(roster:AtyomRoster){
 }
 /** URLs proposées dans les programmes : autoriser seulement des hébergeurs d'images connus. */
 export async function safeOpponentLogo(raw:string|null|undefined):Promise<string|null>{
- if(!raw||raw.length>800||/\\.webp(?:\\?|$)/i.test(raw))return null;
+ if(!raw||raw.length>800||raw.toLowerCase().split("?")[0].endsWith(".webp"))return null;
  try{
   const url=new URL(raw);
   const storageHost=process.env.NEXT_PUBLIC_SUPABASE_URL?new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname:null;
