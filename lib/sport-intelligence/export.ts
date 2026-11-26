@@ -64,7 +64,7 @@ export function parseIntelligenceExportOptions(input: URLSearchParams): Intellig
   return {
     kind: kind as ExportKind, seasonId, competitionId, startDate, endDate,
     role: role as IntelligenceExportOptions["role"], search,
-    minSamples: input.get("minSamples") !== "false",
+    minSamples: kind === "form" ? false : input.get("minSamples") === "true",
     pairMinimum, includeDormant: input.get("includeDormant") === "true",
   };
 }
