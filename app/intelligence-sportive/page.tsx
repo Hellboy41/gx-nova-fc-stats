@@ -1,5 +1,6 @@
 "use client";
 import { useClubBranding } from "@/lib/platform/use-club-branding";
+import { IntelligenceExports } from "@/components/intelligence/IntelligenceExports";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -299,6 +300,9 @@ export default function SportIntelligencePage() {
                 </button>
               )}
             </nav>
+            <IntelligenceExports seasonId={season} currentKind={activeTab}
+              currentRole={role} currentSearch={search}
+              currentMinSamples={minSamples} currentPairMinimum={pairMinimum}/>
             <section className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex items-center gap-2 text-xs font-bold text-slate-400"><Filter size={15}/> Filtres</span>
