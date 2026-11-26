@@ -5,7 +5,6 @@ import { rosterPosterLogo } from "@/lib/discord/media";
 import type { IntelligenceExportResult } from "@/lib/sport-intelligence/export";
 import type { Role } from "@/lib/sport-intelligence";
 
-const BG = "#031020";
 const PANEL = "#0B2135";
 const BORDER = "#22516B";
 const CYAN = "#21D9EB";
@@ -49,34 +48,51 @@ function Empty({ children }: { children: ReactNode }) {
   return <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center",
     color: MUTED, fontSize: 23, textAlign: "center", padding: 24 }}>{children}</div>;
 }
-function FormContent({ result }: { result: IntelligenceExportResult }) {
-  const rising = result.players.filter(p => p.trend === "up").sort((a, b) => (b.ratingDelta ?? 0) - (a.ratingDelta ?? 0)).slice(0, 7);
-  const falling = result.players.filter(p => p.trend === "down").sort((a, b) => (a.ratingDelta ?? 0) - (b.ratingDelta ?? 0)).slice(0, 5);
-  const stable = result.players.filter(p => p.trend === "stable").slice(0, 5);
-  const featured = rising.length ? rising : stable;
-  return <div style={{ display: "flex", gap: 16, width: "100%", height: 398 }}>
-    <Panel width={935} title={rising.length ? "FORME EN HAUSSE" : "FORME DES JOUEURS"}>
-      {featured.length ? featured.map((p, i) => <Line key={p.key}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-          <span style={{ color: CYAN, width: 34, fontSize: 21, fontWeight: 900 }}>{String(i+1).padStart(2, "0")}</span>
-          <span style={{ color: WHITE, fontWeight: 800, fontSize: 22, width: 238, overflow: "hidden" }}>{p.name.slice(0, 21)}</span>
-          <span style={{ color: CYAN, width: 70, fontSize: 16 }}>{ROLE_ABBR[p.role]}</span>
-          <span style={{ color: MUTED, fontSize: 17 }}>Avant {fmt(p.previousRating)} → Après {fmt(p.recentRating)}</span>
+/** Liste complète : aucune réduction aux seuls joueurs en hausse ou en baisse. */
+function FormContent({ result, height }: { result: IntelligenceExportResult; height: number }) {
+  const order = { up: 0, stable: 1, down: 2, insufficient: 3 };
+  const listed = [...result.players].sort((a, b) =>
+    order[a.trend] - order[b.trend] ||
+    (b.ratingDelta ?? -999) - (a.ratingDelta ?? -999) ||
+    a.name.localeCompare(b.name, "fr"));
+  const mid = Math.ceil(listed.length / 2);
+  const columns = [listed.slice(0, mid), listed.slice(mid)];
+  const trendLabel = {up:"En hausse",stable:"Stable",down:"En baisse",insufficient:"Données limitées"};
+  const trendColor = {up:GREEN,stable:CYAN,down:RED,insufficient:MUTED};
+
+  return <div style={{display:"flex",gap:16,width:"100%",height}}>
+    {columns.map((column, columnIndex) => <Panel
+      key={columnIndex} width={770}
+      title={columnIndex===0 ? "TOUS LES JOUEURS · "+listed.length+" PROFILS" : "SUITE DU CLASSEMENT"}>
+      {column.length ? column.map((p, index) => <div key={p.key}
+        style={{display:"flex",flexDirection:"column",flexShrink:0,minHeight:60,
+          padding:"6px 7px",borderBottom:"1px solid #204256"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:9,flex:1,minWidth:0}}>
+            <span style={{color:CYAN,fontSize:16,fontWeight:900,width:29}}>
+              {String(columnIndex*mid+index+1).padStart(2,"0")}
+            </span>
+            <span style={{color:WHITE,fontSize:19,fontWeight:800,width:228,overflow:"hidden"}}>
+              {p.name.slice(0,23)}
+            </span>
+            <span style={{color:CYAN,fontSize:14,width:36}}>{ROLE_ABBR[p.role]}</span>
+            <span style={{color:MUTED,fontSize:14,whiteSpace:"nowrap"}}>{p.appearances} match{p.appearances>1?"s":""}</span>
+          </div>
+          <span style={{color:trendColor[p.trend],fontSize:20,fontWeight:900,minWidth:72,textAlign:"right"}}>
+            {p.ratingDelta === null ? "—" : (p.ratingDelta>0?"+":"")+fmt(p.ratingDelta)}
+          </span>
         </div>
-        <span style={{ color: p.ratingDelta !== null && p.ratingDelta > 0 ? GREEN : MUTED, fontSize: 24, fontWeight: 900 }}>
-          {p.ratingDelta === null ? "—" : (p.ratingDelta > 0 ? "+" : "") + fmt(p.ratingDelta)}
-        </span>
-      </Line>): <Empty>Aucun joueur ne remplit les critères de forme pour cette sélection.</Empty>}
-    </Panel>
-    <Panel width={605} title="À SURVEILLER">
-      {falling.length ? falling.map(p => <Line key={p.key}>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ color: WHITE, fontWeight: 800, fontSize: 22 }}>{p.name.slice(0, 24)}</span>
-          <span style={{ color: MUTED, fontSize: 16 }}>{ROLE_NAMES[p.role]} · {p.recentCount} notes récentes</span>
+        <div style={{display:"flex",justifyContent:"space-between",paddingLeft:38,marginTop:3,gap:6}}>
+          <span style={{color:MUTED,fontSize:14}}>
+            5 précédents : {fmt(p.previousRating)}  →  5 derniers : {fmt(p.recentRating)}
+          </span>
+          <span style={{color:trendColor[p.trend],fontSize:14,fontWeight:700}}>
+            {trendLabel[p.trend]}
+          </span>
         </div>
-        <span style={{ color: RED, fontSize: 24, fontWeight: 900 }}>{fmt(p.ratingDelta)}</span>
-      </Line>): <Empty>Aucune baisse significative détectée parmi les joueurs filtrés.</Empty>}
-    </Panel>
+      </div>) :
+        <Empty>Aucun joueur ne correspond à ces filtres.</Empty>}
+    </Panel>)}
   </div>;
 }
 function metric(role: Role, data: IntelligenceExportResult["roles"][number]) {
@@ -140,19 +156,19 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
     scope.push((options.startDate || "Début") + " → " + (options.endDate || "Aujourd'hui"));
   const title = titles[options.kind];
   const logo = await rosterPosterLogo(roster);
+  const formRows = Math.ceil(result.players.length / 2);
+  // Hauteur adaptative : tous les joueurs restent lisibles dans un seul PNG,
+  // quel que soit le nombre de profils actifs ou la présence de joueurs en sommeil.
+  const formPanelHeight = Math.max(398, 86 + formRows * 60);
+  const posterHeight = options.kind==="form" ? Math.max(900, formPanelHeight + 480) : 900;
   const draw = async (activeLogo: string | null) => {
   const image = new ImageResponse(
-    <div style={{ display:"flex", flexDirection:"column",width:1600,height:900,position:"relative",
+    <div style={{ display:"flex", flexDirection:"column",width:1600,height:posterHeight,position:"relative",
       background:"linear-gradient(145deg,#031020 0%,#071D30 55%,#020B18 100%)",
       color:WHITE,fontFamily:"sans-serif",padding:"32px 22px" }}>
       <div style={{ display:"flex",alignItems:"center",height:84,gap:24,flexShrink:0 }}>
-        {activeLogo ? <img src={activeLogo} width={100} height={75}
-          alt="" style={{objectFit:"contain",borderRadius:12}}/> :
-          <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-            width:100,height:75,border:"2px solid "+CYAN,borderRadius:15,backgroundColor:PANEL }}>
-            <span style={{color:GOLD,fontSize:31,fontWeight:900}}>GX</span>
-            <span style={{color:WHITE,fontSize:15,fontWeight:800}}>NØVA</span>
-          </div>}
+        {activeLogo && <img src={activeLogo} width={100} height={75}
+          alt="" style={{objectFit:"contain",borderRadius:12}}/>}
         <div style={{ display:"flex",flexDirection:"column",width:270 }}>
           <span style={{color:GOLD,fontSize:26,fontWeight:900,letterSpacing:2}}>{roster.name.toUpperCase().slice(0,24)}</span>
           <span style={{color:MUTED,fontSize:17}}>CLUB ESPORT</span>
@@ -173,14 +189,14 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
         <Stat label="Duos évaluables" value={report.pairs.length} detail="Au moins 8 matchs communs"/>
       </div>
       <div style={{display:"flex",marginTop:14}}>
-        {options.kind==="form"? <FormContent result={result}/> :
+        {options.kind==="form"? <FormContent result={result} height={formPanelHeight}/> :
           options.kind==="roles"?<RoleContent result={result}/>:<PairContent result={result}/>}
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,color:MUTED,fontSize:16}}>
         <span>{report.truncated ? "Historique limité aux 250 matchs les plus récents • " : ""}Statistiques EA corrigées par le staff • {options.kind==="pairs"?"Minimum "+options.pairMinimum+" matchs communs":"Échantillons "+(options.minSamples?"suffisants":"libres")}</span>
         <span style={{color:GOLD,fontWeight:700}}>Export Discord • ATYOM</span>
       </div>
-    </div>, {width:1600,height:900}
+    </div>, {width:1600,height:posterHeight}
   );
   return new Uint8Array(await image.arrayBuffer());
   };
