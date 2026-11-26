@@ -53,7 +53,7 @@ function FormContent({ result }: { result: IntelligenceExportResult }) {
   const falling = result.players.filter(p => p.trend === "down").sort((a, b) => (a.ratingDelta ?? 0) - (b.ratingDelta ?? 0)).slice(0, 5);
   const stable = result.players.filter(p => p.trend === "stable").slice(0, 5);
   const featured = rising.length ? rising : stable;
-  return <div style={{ display: "flex", gap: 16, width: "100%", height: 422 }}>
+  return <div style={{ display: "flex", gap: 16, width: "100%", height: 398 }}>
     <Panel width={935} title={rising.length ? "FORME EN HAUSSE" : "FORME DES JOUEURS"}>
       {featured.length ? featured.map((p, i) => <Line key={p.key}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
@@ -90,28 +90,28 @@ function metricLabel(role: Role) {
 function RoleContent({ result }: { result: IntelligenceExportResult }) {
   const roleList = (["goalkeeper", "defender", "midfielder", "forward"] as Role[])
     .filter(role => result.options.role === "all" || role === result.options.role);
-  return <div style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%", height: 422 }}>
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%", height: 398 }}>
     {roleList.map(role => {
       const list = result.roles.filter(p => p.role === role).sort((a,b) => metric(role,b) - metric(role,a) || b.matches-a.matches);
       const weighted = list.reduce((s,p) => s+p.rating*p.matches,0);
       const n = list.reduce((s,p)=>s+p.matches,0);
-      return <Panel key={role} width={roleList.length===1?1556:770} title={ROLE_NAMES[role].toUpperCase()}>
-        <div style={{ display: "flex", alignItems: "center", gap: 28, marginBottom: 6 }}>
-          <span style={{ color: MUTED, fontSize: 19 }}>Note moyenne <span style={{ color: WHITE, fontWeight: 900 }}>{n?fmt(weighted/n):"—"}</span></span>
-          <span style={{ color: MUTED, fontSize: 19 }}>Apparitions <span style={{ color: WHITE, fontWeight: 900 }}>{n}</span></span>
+      return <Panel key={role} width={roleList.length===1?1556:roleList.length===2?770:375} title={ROLE_NAMES[role].toUpperCase()}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 7 }}>
+          <span style={{ color: MUTED, fontSize: 16 }}>Note moyenne <span style={{ color: WHITE, fontWeight: 900 }}>{n?fmt(weighted/n):"—"}</span></span>
+          <span style={{ color: MUTED, fontSize: 16 }}>Apparitions <span style={{ color: WHITE, fontWeight: 900 }}>{n}</span></span>
           <span style={{ color: CYAN, fontSize: 17 }}>{metricLabel(role)}</span>
         </div>
         {list.length ? list.slice(0,3).map((p,i) => <Line key={p.key}>
-          <span style={{ color: WHITE, fontSize: 20, fontWeight: 750 }}>{i+1}. {p.name.slice(0, 24)}</span>
-          <span style={{ color: MUTED, fontSize: 17 }}>{p.matches} matchs</span>
-          <span style={{ color: CYAN, fontSize: 22, fontWeight: 900 }}>{fmt(metric(role,p))}</span>
+          <span style={{ color: WHITE, fontSize: 18, fontWeight: 750 }}>{i+1}. {p.name.slice(0, 14)}</span>
+          <span style={{ color: MUTED, fontSize: 14 }}>{p.matches} m.</span>
+          <span style={{ color: CYAN, fontSize: 19, fontWeight: 900 }}>{fmt(metric(role,p))}</span>
         </Line>) : <Empty>Aucune donnée suffisante pour ce poste.</Empty>}
       </Panel>;
     })}
   </div>;
 }
 function PairContent({ result }: { result: IntelligenceExportResult }) {
-  return <div style={{ display: "flex", gap: 16, width: "100%", height: 422 }}>
+  return <div style={{ display: "flex", gap: 16, width: "100%", height: 398 }}>
     <Panel width={1040} title="ASSOCIATIONS LES PLUS RÉGULIÈRES">
       {result.pairs.length ? result.pairs.slice(0,7).map((p,i)=><Line key={p.key}>
         <span style={{ color: WHITE, fontSize: 21, fontWeight: 750, width: 420 }}>{i+1}. {(p.playerA+" + "+p.playerB).slice(0,34)}</span>
@@ -142,7 +142,7 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
     <div style={{ display:"flex", flexDirection:"column",width:1600,height:900,position:"relative",
       background:"linear-gradient(145deg,#031020 0%,#071D30 55%,#020B18 100%)",
       color:WHITE,fontFamily:"sans-serif",padding:"32px 22px" }}>
-      <div style={{ display:"flex",alignItems:"center",height:91,gap:24,flexShrink:0 }}>
+      <div style={{ display:"flex",alignItems:"center",height:84,gap:24,flexShrink:0 }}>
         <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
           width:100,height:75,border:"2px solid "+CYAN,borderRadius:15,backgroundColor:PANEL }}>
           <span style={{color:GOLD,fontSize:31,fontWeight:900}}>GX</span>
@@ -155,19 +155,19 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
         <div style={{display:"flex",height:65,width:3,backgroundColor:CYAN}}/>
         <span style={{fontSize:53,fontWeight:900}}>Intelligence <span style={{color:CYAN}}>sportive</span></span>
       </div>
-      <div style={{display:"flex",flexDirection:"column",height:139,border:"2px solid "+BORDER,borderRadius:23,
+      <div style={{display:"flex",flexDirection:"column",height:129,border:"2px solid "+BORDER,borderRadius:23,
         padding:"16px 24px",backgroundColor:"#092034",marginTop:7}}>
         <span style={{color:GOLD,fontSize:17,fontWeight:900,letterSpacing:2}}>ANALYSE BASÉE SUR LES MATCHS EA</span>
         <span style={{fontSize:42,fontWeight:900,color:WHITE,marginTop:3}}>{title}</span>
         <span style={{color:MUTED,fontSize:17,marginTop:4}}>{scope.join("  ·  ")}  ·  {options.includeDormant ? "Joueurs en sommeil inclus" : "Effectif actif uniquement"}</span>
       </div>
-      <div style={{display:"flex",gap:15,marginTop:19,height:134,flexShrink:0}}>
+      <div style={{display:"flex",gap:15,marginTop:14,height:124,flexShrink:0}}>
         <Stat label="Matchs analysés" value={report.matches} detail={date(report.minDate)+" → "+date(report.maxDate)}/>
         <Stat label="Joueurs étudiés" value={report.players.length} detail="Avec données EA"/>
         <Stat label="Forme en hausse" value={report.players.filter(p=>p.trend==="up").length} detail="Seuil : +0,35 point"/>
         <Stat label="Duos évaluables" value={report.pairs.length} detail="Au moins 8 matchs communs"/>
       </div>
-      <div style={{display:"flex",marginTop:21}}>
+      <div style={{display:"flex",marginTop:14}}>
         {options.kind==="form"? <FormContent result={result}/> :
           options.kind==="roles"?<RoleContent result={result}/>:<PairContent result={result}/>}
       </div>
