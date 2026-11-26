@@ -14,7 +14,7 @@ Ajouter dans la page **Intelligence sportive** de GX NØVA un volet repliable «
 
 ## Règles métier des calculs
 - Source exclusive : `matches`, `match_players` et corrections `applyStaffPerformanceCorrections`, puis `buildSportIntelligence` déjà utilisé sur la page.
-- **Forme** : moyenne des 5 apparitions les plus récentes contre les 5 précédentes, minimum 3 notes valides dans chaque fenêtre et seuil indicatif de 0,35 point. Les joueurs en hausse et en baisse sont listés à partir des calculs réels ; aucune valeur fictive ajoutée.
+- **Forme** : moyenne des 5 apparitions les plus récentes contre les 5 précédentes, minimum 3 notes valides dans chaque fenêtre et seuil indicatif de 0,35 point. **Tous les joueurs qui disposent de matchs EA sur la période sont affichés par défaut** (en hausse, stables, en baisse, ou données limitées), sans filtre d'échantillon implicite. Une évolution sans données suffisantes est indiquée « — », jamais inventée. L'image PNG adapte sa hauteur à la liste entière, sans troncature des joueurs.
 - **Poste** : 4 grandes familles EA (gardiens, défense, milieu, attaque). Présentation des indicateurs réels du poste : arrêts, tacles, passes décisives ou buts par match ; note moyenne pondérée par le nombre d'apparitions en tant que titulaire de la ligne d'analyse ; apparitions cumulées. Il ne s'agit pas d'un classement tactique composite.
 - **Associations** : joueurs présents sur les mêmes feuilles EA (sans affirmer une simultanéité sur le terrain), nombre de matchs communs, points par match (3V, 1N), % de victoire ; aucune « synergie » causale inventée. Minimum 8 matchs communs.
 - Jusqu'à 250 matchs EA récents parmi ceux correspondant aux filtres, conformément au plafond actuel. Le visuel signale un historique tronqué.
@@ -30,14 +30,14 @@ Ajouter dans la page **Intelligence sportive** de GX NØVA un volet repliable «
 
 ## Sécurité et Discord
 - Les routes d'export sont contrôlées par `requireActiveStaff({rosterId:"gx-nova-legacy"})`.
-- Aperçu/téléchargement : GET authentifié avec `Cache-Control: private, no-store`.
+- Aperçu/téléchargement : GET authentifié avec `Cache-Control: private, no-store`. Image de 1600 px de large ; 900 px de haut pour les autres analyses, hauteur **adaptative** pour la liste complète de forme.
 - Publication : POST avec contrôle d'origine, rôle Admin ou Staff (Viewer interdit), salon UUID validé et appartenant au roster GX NØVA, webhook déchiffré exclusivement côté serveur.
 - Publication impossible en environnement Vercel preview ; la production est la seule cible autorisée. Publication **manuelle**, nouveau message à chaque clic, sans @everyone et sans mise à jour automatique.
 - Aucune nouvelle table Supabase ni aucun nouveau secret requis ; réutilise les webhooks Discord déjà configurés.
 - Ne jamais envoyer le webhook, token ou clé de chiffrement dans le navigateur.
 
 ## Tests en session connectée requis avant mise en production
-1. Construire une image PNG Forme sur l'ensemble des saisons : vérifier 1600 × 900, présence de vrais noms et chiffres cohérents avec la page.
+1. Construire une image PNG Forme sur l'ensemble des saisons : vérifier une largeur de 1600 px, la hauteur adaptative et la présence de **tous les joueurs actifs ayant des matchs EA**, y compris les formes stables et les données insuffisantes. Vérifier que le nom GX NØVA n'est pas répété dans l'en-tête lorsque le logo n'est pas disponible.
 2. Changer de saison, de compétition ou de date : vérifier le recalcul et l'état vide.
 3. Vérifier Analyse par poste (avec un poste précis, puis tous) et Associations (minimum de matchs communs).
 4. Placer temporairement un joueur de test en sommeil via Administration, puis vérifier son absence dans le PNG et son retour avec l'option d'inclusion. Remettre son statut initial.
