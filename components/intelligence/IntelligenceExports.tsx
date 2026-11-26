@@ -44,6 +44,7 @@ export function IntelligenceExports({
   const [competitions,setCompetitions]=useState<Competition[]>([]);
   const [channelId,setChannelId]=useState("");
   const [previewQuery,setPreviewQuery]=useState("");
+  const [previewVersion,setPreviewVersion]=useState(0);
   const [previewError,setPreviewError]=useState(false);
   const [busy,setBusy]=useState(false);
   const [loadingOptions,setLoadingOptions]=useState(false);
@@ -85,11 +86,12 @@ export function IntelligenceExports({
   },[kind,seasonId,competitionId,role,search,startDate,endDate,minSamples,pairMinimum,includeDormant]);
   const validDates=(!startDate||!endDate||startDate<=endDate);
   const stale=Boolean(previewQuery)&&previewQuery!==params;
-  const url="/api/sport-intelligence/export?"+previewQuery;
+  const url="/api/sport-intelligence/export?"+previewQuery+"&v="+previewVersion;
   const createPreview=()=>{
     if(!validDates){setError("La date de début doit précéder la date de fin.");return;}
     setError("");setNotice("");setPreviewError(false);
     setPreviewQuery(params);
+    setPreviewVersion(v=>v+1);
   };
   async function publish(){
     if(!canPublish||busy||stale||!previewQuery||!channelId)return;
