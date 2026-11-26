@@ -35,9 +35,9 @@ export function IntelligenceExports({
   const [competitionId,setCompetitionId]=useState("all");
   const [startDate,setStartDate]=useState("");
   const [endDate,setEndDate]=useState("");
-  const [role,setRole]=useState<Role|"all">(currentRole);
-  const [search,setSearch]=useState(currentSearch);
-  const [minSamples,setMinSamples]=useState(currentMinSamples);
+  const [role,setRole]=useState<Role|"all">("all");
+  const [search,setSearch]=useState("");
+  const [minSamples,setMinSamples]=useState(false);
   const [pairMinimum,setPairMinimum]=useState(currentPairMinimum);
   const [includeDormant,setIncludeDormant]=useState(false);
   const [channels,setChannels]=useState<Channel[]>([]);
@@ -113,7 +113,7 @@ export function IntelligenceExports({
   }
   return <section className="overflow-hidden rounded-2xl border border-cyan-400/20 bg-[#0a1a2a]">
     <button type="button" onClick={()=>{
-      if(!open){setKind(currentKind);setRole(currentRole);setSearch(currentSearch);setMinSamples(currentMinSamples);setPairMinimum(currentPairMinimum);}
+      if(!open){setKind(currentKind);setRole("all");setSearch("");setMinSamples(false);setPairMinimum(currentPairMinimum);}
       setOpen(v=>!v);
     }} aria-expanded={open}
       className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.04]">
@@ -164,8 +164,9 @@ export function IntelligenceExports({
             placeholder="Nom du joueur..." className="mt-1 block w-full rounded-xl border border-white/15 bg-[#061321] p-3 text-sm text-white"/>
         </label>}
       </div>
+      {kind==="form"&&<p className="text-xs text-cyan-200">Export complet : tous les joueurs disposant de matchs EA sur la période, y compris les formes stables et les données insuffisantes.</p>}
       <div className="flex flex-wrap items-center gap-4">
-        {kind!=="pairs"&&<label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+        {kind==="roles"&&<label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
           <input type="checkbox" checked={minSamples} onChange={e=>setMinSamples(e.target.checked)} className="accent-yellow-400"/> Échantillons suffisants
         </label>}
         <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
