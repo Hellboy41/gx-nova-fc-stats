@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import type { ReactNode } from "react";
 import type { AtyomRoster } from "@/lib/platform/rosters";
+import { rosterPosterLogo } from "@/lib/discord/media";
 import type { IntelligenceExportResult } from "@/lib/sport-intelligence/export";
 import type { Role } from "@/lib/sport-intelligence";
 
@@ -138,16 +139,20 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
   if (options.startDate || options.endDate)
     scope.push((options.startDate || "Début") + " → " + (options.endDate || "Aujourd'hui"));
   const title = titles[options.kind];
+  const logo = await rosterPosterLogo(roster);
+  const draw = async (activeLogo: string | null) => {
   const image = new ImageResponse(
     <div style={{ display:"flex", flexDirection:"column",width:1600,height:900,position:"relative",
       background:"linear-gradient(145deg,#031020 0%,#071D30 55%,#020B18 100%)",
       color:WHITE,fontFamily:"sans-serif",padding:"32px 22px" }}>
       <div style={{ display:"flex",alignItems:"center",height:84,gap:24,flexShrink:0 }}>
-        <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-          width:100,height:75,border:"2px solid "+CYAN,borderRadius:15,backgroundColor:PANEL }}>
-          <span style={{color:GOLD,fontSize:31,fontWeight:900}}>GX</span>
-          <span style={{color:WHITE,fontSize:15,fontWeight:800}}>NØVA</span>
-        </div>
+        {activeLogo ? <img src={activeLogo} width={100} height={75}
+          alt="" style={{objectFit:"contain",borderRadius:12}}/> :
+          <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            width:100,height:75,border:"2px solid "+CYAN,borderRadius:15,backgroundColor:PANEL }}>
+            <span style={{color:GOLD,fontSize:31,fontWeight:900}}>GX</span>
+            <span style={{color:WHITE,fontSize:15,fontWeight:800}}>NØVA</span>
+          </div>}
         <div style={{ display:"flex",flexDirection:"column",width:270 }}>
           <span style={{color:GOLD,fontSize:26,fontWeight:900,letterSpacing:2}}>{roster.name.toUpperCase().slice(0,24)}</span>
           <span style={{color:MUTED,fontSize:17}}>CLUB ESPORT</span>
@@ -178,4 +183,12 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
     </div>, {width:1600,height:900}
   );
   return new Uint8Array(await image.arrayBuffer());
+  };
+  try {
+    return await draw(logo);
+  } catch (error) {
+    if (!logo) throw error;
+    console.warn("ATYOM intelligence: logo indisponible pour l'export, rendu sans image.");
+    return draw(null);
+  }
 }
