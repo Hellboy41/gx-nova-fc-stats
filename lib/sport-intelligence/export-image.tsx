@@ -104,26 +104,105 @@ function metricLabel(role: Role) {
   return role === "goalkeeper" ? "Arrêts / match" : role === "defender" ? "Tacles / match"
     : role === "midfielder" ? "PD / match" : "Buts / match";
 }
-function RoleContent({ result }: { result: IntelligenceExportResult }) {
-  const roleList = (["goalkeeper", "defender", "midfielder", "forward"] as Role[])
-    .filter(role => result.options.role === "all" || role === result.options.role);
-  return <div style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%", height: 398 }}>
-    {roleList.map(role => {
-      const list = result.roles.filter(p => p.role === role).sort((a,b) => metric(role,b) - metric(role,a) || b.matches-a.matches);
-      const weighted = list.reduce((s,p) => s+p.rating*p.matches,0);
-      const n = list.reduce((s,p)=>s+p.matches,0);
-      return <Panel key={role} width={roleList.length===1?1556:roleList.length===2?770:375} title={ROLE_NAMES[role].toUpperCase()}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 7 }}>
-          <span style={{ color: MUTED, fontSize: 16 }}>Note moyenne <span style={{ color: WHITE, fontWeight: 900 }}>{n?fmt(weighted/n):"—"}</span></span>
-          <span style={{ color: MUTED, fontSize: 16 }}>Apparitions <span style={{ color: WHITE, fontWeight: 900 }}>{n}</span></span>
-          <span style={{ color: CYAN, fontSize: 17 }}>{metricLabel(role)}</span>
+type RoleStats = IntelligenceExportResult["roles"][number];
+
+function roleExtraMetrics(report: RoleStats): {label: string; value: string}[] {
+  if (report.role === "goalkeeper") return [
+    {label:"Clean sheets",value:String(report.cleanSheetCount)},
+    {label:"MVP EA",value:String(report.mvpCount)},
+    {label:"Passes",value:fmt(report.passesPct,1)+" %"},
+    {label:"Arrêts / match",value:fmt(report.savesPerMatch)},
+  ];
+  if (report.role === "defender") return [
+    {label:"% tacles",value:fmt(report.tacklesPct,1)+" %"},
+    {label:"Passes",value:fmt(report.passesPct,1)+" %"},
+    {label:"Clean sheets",value:String(report.cleanSheetCount)},
+    {label:"MVP EA",value:String(report.mvpCount)},
+  ];
+  if (report.role === "midfielder") return [
+    {label:"Passes",value:fmt(report.passesPct,1)+" %"},
+    {label:"Tacles / match",value:fmt(report.tacklesPerMatch)},
+    {label:"Buts / match",value:fmt(report.goalsPerMatch)},
+    {label:"MVP EA",value:String(report.mvpCount)},
+  ];
+  return [
+    {label:"Tirs / match",value:fmt(report.shotsPerMatch)},
+    {label:"PD / match",value:fmt(report.assistsPerMatch)},
+    {label:"Passes",value:fmt(report.passesPct,1)+" %"},
+    {label:"MVP EA",value:String(report.mvpCount)},
+  ];
+}
+
+function roleOrdered(result: IntelligenceExportResult, role: Role): RoleStats[] {
+  return result.roles.filter(player=>player.role===role)
+    .sort((a,b)=>metric(role,b)-metric(role,a)||b.matches-a.matches||a.name.localeCompare(b.name,"fr"));
+}
+
+function RolePlayer({player,rank}:{player:RoleStats;rank:number}) {
+  const extras=roleExtraMetrics(player);
+  return <div style={{display:"flex",flexDirection:"column",width:751,height:151,flexShrink:0,
+    backgroundColor:"#07182A",border:"1px solid "+BORDER,borderRadius:15,
+    padding:"12px 14px",overflow:"hidden"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,height:28}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+        <span style={{color:CYAN,fontSize:18,fontWeight:900,width:32}}>{String(rank).padStart(2,"0")}</span>
+        <span style={{color:WHITE,fontSize:20,fontWeight:900,maxWidth:320,overflow:"hidden"}}>
+          {player.name}
+        </span>
+        <span style={{color:MUTED,fontSize:15,whiteSpace:"nowrap"}}>{player.matches} matchs</span>
+      </div>
+      <span style={{color:GOLD,fontSize:20,fontWeight:900,whiteSpace:"nowrap"}}>★ {fmt(player.rating)}</span>
+    </div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+      borderTop:"1px solid #204256",marginTop:10,paddingTop:9,height:26}}>
+      <span style={{color:CYAN,fontSize:16,fontWeight:800}}>{metricLabel(player.role)}</span>
+      <span style={{color:WHITE,fontSize:23,fontWeight:900}}>{fmt(metric(player.role,player))}</span>
+    </div>
+    <div style={{display:"flex",gap:5,marginTop:9,height:43}}>
+      {extras.map((detail,index)=><div key={index} style={{display:"flex",flexDirection:"column",
+        width:177,backgroundColor:"#102A3C",borderRadius:8,padding:"4px 7px"}}>
+        <span style={{color:MUTED,fontSize:12,whiteSpace:"nowrap"}}>{detail.label}</span>
+        <span style={{color:WHITE,fontWeight:800,fontSize:16}}>{detail.value}</span>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function rolePanelHeight(players:number):number {
+  return 118+Math.max(1,Math.ceil(players/2))*164;
+}
+
+function RoleContent({result,height}:{result:IntelligenceExportResult;height:number}) {
+  const roleList = (["goalkeeper","defender","midfielder","forward"] as Role[])
+    .filter(role=>result.options.role==="all"||role===result.options.role);
+  return <div style={{display:"flex",flexDirection:"column",gap:16,width:"100%",height}}>
+    {roleList.map(role=>{
+      const players=roleOrdered(result,role);
+      const games=players.reduce((sum,player)=>sum+player.matches,0);
+      const weighted=players.reduce((sum,player)=>sum+player.rating*player.matches,0);
+      const rows=Array.from({length:Math.ceil(players.length/2)},(_,i)=>players.slice(i*2,i*2+2));
+      return <div key={role} style={{display:"flex",flexDirection:"column",flexShrink:0,
+        width:1556,height:rolePanelHeight(players.length),padding:18,backgroundColor:PANEL,
+        border:"2px solid "+BORDER,borderRadius:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:20,height:48}}>
+          <span style={{color:GOLD,fontWeight:900,fontSize:27}}>{ROLE_NAMES[role].toUpperCase()}</span>
+          <div style={{display:"flex",alignItems:"center",gap:25,color:MUTED,fontSize:17}}>
+            <span>{players.length} profil{players.length>1?"s":""}</span>
+            <span>{games} apparitions</span>
+            <span>Note moyenne : <span style={{color:WHITE,fontWeight:900}}>{games?fmt(weighted/games):"—"}</span></span>
+            <span style={{color:CYAN,fontWeight:800}}>{metricLabel(role)}</span>
+          </div>
         </div>
-        {list.length ? list.slice(0,3).map((p,i) => <Line key={p.key}>
-          <span style={{ color: WHITE, fontSize: 18, fontWeight: 750 }}>{i+1}. {p.name.slice(0, 14)}</span>
-          <span style={{ color: MUTED, fontSize: 14 }}>{p.matches} m.</span>
-          <span style={{ color: CYAN, fontSize: 19, fontWeight: 900 }}>{fmt(metric(role,p))}</span>
-        </Line>) : <Empty>Aucune donnée suffisante pour ce poste.</Empty>}
-      </Panel>;
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:12}}>
+          {rows.length ? rows.map((row,index)=><div key={index} style={{display:"flex",gap:14,height:151}}>
+            {row.map((player,column)=><RolePlayer key={player.key+"-"+role}
+              player={player} rank={index*2+column+1}/>)}
+          </div>):<div style={{display:"flex",height:151,alignItems:"center",
+            justifyContent:"center",color:MUTED,fontSize:22}}>
+            Aucun joueur ne correspond aux critères de ce poste.
+          </div>}
+        </div>
+      </div>;
     })}
   </div>;
 }
@@ -160,7 +239,13 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
   // Hauteur adaptative : tous les joueurs restent lisibles dans un seul PNG,
   // quel que soit le nombre de profils actifs ou la présence de joueurs en sommeil.
   const formPanelHeight = Math.max(398, 86 + formRows * 60);
-  const posterHeight = options.kind==="form" ? Math.max(900, formPanelHeight + 480) : 900;
+  const activeRoles = (["goalkeeper","defender","midfielder","forward"] as Role[])
+    .filter(role=>options.role==="all"||role===options.role);
+  const rolePanelTotalHeight = activeRoles.reduce((total,role)=>
+    total+rolePanelHeight(result.roles.filter(player=>player.role===role).length),0)
+    + Math.max(0,activeRoles.length-1)*16;
+  const posterHeight = options.kind==="form" ? Math.max(900,formPanelHeight+480)
+    : options.kind==="roles" ? Math.max(900,rolePanelTotalHeight+480) : 900;
   const draw = async (activeLogo: string | null) => {
   const image = new ImageResponse(
     <div style={{ display:"flex", flexDirection:"column",width:1600,height:posterHeight,position:"relative",
@@ -190,7 +275,7 @@ export async function renderIntelligenceExport(roster: AtyomRoster, result: Inte
       </div>
       <div style={{display:"flex",marginTop:14}}>
         {options.kind==="form"? <FormContent result={result} height={formPanelHeight}/> :
-          options.kind==="roles"?<RoleContent result={result}/>:<PairContent result={result}/>}
+          options.kind==="roles"?<RoleContent result={result} height={rolePanelTotalHeight}/>:<PairContent result={result}/>}
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,color:MUTED,fontSize:16}}>
         <span>{report.truncated ? "Historique limité aux 250 matchs les plus récents • " : ""}Statistiques EA corrigées par le staff • {options.kind==="pairs"?"Minimum "+options.pairMinimum+" matchs communs":"Échantillons "+(options.minSamples?"suffisants":"libres")}</span>
