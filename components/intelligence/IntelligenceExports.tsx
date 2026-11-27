@@ -165,6 +165,7 @@ export function IntelligenceExports({
         </label>}
       </div>
       {kind==="form"&&<p className="text-xs text-cyan-200">Export complet : tous les joueurs disposant de matchs EA sur la période, y compris les formes stables et les données insuffisantes.</p>}
+      {kind==="roles"&&<p className="text-xs text-cyan-200">Export complet par poste : tous les profils correspondant aux filtres sont affichés, avec la note, les matchs, l'indicateur principal et les quatre statistiques détaillées du site. Le calcul EA nécessite au moins 3 matchs au poste ; coche « Échantillons suffisants » pour limiter aux profils ayant au moins 5 matchs.</p>}
       <div className="flex flex-wrap items-center gap-4">
         {kind==="roles"&&<label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
           <input type="checkbox" checked={minSamples} onChange={e=>setMinSamples(e.target.checked)} className="accent-yellow-400"/> Échantillons suffisants
